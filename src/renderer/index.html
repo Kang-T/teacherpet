@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+<title>티처펫</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<div id="bubbles"></div>
+
+<!-- 타이머 알약 (화면 오른쪽 아래) -->
+<div id="timerPill" class="ui hidden" title="클릭하면 타이머 설정">
+  <span id="timerKind">수업</span> <span id="timerLeft">40:00</span>
+</div>
+
+<!-- 메뉴 패널 -->
+<div id="panel" class="ui hidden">
+  <div class="tabs">
+    <button data-tab="pets" class="active">펫</button>
+    <button data-tab="timer">타이머</button>
+    <button data-tab="pick">뽑기</button>
+    <button data-tab="todo">할 일</button>
+    <button data-tab="settings">설정</button>
+    <button id="closePanel" class="close" title="닫기">✕</button>
+  </div>
+
+  <section data-tab="pets" class="tab active">
+    <div id="petList"></div>
+    <div id="adoptBox">
+      <div class="row">
+        <span class="label">새 친구 입양</span>
+        <div id="adoptButtons">
+          <button data-species="chick">🐥 병아리</button>
+          <button data-species="hamster">🐹 햄스터</button>
+          <button data-species="turtle">🐢 거북이</button>
+          <button data-species="rabbit">🐰 토끼</button>
+        </div>
+      </div>
+      <p class="hint">알에서 시작해요. 먹이를 3번 주면 부화하고, 매일 돌보면 어른이 돼요. (최대 3마리)</p>
+    </div>
+  </section>
+
+  <section data-tab="timer" class="tab">
+    <div class="timerBig" id="timerBig">--:--</div>
+    <div class="row">
+      <button id="btnClass" class="primary">▶ 수업 시작</button>
+      <button id="btnBreak">☕ 쉬는 시간</button>
+      <button id="btnStop">■ 정지</button>
+    </div>
+    <div class="row">
+      <label>수업 <input type="number" id="classMin" min="1" max="180"> 분</label>
+      <label>쉬는 시간 <input type="number" id="breakMin" min="1" max="60"> 분</label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="autoBreak"> 수업이 끝나면 쉬는 시간 자동 시작</label>
+    </div>
+    <p class="hint">수업 중엔 펫이 조용히 앉아 있고, 쉬는 시간이 되면 신나게 뛰어요. 학생들이 펫만 봐도 시간을 알 수 있어요.</p>
+  </section>
+
+  <section data-tab="pick" class="tab">
+    <div class="row">
+      <textarea id="names" placeholder="이름을 한 줄에 하나씩 적어 주세요&#10;예)&#10;김하늘&#10;이바다"></textarea>
+    </div>
+    <div class="row">
+      <label><input type="number" id="pickCount" min="1" max="10" value="1"> 명 뽑기</label>
+      <label><input type="checkbox" id="pickExclude" checked> 뽑힌 사람은 제외</label>
+      <button id="btnPick" class="primary">🎲 뽑기</button>
+      <button id="btnPickReset">초기화</button>
+    </div>
+    <div id="pickResult" class="pickResult"></div>
+    <p class="hint" id="pickInfo"></p>
+  </section>
+
+  <section data-tab="todo" class="tab">
+    <div class="row">
+      <input type="text" id="todoInput" placeholder="오늘 할 일을 적고 Enter">
+      <button id="btnTodoAdd">추가</button>
+    </div>
+    <ul id="todoList"></ul>
+  </section>
+
+  <section data-tab="settings" class="tab">
+    <div class="row">
+      <span class="label">펫 크기</span>
+      <button data-size="3">작게</button>
+      <button data-size="4">보통</button>
+      <button data-size="6">크게 (전자칠판)</button>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="soundOn"> 타이머 끝날 때 소리</label>
+      <label><input type="checkbox" id="autostart"> 컴퓨터 켤 때 자동 실행</label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="chatterOn"> 펫이 가끔 말 걸기 (물 마시기·스트레칭 알림)</label>
+    </div>
+    <div class="help">
+      <b>티처펫은 이렇게 써요</b>
+      <ul>
+        <li>펫을 <b>클릭</b>하면 쓰다듬기, <b>더블클릭</b>하면 이 메뉴, <b>드래그</b>하면 옮기기.</li>
+        <li>알 → 아기 → 어른. 먹이는 30분에 한 번만 먹어요. 하루에 조금씩, 꾸준히 돌보는 게 비결이에요.</li>
+        <li>학급에서 함께 키우면 "책임감"과 "기다림"을 자연스럽게 배워요. 이름은 아이들과 정해 보세요.</li>
+        <li>전자칠판에서는 크기를 "크게"로. 아이들이 터치해도 반응해요.</li>
+      </ul>
+    </div>
+    <div class="row">
+      <button id="btnQuit" class="danger">티처펫 종료</button>
+      <span class="version" id="version"></span>
+    </div>
+  </section>
+</div>
+
+<script src="sprites.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

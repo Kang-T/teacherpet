@@ -1,0 +1,80 @@
+{
+  "name": "teacherpet",
+  "productName": "티처펫",
+  "version": "0.1.0",
+  "description": "선생님 바탕화면에서 함께 자라는 작은 친구 — 교사용 데스크톱 펫",
+  "main": "src/main.js",
+  "author": "Kang-T",
+  "license": "MIT",
+  "homepage": "https://github.com/Kang-T/teacherpet",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kang-T/teacherpet.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "icon": "node scripts/make-icon.js",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "release": "electron-builder --publish always"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "kr.teacherpet.app",
+    "productName": "티처펫",
+    "artifactName": "TeacherPet-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "티처펫",
+      "installerLanguages": [
+        "ko_KR"
+      ],
+      "language": "1042"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.education"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Kang-T",
+      "repo": "teacherpet",
+      "releaseType": "release"
+    }
+  }
+}

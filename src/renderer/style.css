@@ -1,0 +1,98 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; width: 100%; height: 100%;
+  background: transparent; overflow: hidden;
+  font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  font-size: 14px; color: #2B1B0E; user-select: none;
+}
+#stage { position: absolute; inset: 0; display: block; }
+.hidden { display: none !important; }
+
+/* 말풍선 */
+#bubbles { position: absolute; inset: 0; pointer-events: none; }
+.bubble {
+  position: absolute; transform: translate(-50%, -100%);
+  background: #FFFDF5; border: 2px solid #2B1B0E; border-radius: 12px;
+  padding: 6px 10px; font-size: 13px; white-space: nowrap; max-width: 260px;
+  box-shadow: 2px 2px 0 #2B1B0E; pointer-events: none;
+}
+.bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -8px; margin-left: -6px;
+  border: 6px solid transparent; border-top-color: #2B1B0E; border-bottom: 0;
+}
+.bubble.big { font-size: 20px; padding: 10px 16px; }
+
+/* 타이머 알약 */
+#timerPill {
+  position: absolute; right: 16px; bottom: 16px;
+  background: #2B1B0E; color: #FFF; border-radius: 999px;
+  padding: 8px 16px; font-size: 16px; font-weight: bold; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+}
+#timerPill.break { background: #2E9E63; }
+#timerPill.class { background: #D9534F; }
+#timerPill.ending { animation: blink .6s steps(2) infinite; }
+@keyframes blink { to { opacity: .4; } }
+
+/* 메뉴 패널 */
+#panel {
+  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
+  width: 420px; max-height: 70vh; display: flex; flex-direction: column;
+  background: #FFFDF5; border: 3px solid #2B1B0E; border-radius: 16px;
+  box-shadow: 4px 4px 0 #2B1B0E; overflow: hidden;
+}
+.tabs { display: flex; background: #FFE9A8; border-bottom: 3px solid #2B1B0E; }
+.tabs button {
+  flex: 1; border: 0; background: transparent; padding: 10px 4px; font: inherit;
+  font-weight: bold; cursor: pointer; color: #6B5B3E; box-shadow: none; border-radius: 0;
+}
+.tabs button.active { background: #FFFDF5; color: #2B1B0E; }
+.tabs button.close { flex: 0 0 40px; }
+.tab { display: none; padding: 14px; overflow: auto; }
+.tab.active { display: block; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.label { font-weight: bold; margin-right: 4px; }
+.hint { color: #7A6A4F; font-size: 12px; margin: 6px 0 0; line-height: 1.5; }
+button {
+  font: inherit; border: 2px solid #2B1B0E; background: #FFF; border-radius: 10px;
+  padding: 6px 12px; cursor: pointer; box-shadow: 2px 2px 0 #2B1B0E;
+}
+button:active { transform: translate(2px, 2px); box-shadow: none; }
+button.primary { background: #FFD93D; }
+button.danger { background: #FFB4A8; }
+button.small { padding: 3px 8px; font-size: 12px; box-shadow: 1px 1px 0 #2B1B0E; }
+input[type=number], input[type=text], textarea {
+  font: inherit; border: 2px solid #2B1B0E; border-radius: 8px; padding: 6px 8px; background: #FFF;
+}
+input[type=number] { width: 64px; }
+input[type=text] { flex: 1; }
+textarea { width: 100%; height: 120px; resize: vertical; }
+label { display: inline-flex; align-items: center; gap: 4px; }
+
+/* 펫 카드 */
+.petCard {
+  border: 2px solid #2B1B0E; border-radius: 12px; padding: 10px; margin-bottom: 8px; background: #FFF;
+}
+.petCard.selected { background: #FFF6CC; }
+.petCard .head { display: flex; align-items: center; gap: 8px; }
+.petCard .name { font-weight: bold; font-size: 15px; }
+.petCard .stage { font-size: 12px; color: #7A6A4F; }
+.bar { height: 10px; background: #EEE6D6; border: 1px solid #2B1B0E; border-radius: 6px; overflow: hidden; flex: 1; }
+.bar > i { display: block; height: 100%; background: #FFB347; }
+.bar.happy > i { background: #FF8AA8; }
+.bar.exp > i { background: #7EC8E3; }
+.stat { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px; }
+.stat b { width: 44px; }
+.petCard .actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+#adoptButtons { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.timerBig { font-size: 48px; font-weight: bold; text-align: center; letter-spacing: 2px; margin: 4px 0 8px; font-variant-numeric: tabular-nums; }
+.pickResult { min-height: 48px; font-size: 28px; font-weight: bold; text-align: center; padding: 10px; border-radius: 12px; background: #FFF6CC; margin-top: 8px; }
+#todoList { list-style: none; padding: 0; margin: 8px 0 0; }
+#todoList li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed #D9CFB8; }
+#todoList li.done span { text-decoration: line-through; color: #A09070; }
+#todoList li span { flex: 1; }
+.help { background: #FFF6CC; border-radius: 10px; padding: 10px 12px; font-size: 12px; line-height: 1.6; margin: 8px 0; }
+.help ul { margin: 4px 0 0; padding-left: 18px; }
+.version { font-size: 12px; color: #7A6A4F; margin-left: auto; }
+.tabs button:active { transform: none; }
