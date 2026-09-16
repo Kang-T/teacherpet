@@ -66,6 +66,7 @@
     tidbit:      { pose: 'tidbit', priority: 3, stationary: 1 },   // 먹이 부르기
     huddle:      { pose: 'huddle', priority: 2, stationary: 1 },   // 병아리 뭉치기
     gohuddle:    { pose: 'walk',   moving: 1, goal: 1, priority: 2 },
+    gopeek:      { pose: 'walk',   moving: 1, goal: 1, priority: 2 },
     spar:        { pose: 'happy',  priority: 3, playing: 1 },      // 겨루기
     // --- 알 ---
     egg:         { pose: 'egg',    priority: 0, stationary: 1 },

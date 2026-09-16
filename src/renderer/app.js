@@ -260,6 +260,11 @@
     // 무리에서 멀어지면 불안해져서 돌아간다
     if (fc !== null && strayed > 7) add('regroup', (strayed - 7) / 6 * 1.8 * T.sociable, () => { goTo(b, fc + rand(-1.5, 1.5), 'walk'); showIcon(b, '👀', 1400); });
     add('preen', 0.16 * T.tidy, () => setAnim(b, 'preen', rand(2.5, 4.5)));
+    // "저게 뭐지?" — 멀리서 커서가 얼쩡거리면 겁내면서도 조금씩 다가가 목을 빼고 본다
+    if (mode !== 'class' && lure.active > 0.3 && now() - lure.at < 3000 && d.stress < 55) {
+      const far = Math.abs(lure.x - b.x);
+      if (far > 2.5 && far < 30) add('peek', lure.active * 3.2 * T.curiosity * (0.5 + T.bold * 0.5), () => peek(b));
+    }
     if (d.stage === 'chick' && warmSpot() && mode !== 'class') { const ws = warmSpot(); add('warm', (Math.abs(b.x - ws.x) > 1.6 ? 0.55 : 0.1) * (1 + M.sleepy), () => goTo(b, ws.x + rand(-0.9, 0.9), 'golamp')); }
     // 수탉: 지붕에 올라가 울기
     if (isAdult(b) && propVisible('coop') && mode !== 'class' && !b.onRoof) {
@@ -365,6 +370,15 @@
     }
     b.dustCrowd = joined;
   }
+  // 조심스러운 접근: 조금 다가가 → 멈춰 목을 빼고 본다 → 또 조금. 겁쟁이는 더 자주 멈춘다.
+  function peek(b) {
+    const T = trait(b);
+    const step = rand(1.6, 3.2) / Math.max(0.6, T.flee);
+    const dir = Math.sign(lure.x - b.x) || 1;
+    b.peekLeft = (b.peekLeft || 0) > 0 ? b.peekLeft - 1 : Math.round(rand(2, 4));
+    b.curious = true;
+    goTo(b, b.x + dir * Math.min(step, Math.abs(lure.x - b.x) - 1.5), 'gopeek');
+  }
   function frolic(b) {
     b.targetX = null; b.inCoop = false; setVisible(b, true);
     b.frolicT = rand(1.2, 2.6); b.dir = Math.random() < 0.5 ? 1 : -1;
@@ -439,6 +453,14 @@
       }
     }
     return n;
+  }
+  // 커서가 멀리서 계속 얼쩡거리면 호기심이 쌓인다 (겁은 나지만 보고 싶은 상태)
+  let lure = { x: 0, active: 0, at: 0 };
+  function trackLure(x, y, speed) {
+    if (speed < 90 || speed > 2200) { lure.active = Math.max(0, lure.active - 0.012); return; }
+    const gp = world.screenToGround(x, y); if (!gp) return;
+    lure.x = gp.x; lure.at = now();
+    lure.active = Math.min(1, lure.active + 0.06);
   }
   // 커서가 닭 근처에서 갑자기 빠르게 움직이면 놀란다
   function checkCursorScare(x, y, vx, vy) {
@@ -609,12 +631,22 @@
     }
     if (b.anim === 'fall') return;
     // 겹침 방지: 가까운 닭끼리 서로 살짝 밀어낸다 (알·품는 닭 제외)
-    if (b.d.stage !== 'egg' && !b.d.brooding && !b.inCoop && !b.onRoof && !b.leap) {
+    // 겹침: 느긋하게 있을 때만 서로 밀어낸다. 달리거나 도망칠 때는 그냥 스쳐 지나간다.
+    const FAST = b.anim === 'chase' || b.frolicking || b.fleeing || b.anim === 'panic' || b.anim === 'spar';
+    if (b.d.stage !== 'egg' && !b.d.brooding && !b.inCoop && !b.onRoof && !b.leap && !FAST) {
       for (const o of birds) {
         if (o === b || o.d.stage === 'egg' || o.inCoop || o.carrying || o.onRoof) continue;
+        if (o.anim === 'chase' || o.frolicking || o.fleeing || o.anim === 'panic') continue;   // 달려오는 놈은 통과시킨다
         const dx = b.x - o.x, dz = b.z - o.z, minD = 0.55 * (height(b) + height(o)) * 0.55;
         const dist = Math.hypot(dx, dz * 1.6);
-        if (dist < minD && dist > 0.001) { const push = (minD - dist) * dt * 2.2; b.x += (dx / dist) * push; b.z = clamp(b.z + (dz / dist) * push * 0.6, -1.8, 1.8); }
+        if (dist < minD && dist > 0.001) {
+          // 서열이 낮은 쪽이 더 많이 밀린다
+          const mine = rank(b), theirs = rank(o);
+          const share = mine > theirs ? 0.35 : mine < theirs ? 1.5 : 1;
+          const push = (minD - dist) * dt * 2.2 * share;
+          b.x += (dx / dist) * push;
+          b.z = clamp(b.z + (dz / dist) * push * 0.6, -1.8, 1.8);
+        }
       }
       b.x = clamp(b.x, world.xMin + XMARGIN, world.xMax - XMARGIN);
     }
@@ -675,6 +707,15 @@
         else if (b.anim === 'gowater') { b.goal = 'drink'; setAnim(b, 'drink', 2.5); }
         else if (b.anim === 'gocoop') { b.inCoop = true; setVisible(b, false); setAnim(b, 'sleep', rand(15, 30)); showIcon(b, '💤', 3000); }
         else if (b.anim === 'gonest') setAnim(b, 'brood', rand(8, 20));
+        else if (b.anim === 'gopeek') {
+          setAnim(b, 'alert', rand(1.2, 2.4));                 // 멈춰 서서 목을 빼고 본다
+          showIcon(b, '❓', 1400);
+          later(b, 1600, () => {
+            if (b.anim !== 'alert') return;
+            if ((b.peekLeft || 0) > 0 && lure.active > 0.3 && now() - lure.at < 3000 && Math.abs(lure.x - b.x) > 2) peek(b);
+            else { b.peekLeft = 0; decide(b); }
+          });
+        }
         else if (b.anim === 'gohuddle') { setAnim(b, 'huddle', rand(4, 9)); b.d.stress = clamp(b.d.stress - 12, 0, 100); b.d.social = clamp(b.d.social - 25, 0, 100); }
         else if (b.anim === 'godust') { b.z = clamp(home().dustpit.z + rand(-0.5, 0.5), -2.2, 2.2); startDustBath(b); }
         else if (b.anim === 'panic') { setAnim(b, 'flap', 1.2); }
@@ -936,7 +977,9 @@
       setIgnore(false); return;
     }
     const dtm = Math.max(16, now() - (mouse.movedAt || now()));
-    checkCursorScare(e.clientX, e.clientY, (e.clientX - mouse.x) / dtm * 1000, (e.clientY - mouse.y) / dtm * 1000);
+    const mvx = (e.clientX - mouse.x) / dtm * 1000, mvy = (e.clientY - mouse.y) / dtm * 1000;
+    checkCursorScare(e.clientX, e.clientY, mvx, mvy);
+    trackLure(e.clientX, e.clientY, Math.hypot(mvx, mvy));
     mouse = { x: e.clientX, y: e.clientY, movedAt: now() };
     const hit = visible ? world.pick(e.clientX, e.clientY) : null;
     const b = hit && hit.type === 'bird' ? birds.find((q) => q.d.id === hit.id) : null;
