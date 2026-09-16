@@ -58,7 +58,7 @@
     const bx = (d) => (left ? world.xMin + d : world.xMax - d);
     const def = {
       coop: { x: bx(3.0), z: -2.4 }, nest: { x: bx(7.0), z: -0.9 }, feeder: { x: bx(9.8), z: 0.5 },
-      waterer: { x: bx(12.2), z: -0.5 }, basket: { x: bx(14.6), z: 0.7 }, wormbucket: { x: bx(16.8), z: 0.2 }, lamp: { x: bx(5.2), z: 1.0 },
+      waterer: { x: bx(12.2), z: -0.5 }, basket: { x: bx(14.6), z: 0.7 }, wormbucket: { x: bx(16.8), z: 0.2 }, lamp: { x: bx(19.0), z: 0.3 },
     };
     const pos = state.settings.propPos || {}, hid = state.settings.propHidden || {};
     const out = { flip: !left };
