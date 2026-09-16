@@ -151,6 +151,25 @@
       return { group, update, land() {}, state: st };
     }
 
+    // 배설물 — 일반 똥(흰 모자 있음) / 맹장 똥(흐물, 흰 모자 없음, 냄새 지독)
+    function makePoop(cecal, scale) {
+      const g = new THREE.Group();
+      const sc = scale || 1;
+      if (cecal) {
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), hard(0x7A5A32, { roughness: 1 }));
+        body.scale.set(1.5, 0.45, 1.1); body.position.y = 0.08; body.castShadow = true; g.add(body);
+        const blob = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 9), hard(0x8B6A3A, { roughness: 1 }));
+        blob.scale.set(1.2, 0.5, 1); blob.position.set(0.12, 0.13, 0.05); g.add(blob);
+      } else {
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), hard(0x6E5535, { roughness: 1 }));
+        body.scale.set(1, 0.85, 1); body.position.y = 0.12; body.castShadow = true; g.add(body);
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 9), hard(0xF2EFE4, { roughness: 1 }));
+        cap.scale.set(1, 0.7, 1); cap.position.y = 0.22; g.add(cap);
+      }
+      g.scale.setScalar(sc);
+      scene.add(g);
+      return g;
+    }
     // 먼지 구름 (모래 목욕·착지)
     const puffs = [];
     const puffGeo = new THREE.SphereGeometry(0.18, 8, 6);
@@ -378,21 +397,29 @@
       }
     }
 
+    // 추가로 집을 수 있는 오브젝트(배설물 등)를 등록해 두면 함께 판정한다
+    const extras = new Map();     // mesh(Group) → { type, id }
+    function addPickable(obj, info) { extras.set(obj, info); }
+    function removePickable(obj) { extras.delete(obj); }
     function pick(px, py) {
       ndc.set((px / world.W) * 2 - 1, -(py / world.H) * 2 + 1); ray.setFromCamera(ndc, camera);
       const meshes = []; for (const b of world.birds.values()) if (b.holder.visible) meshes.push(...b.meshes);
       const birdHits = ray.intersectObjects(meshes, false);
       const propObjs = Object.values(world.props).filter((o) => o.visible);
       const propHits = propObjs.length ? ray.intersectObjects(propObjs, true) : [];
-      const bh = birdHits[0], ph = propHits[0];
-      if (bh && (!ph || bh.distance <= ph.distance)) return { type: 'bird', id: bh.object.userData.birdId };
-      if (ph) { let o = ph.object; while (o && !o.userData.propName) o = o.parent; return o ? { type: 'prop', name: o.userData.propName } : null; }
-      return null;
+      const exObjs = Array.from(extras.keys());
+      const exHits = exObjs.length ? ray.intersectObjects(exObjs, true) : [];
+      const cands = [];
+      if (birdHits[0]) cands.push({ d: birdHits[0].distance, v: { type: 'bird', id: birdHits[0].object.userData.birdId } });
+      if (propHits[0]) { let o = propHits[0].object; while (o && !o.userData.propName) o = o.parent; if (o) cands.push({ d: propHits[0].distance, v: { type: 'prop', name: o.userData.propName } }); }
+      if (exHits[0]) { let o = exHits[0].object; while (o && !extras.has(o)) o = o.parent; if (o) cands.push({ d: exHits[0].distance - 0.4, v: extras.get(o) }); }
+      cands.sort((a, b2) => a.d - b2.d);
+      return cands.length ? cands[0].v : null;
     }
     let lastRender = performance.now();
     function render() { const t = performance.now(); const d = Math.min(0.1, (t - lastRender) / 1000); tickPuffs(d); tickSparks(d); lastRender = t; tickShells(); renderer.render(scene, camera); }
 
-    Object.assign(world, { makeWorm, setWormCount, addShells, puff, sparkle, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
+    Object.assign(world, { makeWorm, setWormCount, addShells, puff, sparkle, makePoop, addPickable, removePickable, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
     return world;
   }
   global.TP_WORLD = { create, STAGE_PRESET, COOP_ROOF_Y: 3.35 };

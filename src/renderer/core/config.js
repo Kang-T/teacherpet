@@ -34,11 +34,17 @@
       dustpit: '모래밭 — 여기서 모래 목욕을 해요 (깃털이 깨끗해져요)',
     },
     // 병아리 보온: 필요 온도 = 35 − 2.8 × (병아리 돌본 날)  (기획서 4-2)
-    BROOD: { startC: 35, dropPerDay: 2.8, tolerance: 2, minC: 21 },
+    BROOD: { startC: 35, dropPerDay: 1.2, tolerance: 2, minC: 21 },   // 실제 '주당 2.8℃'를 돌본 날(=3일) 단위로 환산
+    // 사료 3단계: 단계에 맞는 사료를 줘야 잘 자란다
+    FEED: {
+      starter: { name: '스타터', protein: '18~20%', ok: ['chick'], desc: '0~6주. 단백질이 높아요' },
+      grower:  { name: '그로워', protein: '15~18%', ok: ['young'], desc: '6~20주. 성장기용' },
+      layer:   { name: '레이어', protein: '16~18% + 칼슘 3~4%', ok: ['hen', 'rooster'], desc: '산란기용. 칼슘이 많아요' },
+    },
     // 청결: 깃털이 더러워지는 속도와 회복량
     CLEAN: { decayPerHour: 4, dustBathGain: 55, preenGain: 7, dullBelow: 40 },
     // 위생: 암모니아 임계 (기획서 4-4)
-    HYGIENE: { poopPerBirdPerDay: 2.5, cecalRatio: 0.12, smellPpm: 15, penaltyPpm: 25, ppmPerPoopHour: 0.9 },
+    HYGIENE: { poopPerBirdPerDay: 2.5, cecalRatio: 0.12, smellPpm: 15, penaltyPpm: 25, ppmPerPoopHour: 0.18, ventPerHour: 0.6, beddingDays: 7 },
     // 이별 방식
     LIFE_END: { retire: '농장으로 떠나요', natural: '자연으로 돌아가요', safe: '떠나지 않아요 (안심 모드)' },
     prices: null,   // prices.json 로드 후 채워짐

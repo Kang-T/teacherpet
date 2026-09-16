@@ -15,8 +15,9 @@
       poops: [],                        // { id, x, z, cecal, born }
       ammonia: 0,                       // ppm
       inventory: { grit: 0 },
+      feedType: 'starter',            // 모이통에 넣은 사료 종류
       equipment: { lamp: null, vacuum: false, autofeeder: false },
-      lampPower: 0.6,                   // 보온등 출력 0~1
+      lampPower: 1,                     // 보온등 출력 0~1 (1주차 35℃로 시작해 자라면 낮춘다)
       freezes: C.RULE.careFreezePerTerm,
       settings: {
         size: 4, sound: true, classMin: 40, breakMin: 10, autoBreak: true,
@@ -58,9 +59,9 @@
         return d;
       });
       s.bedding = 100; s.poops = []; s.ammonia = 0;
-      s.inventory = { grit: 0 };
+      s.inventory = { grit: 0 }; s.feedType = 'starter';
       s.equipment = { lamp: null, vacuum: false, autofeeder: false };
-      s.lampPower = 0.6;
+      s.lampPower = 1;
       s.freezes = C.RULE.careFreezePerTerm;
       s.settings = Object.assign({ pauseWeekends: true, quiet: false, propPos: {}, propHidden: {} }, s.settings || {});
       delete s.lastAttend;                         // 쓰기만 하고 읽지 않던 필드

@@ -6,7 +6,8 @@
       body: 0xFFE352, belly: 0xFFF5C4, beak: 0xFF9438, leg: 0xF7A23A, cheek: 0xFF9DB0, eye: 0x1E1410,
       scale: 1, comb: 0, tail: 0, wattle: 0, // 어린닭·암탉·수탉용 부품 크기 (0이면 없음)
     }, opts);
-    const dullMats = [];
+    const dullMats = [], combMats = [];
+    function registerComb(m) { m.userData.base = m.color.clone(); combMats.push(m); return m; }
     function registerDull(m) { m.userData.base = m.color.clone(); dullMats.push(m); return m; }
     const mat = (color, extra = {}) => registerDull(new THREE.MeshPhysicalMaterial(Object.assign({ color, roughness: 0.9, metalness: 0, sheen: 0.8, sheenRoughness: 0.7, sheenColor: new THREE.Color(color).lerp(new THREE.Color(0xFFFFFF), 0.5) }, extra)));
     const hard = (color, extra = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.5, metalness: 0 }, extra));
@@ -73,13 +74,13 @@
       const n = 4;
       for (let i = 0; i < n; i++) {
         const k = 1 - Math.abs(i - (n - 1) / 2) / n; // 가운데가 크게
-        const c = new THREE.Mesh(S(0.19 * P.comb * (0.7 + k * 0.6)), hard(0xE8323C, { roughness: 0.55 }));
+        const c = new THREE.Mesh(S(0.19 * P.comb * (0.7 + k * 0.6)), registerComb(hard(0xE8323C, { roughness: 0.55 })));
         c.scale.set(0.55, 1.25, 0.9); c.position.set(0, 1.45 + k * 0.12 * P.comb, 0.42 - i * 0.26); c.rotation.z = (i - (n - 1) / 2) * 0.12; head.add(c);
       }
     } else {
       for (let i = 0; i < 3; i++) { const t = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 12), mat(0xF2C230)); t.position.set((i - 1) * 0.1, 1.62, -0.05 + (i - 1) * 0.05); t.rotation.z = (i - 1) * 0.35; t.rotation.x = -0.2; head.add(t); }
     }
-    if (P.wattle) { const w = new THREE.Mesh(S(0.13 * P.wattle), hard(0xE8323C, { roughness: 0.55 })); w.scale.set(0.6, 1.2, 0.6); w.position.set(0, 0.2, 0.95); head.add(w); }
+    if (P.wattle) { const w = new THREE.Mesh(S(0.13 * P.wattle), registerComb(hard(0xE8323C, { roughness: 0.55 }))); w.scale.set(0.6, 1.2, 0.6); w.position.set(0, 0.2, 0.95); head.add(w); }
     // 다리·발
     const legs = [];
     for (const side of [-1, 1]) {
@@ -177,7 +178,9 @@
 
       // 숨쉬기
       const br = Math.sin(st.t * 2.4) * 0.018;
-      let sy = 1 + br, sx = 1 - br * 0.5;
+      // 아프면 깃털을 부풀려 몸이 커 보인다
+      st.ill = lerp(st.ill || 0, ctl.sick ? 1 : 0, 1 - Math.exp(-dt * 2.5));
+      let sy = (1 + br) * (1 + st.ill * 0.05), sx = (1 - br * 0.5) * (1 + st.ill * 0.1);
       // 착지 찌그러짐 (스프링)
       st.squashV += (-st.squash * 140 - st.squashV * 14) * dt; st.squash += st.squashV * dt;
       sy *= 1 - st.squash; sx *= 1 + st.squash * 0.7;
@@ -186,7 +189,7 @@
       const P = ctl.phase || 0;
       const lieTarget = (a === 'dustbath' && P >= 0.66 && P < 0.9) ? 1 : 0;
       st.roll = lerp(st.roll, lieTarget, 1 - Math.exp(-dt * 4));
-      const squat = a === 'brood' || a === 'sleep' || a === 'roost' || a === 'wail' || a === 'squat' || a === 'sunbathe' || a === 'crouch' || a === 'huddle'
+      const squat = a === 'brood' || a === 'sleep' || a === 'roost' || a === 'wail' || a === 'squat' || a === 'sunbathe' || a === 'crouch' || a === 'huddle' || a === 'sick'
         || (a === 'dustbath' && P >= 0.18 && P < 0.66);
       st.squat = lerp(st.squat || 0, squat ? 1 : 0, 1 - Math.exp(-dt * 5));
       if (a === 'sleep') { const b2 = Math.sin(st.t * 1.1) * 0.02; sy = 1 + b2; sx = 1 - b2 * 0.5; }
@@ -277,6 +280,10 @@
       if (a === 'tidbit') { const k = Math.max(0, Math.sin(st.t * 7)); targetPitch = 0.8 * k - 0.1; targetYaw = 0; bodyPivot.rotation.x = 0.45 * k; neckDown = k * 0.8; }
       // 병아리들이 서로 붙어 뭉친다
       if (a === 'huddle') { targetPitch = 0.12; targetRoll = Math.sin(st.t * 1.1) * 0.05; targetYaw = Math.sin(st.t * 0.7) * 0.15; }
+      // 아픔: 고개를 몸쪽으로 파묻고 거의 움직이지 않는다
+      if (a === 'sick') { targetPitch = 0.42 + Math.sin(st.t * 0.7) * 0.05; targetYaw = Math.sin(st.t * 0.35) * 0.1; targetRoll = 0; }
+      // 더위: 날개를 몸에서 떼고 부리를 벌려 헐떡인다
+      if (a === 'pant') { targetPitch = -0.05; targetYaw = Math.sin(st.t * 0.9) * 0.2; }
       if (a === 'ecstatic') { targetPitch = -0.45 + Math.sin(st.t * 12) * 0.15; targetRoll = Math.sin(st.t * 8) * 0.3; }
       if (a === 'wail') { targetPitch = 0.35 + Math.sin(st.t * 3) * 0.25; targetYaw = Math.sin(st.t * 2.2) * 0.6; targetRoll = Math.sin(st.t * 2.2) * 0.2; }
       if (a === 'stomp') { targetPitch = 0.1; targetYaw = Math.sin(st.t * 16) * 0.35; }
@@ -305,6 +312,8 @@
       if (a === 'alert' || a === 'guard') wing = 0.05;
       if (a === 'crouch') wing = 0.0;
       if (a === 'huddle') wing = 0.08;
+      if (a === 'sick') wing = 0.02;
+      if (a === 'pant') wing = 0.75;      // 날개를 벌려 열을 뺀다
       if (a === 'tidbit') wing = 0.2 + Math.max(0, Math.sin(st.t * 7)) * 0.25;
       if (a === 'squat') wing = 0.45;
       if (a === 'dustbath') {
@@ -333,6 +342,11 @@
         st.dull = dull;
         for (const m of dullMats) { m.color.copy(m.userData.base).lerp(new THREE.Color(0x8A7C66), dull * 0.45); m.sheen = 0.8 * (1 - dull * 0.8); }
       }
+      // 볏이 창백해진다 — 아픈 닭의 대표 신호
+      if (Math.abs((st.illShown || 0) - (st.ill || 0)) > 0.02) {
+        st.illShown = st.ill || 0;
+        for (const m of combMats) m.color.copy(m.userData.base).lerp(new THREE.Color(0xE8A9A2), st.illShown * 0.85);
+      }
       // 표정: 기분 → 눈꺼풀·눈썹·볼
       // 보통(-0.25~0.25)은 무표정. 그 밖에서만 표정이 나타나고, 커질수록 과장된다
       const v = mood.valence;
@@ -359,10 +373,10 @@
       st.blinkAt -= dt;
       if (st.blinkAt < 0) { st.blink = 0.14; st.blinkAt = 2 + Math.random() * 4; }
       st.blink = Math.max(0, st.blink - dt);
-      const closed = a === 'sleep' ? 0.08 : (a === 'sunbathe' || a === 'dustbath') ? 0.4 : st.blink > 0 ? 0.1 : 1;
+      const closed = a === 'sleep' ? 0.08 : a === 'sick' ? 0.18 : (a === 'sunbathe' || a === 'dustbath') ? 0.4 : st.blink > 0 ? 0.1 : 1;
       for (const e of eyes) e.scale.y = lerp(e.scale.y, closed, 1 - Math.exp(-dt * 25));
       // 부리 (울기·먹기)
-      const open = (a === 'crow' || a === 'eat') ? Math.max(0, Math.sin(st.t * (a === 'eat' ? 12 : 6))) * 0.5
+      const open = a === 'pant' ? 0.35 + Math.sin(st.t * 9) * 0.12 : (a === 'crow' || a === 'eat') ? Math.max(0, Math.sin(st.t * (a === 'eat' ? 12 : 6))) * 0.5
         : a === 'tidbit' ? Math.max(0, Math.sin(st.t * 7)) * 0.4 : a === 'alert' ? Math.max(0, Math.sin(st.t * 5)) * 0.25 : 0;
       st.beakOpen = lerp(st.beakOpen, open, 1 - Math.exp(-dt * 20));
       beakBot.rotation.x = Math.PI / 2 + st.beakOpen; beakTop.rotation.x = Math.PI / 2 - st.beakOpen * 0.3;

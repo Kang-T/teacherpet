@@ -65,6 +65,10 @@
     guard:       { pose: 'guard',  priority: 2, stationary: 1 },   // 수탉의 파수
     tidbit:      { pose: 'tidbit', priority: 3, stationary: 1 },   // 먹이 부르기
     huddle:      { pose: 'huddle', priority: 2, stationary: 1 },   // 병아리 뭉치기
+    sick:        { pose: 'sick',   priority: 3, stationary: 1 },   // 아픔 — 깃털 부풀리고 웅크림
+    pant:        { pose: 'pant',   priority: 2, stationary: 1 },   // 더위 — 헐떡임
+    gowarm:      { pose: 'walk',   moving: 1, goal: 1, priority: 3 },
+    gocool:      { pose: 'walk',   moving: 1, goal: 1, priority: 3 },
     gohuddle:    { pose: 'walk',   moving: 1, goal: 1, priority: 2 },
     gopeek:      { pose: 'walk',   moving: 1, goal: 1, priority: 2 },
     spar:        { pose: 'happy',  priority: 3, playing: 1 },      // 겨루기
