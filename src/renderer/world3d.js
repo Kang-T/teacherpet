@@ -151,6 +151,35 @@
       return { group, update, land() {}, state: st };
     }
 
+    // 먼지 구름 (모래 목욕·착지)
+    const puffs = [];
+    const puffGeo = new THREE.SphereGeometry(0.18, 8, 6);
+    function puff(x, z, n, spread, color) {
+      const g = new THREE.Group(); g.position.set(x, 0, z);
+      const mat = new THREE.MeshBasicMaterial({ color: color || 0xD9C9A8, transparent: true, opacity: 0.55, depthWrite: false });
+      for (let i = 0; i < n; i++) {
+        const m = new THREE.Mesh(puffGeo, mat.clone());
+        const a = Math.random() * Math.PI * 2, r = Math.random() * (spread || 0.6);
+        m.position.set(Math.cos(a) * r, 0.1 + Math.random() * 0.3, Math.sin(a) * r * 0.6);
+        m.userData.v = { x: Math.cos(a) * (0.5 + Math.random()), y: 0.6 + Math.random() * 1.1, z: Math.sin(a) * (0.3 + Math.random() * 0.6) };
+        m.scale.setScalar(0.5 + Math.random() * 0.7);
+        g.add(m);
+      }
+      scene.add(g); puffs.push({ g, t: 0 });
+    }
+    function tickPuffs(dt) {
+      for (let i = puffs.length - 1; i >= 0; i--) {
+        const p = puffs[i]; p.t += dt;
+        for (const m of p.g.children) {
+          m.position.x += m.userData.v.x * dt; m.position.y += m.userData.v.y * dt; m.position.z += m.userData.v.z * dt;
+          m.userData.v.y -= 1.6 * dt;
+          m.scale.multiplyScalar(1 + dt * 0.9);
+          m.material.opacity = Math.max(0, 0.55 * (1 - p.t / 1.1));
+        }
+        if (p.t > 1.1) { scene.remove(p.g); for (const m of p.g.children) m.material.dispose(); puffs.splice(i, 1); }
+      }
+    }
+
     // 부화하고 남은 껍질 조각 (잠시 바닥에 남는다)
     const shellPiles = [];
     function addShells(x, z) {
@@ -310,9 +339,10 @@
       if (ph) { let o = ph.object; while (o && !o.userData.propName) o = o.parent; return o ? { type: 'prop', name: o.userData.propName } : null; }
       return null;
     }
-    function render() { tickShells(); renderer.render(scene, camera); }
+    let lastRender = performance.now();
+    function render() { const t = performance.now(); tickPuffs(Math.min(0.1, (t - lastRender) / 1000)); lastRender = t; tickShells(); renderer.render(scene, camera); }
 
-    Object.assign(world, { makeWorm, setWormCount, addShells, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
+    Object.assign(world, { makeWorm, setWormCount, addShells, puff, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
     return world;
   }
   global.TP_WORLD = { create, STAGE_PRESET, COOP_ROOF_Y: 3.35 };

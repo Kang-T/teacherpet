@@ -46,6 +46,7 @@ function tick(now) {
   const t = (now - t0) / 1000, dt = Math.min(0.05, (now - last) / 1000); last = now;
   let cur = timeline[0]; for (const e of timeline) if (t >= e[0]) cur = e;
   if (still) cur = [0, still === '1' ? 'idle' : still, 0, 1];
+  const forceAnim = params.get('anim'); if (forceAnim) cur = [0, forceAnim, forceAnim === 'walk' ? 1 : 0, 1];
   const [, anim, moving, dir] = cur;
   if (anim === 'walk') x += dir * 1.5 * dt;
   if (anim === 'jump' && jy === 0 && vy === 0 && t - cur[0] < 0.1) vy = 6;
@@ -55,7 +56,7 @@ function tick(now) {
   else if (anim === 'walk') look.set(x + dir * 4, 1.2, 1);
   else look.set(0, 2, 8);
   chick.group.position.x = x;
-  chick.update(dt, { anim, moving, dir, jumpY: jy, lookTarget: look, curious: true, mood: moodP });
+  chick.update(dt, { anim, moving, dir, jumpY: jy, lookTarget: look, curious: true, mood: moodP, phase: params.get('phase') ? +params.get('phase') : ((t * 0.12) % 1) });
   renderer.render(scene, cam);
   requestAnimationFrame(tick);
 }

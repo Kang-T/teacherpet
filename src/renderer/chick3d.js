@@ -83,7 +83,7 @@
     group.scale.setScalar(P.scale);
 
     // ---- 애니메이션 상태 ----
-    const st = { t: 0, phase: 0, blinkAt: 2 + Math.random() * 3, blink: 0, look: new THREE.Vector3(0, 1.5, 5), lookSmooth: new THREE.Vector3(0, 1.5, 5), yaw: 0, yawTarget: 0, squash: 0, squashV: 0, beakOpen: 0 };
+    const st = { t: 0, phase: 0, actT: 0, lastAnim: '', bob: 0, roll: 0, blinkAt: 2 + Math.random() * 3, blink: 0, look: new THREE.Vector3(0, 1.5, 5), lookSmooth: new THREE.Vector3(0, 1.5, 5), yaw: 0, yawTarget: 0, squash: 0, squashV: 0, beakOpen: 0 };
     const lerp = (a, b, k) => a + (b - a) * k;
     const tmp = new THREE.Vector3();
 
@@ -91,6 +91,7 @@
       // ctl: { anim, moving(0..1), dir(-1|1), speed, jumpY, lookTarget(v3 world) }
       st.t += dt;
       const a = ctl.anim || 'idle';
+      if (a !== st.lastAnim) { st.actT = 0; st.lastAnim = a; } else st.actT += dt;
       const mood = ctl.mood || { valence: 0, arousal: 0.5, sleepy: 0 };
       // 방향 전환은 몸을 부드럽게 돌려서
       // rotation.y = θ 이면 정면(+z)이 (sinθ, 0, cosθ)를 향한다 → +x로 가려면 θ > 0
@@ -99,12 +100,53 @@
       if (ctl.moving > 0.5) st.yawTarget = face * 1.3;    // 걸을 땐 진행 방향(거의 옆모습)
       if (a === 'beg') st.yawTarget = face * 0.5;
       if (a === 'sleep' || a === 'brood' || a === 'roost' || a === 'wail') st.yawTarget = face * 0.7;
+      if (a === 'scratch') st.yawTarget = face * 0.85;
+      if (a === 'dustbath' || a === 'sunbathe') st.yawTarget = face * 0.6;
+      if (a === 'squat') st.yawTarget = face * 0.75;
       if (a === 'ecstatic' || a === 'stomp') st.yawTarget = face * 0.5;
       if (a === 'pet') st.yawTarget = face * 0.55;
       if (a === 'scold' || a === 'startle') st.yawTarget = face * 0.4;
       if (a === 'crow' || a === 'happy' || a === 'jump' || a === 'eat' || a === 'drink' || a === 'peck') st.yawTarget = face * 0.9;
       st.yaw = lerp(st.yaw, st.yawTarget, 1 - Math.exp(-dt * 6));
       root.rotation.y = st.yaw;
+
+      // ── 땅 긁기 (활동 시간의 34%. 닭다움의 핵심)
+      //    쫀다 → 쫀 자리로 올라선다 → 오른발·왼발로 뒤로 긁는다 → 뒤로 물러선다 → 고개 기울여 확인
+      let scratchZ = 0, scratchPitch = null, scratchYaw = null;
+      if (a === 'scratch') {
+        const T = st.actT % 3.0;
+        if (T < 0.45) {                       // ① 앞을 한 번 쫀다
+          const k = Math.sin((T / 0.45) * Math.PI);
+          scratchPitch = 0.25 + k * 0.75; scratchYaw = 0;
+          bodyPivot.rotation.x = 0.1 + k * 0.28;
+        } else if (T < 0.8) {                 // ② 쫀 자리로 한 걸음 올라선다
+          const k = (T - 0.45) / 0.35;
+          scratchZ = k * 0.32; scratchPitch = 0.45; scratchYaw = 0;
+          bodyPivot.rotation.x = 0.16;
+          legs[0].rotation.x = Math.sin(k * Math.PI) * 0.55;
+        } else if (T < 1.85) {                // ③ 오른발·왼발 교대로 뒤로 긁기 (오른발 먼저)
+          const k = (T - 0.8) / 0.35;         // 0~3 구간
+          const idx = Math.floor(k);          // 0=오른, 1=왼, 2=오른
+          const f = k - idx;
+          const leg = legs[idx % 2 === 0 ? 0 : 1];
+          leg.rotation.x = -Math.sin(f * Math.PI) * 1.25;          // 뒤로 차낸다
+          legs[idx % 2 === 0 ? 1 : 0].rotation.x = Math.sin(f * Math.PI) * 0.2;
+          scratchZ = 0.32 - f * 0.05;
+          scratchPitch = 0.5; scratchYaw = 0;
+          bodyPivot.rotation.x = 0.18;
+          bodyPivot.rotation.z = (idx % 2 === 0 ? -1 : 1) * Math.sin(f * Math.PI) * 0.1;
+        } else if (T < 2.25) {                // ④ 뒤로 물러선다 (파낸 곳이 발밑에 가려지므로)
+          const k = (T - 1.85) / 0.4;
+          scratchZ = 0.27 * (1 - k) - k * 0.2;
+          scratchPitch = 0.4 - k * 0.2;
+          bodyPivot.rotation.x = 0.14 * (1 - k);
+          legs[0].rotation.x = Math.sin(k * Math.PI) * 0.35; legs[1].rotation.x = Math.sin(k * Math.PI) * 0.35;
+        } else {                              // ⑤ 고개를 기울여 한쪽 눈으로 확인
+          scratchZ = -0.2;
+          scratchPitch = 0.55; scratchYaw = 0.35;
+        }
+        root.position.z = scratchZ;
+      } else if (root.position.z !== 0) root.position.z = lerp(root.position.z, 0, 1 - Math.exp(-dt * 8));
 
       // 걷기: 다리 교차 + 몸 좌우 흔들림 + 살짝 통통
       st.phase += dt * (a === 'walk' ? 9 : 0) * (ctl.speed || 1);
@@ -125,14 +167,35 @@
       st.squashV += (-st.squash * 140 - st.squashV * 14) * dt; st.squash += st.squashV * dt;
       sy *= 1 - st.squash; sx *= 1 + st.squash * 0.7;
       // 앉기(잠·품기): 몸을 찌그러뜨리지 않고 다리를 접어 몸을 내린다
-      const squat = a === 'brood' || a === 'sleep' || a === 'roost' || a === 'wail';
+      // 옆으로 눕는 자세(햇볕·모래목욕 4단계)는 몸 전체를 굴린다
+      const P = ctl.phase || 0;
+      const lieTarget = a === 'sunbathe' ? 1 : (a === 'dustbath' && P >= 0.66 && P < 0.9) ? 1 : 0;
+      st.roll = lerp(st.roll, lieTarget, 1 - Math.exp(-dt * 4));
+      const squat = a === 'brood' || a === 'sleep' || a === 'roost' || a === 'wail' || a === 'squat'
+        || a === 'sunbathe' || (a === 'dustbath' && P >= 0.18);
       st.squat = lerp(st.squat || 0, squat ? 1 : 0, 1 - Math.exp(-dt * 5));
       if (a === 'sleep') { const b2 = Math.sin(st.t * 1.1) * 0.02; sy = 1 + b2; sx = 1 - b2 * 0.5; }
       for (const l of legs) { l.visible = st.squat < 0.7; if (a === 'carry') l.rotation.x = 0.6 + Math.sin(st.t * 7 + (l === legs[0] ? 0 : 1.5)) * 0.25; }
       if (a === 'scold') { sx *= 1.04; sy *= 0.96; }
       root.scale.set(sx, sy, sx);
-      root.position.y = (ctl.jumpY || 0) + hop - st.squat * 0.5;
+      root.position.y = (ctl.jumpY || 0) + hop - st.squat * 0.5 - st.roll * 0.15;
+      root.rotation.z = st.roll * 1.15 * (ctl.dir > 0 ? 1 : -1);
+      // 스트레칭: 같은 쪽 다리를 뒤로 뻗는다
+      if (a === 'stretch') { const k = Math.sin(Math.min(1, st.actT / 1.2) * Math.PI); legs[1].rotation.x = -k * 1.1; }
       bodyPivot.rotation.z += (a === 'pet' ? Math.sin(st.t * 3) * 0.06 : 0) + (a === 'scold' ? Math.sin(st.t * 30) * 0.03 : 0);
+
+      // 머리 hold–thrust: 걷는 동안 머리를 공간의 한 점에 "정지"시켰다가 탄도처럼 앞으로 내던진다.
+      // (닭의 눈은 눈구멍에 고정되어 있어 머리 자체로 시야를 안정시킨다. 등속 보간이면 닭처럼 안 보인다.)
+      if (a === 'walk' && mv > 0.3) {
+        const f = ((st.phase / (Math.PI * 2)) % 1 + 1) % 1;
+        const back = f < 0.72 ? f / 0.72 : 1 - (f - 0.72) / 0.28;   // 천천히 뒤로 → 순간 앞으로
+        st.bob = back;
+        neck.position.z = 0.28 - back * 0.34;
+        neck.position.y = 1.0 + back * 0.05;
+      } else if (st.bob > 0.001) {
+        st.bob = lerp(st.bob, 0, 1 - Math.exp(-dt * 10));
+        neck.position.z = 0.28 - st.bob * 0.34; neck.position.y = 1.0 + st.bob * 0.05;
+      }
 
       // 머리: 시선 따라가기 (제한된 yaw/pitch), 자는 중엔 숙임
       if (ctl.lookTarget) st.look.copy(ctl.lookTarget);
@@ -158,6 +221,22 @@
       if (a === 'preen') { targetYaw = 1.25 * (Math.sin(st.t * 0.9) > 0 ? 1 : -1); targetPitch = 0.55 + Math.sin(st.t * 9) * 0.08; targetRoll = 0.2; }
       if (a === 'nuzzle') { targetPitch = 0.75 + Math.sin(st.t * 5) * 0.1; targetYaw = 0.3 * Math.sin(st.t * 2.5); }
       if (a === 'startle') { targetPitch = -0.35; targetYaw = Math.sin(st.t * 30) * 0.15; }
+      if (a === 'scratch' && scratchPitch !== null) { targetPitch = scratchPitch; targetYaw = scratchYaw; }
+      // 모래 목욕 5단계 (Vestergaard 1982): 자리 파기 → 부리로 흙 긁어모으기 → 날개 떨어 먼지 튕기기 → 옆으로 누워 문지르기 → 일어나 털기
+      if (a === 'dustbath') {
+        const P = ctl.phase || 0;
+        if (P < 0.18) { targetPitch = 0.7; targetYaw = Math.sin(st.t * 4) * 0.3; }
+        else if (P < 0.4) { targetPitch = 0.85 + Math.sin(st.t * 7) * 0.12; targetYaw = Math.sin(st.t * 3.5) * 0.5; }
+        else if (P < 0.66) { targetPitch = 0.35; targetYaw = Math.sin(st.t * 11) * 0.2; targetRoll = Math.sin(st.t * 11) * 0.1; }
+        else if (P < 0.9) { targetPitch = 0.15; targetYaw = Math.sin(st.t * 2.5) * 0.45; targetRoll = -0.35; }
+        else { targetPitch = -0.1; targetRoll = Math.sin(st.t * 26) * 0.18; }
+      }
+      // 햇볕 쬐기: 옆으로 누워 한쪽 날개를 펼치고 깃털을 세운다 (초보자가 죽은 줄 알고 놀라는 자세)
+      if (a === 'sunbathe') { targetPitch = -0.15; targetRoll = 0.3; targetYaw = 0.35; }
+      // 날개·다리 동시 뻗기: 같은 쪽 날개와 다리를 뒤로 쭉
+      if (a === 'stretch') { const k = Math.sin(Math.min(1, st.actT / 1.2) * Math.PI); targetPitch = -0.2 * k; targetRoll = 0.18 * k; }
+      // submissive squat: 몸을 낮추고 날개를 살짝 벌린다 (첫 산란 임박 신호)
+      if (a === 'squat') { targetPitch = 0.25; targetRoll = 0; }
       if (a === 'ecstatic') { targetPitch = -0.45 + Math.sin(st.t * 12) * 0.15; targetRoll = Math.sin(st.t * 8) * 0.3; }
       if (a === 'wail') { targetPitch = 0.35 + Math.sin(st.t * 3) * 0.25; targetYaw = Math.sin(st.t * 2.2) * 0.6; targetRoll = Math.sin(st.t * 2.2) * 0.2; }
       if (a === 'stomp') { targetPitch = 0.1; targetYaw = Math.sin(st.t * 16) * 0.35; }
@@ -182,6 +261,17 @@
       if (a === 'stomp') wing = 0.8 + Math.abs(Math.sin(st.t * 16)) * 0.4;
       if (a === 'roost') wing = 0.12;
       if (a === 'preen') wing = 0.45 + Math.max(0, Math.sin(st.t * 0.9)) * 0.4;
+      if (a === 'scratch') wing = 0.1;
+      if (a === 'squat') wing = 0.45;
+      if (a === 'dustbath') {
+        const P = ctl.phase || 0;
+        if (P < 0.4) wing = 0.3;
+        else if (P < 0.66) wing = 0.9 + Math.sin(st.t * 30) * 0.8;      // 날개를 떨어 흙을 튕겨 올린다
+        else if (P < 0.9) wing = 1.15 + Math.sin(st.t * 6) * 0.25;
+        else wing = 0.8 + Math.sin(st.t * 28) * 0.7;
+      }
+      if (a === 'sunbathe') wing = 1.35 + Math.sin(st.t * 0.8) * 0.12;   // 한쪽 날개를 펼쳐 피부까지 볕을 쬔다
+      if (a === 'stretch') wing = 0.15 + Math.sin(Math.min(1, st.actT / 1.2) * Math.PI) * 1.5;
       if (a === 'sad') wing = -0.1;
       if (a === 'brood') wing = 0.35;
       if (a === 'carry') wing = 0.9 + Math.sin(st.t * 18) * 0.3;
@@ -214,7 +304,7 @@
       st.blinkAt -= dt;
       if (st.blinkAt < 0) { st.blink = 0.14; st.blinkAt = 2 + Math.random() * 4; }
       st.blink = Math.max(0, st.blink - dt);
-      const closed = a === 'sleep' ? 0.08 : st.blink > 0 ? 0.1 : 1;
+      const closed = a === 'sleep' ? 0.08 : (a === 'sunbathe' || a === 'dustbath') ? 0.4 : st.blink > 0 ? 0.1 : 1;
       for (const e of eyes) e.scale.y = lerp(e.scale.y, closed, 1 - Math.exp(-dt * 25));
       // 부리 (울기·먹기)
       const open = (a === 'crow' || a === 'eat') ? Math.max(0, Math.sin(st.t * (a === 'eat' ? 12 : 6))) * 0.5 : 0;
