@@ -36,6 +36,7 @@
           <button data-species="hamster">🐹 햄스터</button>
           <button data-species="turtle">🐢 거북이</button>
           <button data-species="rabbit">🐰 토끼</button>
+          <button data-species="cockatiel">🦜 앵무새</button>
         </div>
       </div>
       <p class="hint">알에서 시작해요. 먹이를 3번 주면 부화하고, 매일 돌보면 어른이 돼요. (최대 3마리)</p>
@@ -89,6 +90,11 @@
       <button data-size="6">크게 (전자칠판)</button>
     </div>
     <div class="row">
+      <span class="label">집 위치</span>
+      <button data-home="left">왼쪽 아래</button>
+      <button data-home="right">오른쪽 아래</button>
+    </div>
+    <div class="row">
       <label><input type="checkbox" id="soundOn"> 타이머 끝날 때 소리</label>
       <label><input type="checkbox" id="autostart"> 컴퓨터 켤 때 자동 실행</label>
     </div>
@@ -111,7 +117,7 @@
   </section>
 </div>
 
-<script src="sprites.js"></script>
+<script src="engine.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

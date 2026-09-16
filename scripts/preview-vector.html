@@ -1,0 +1,23 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;background:#EAF2FB;font-family:"Apple SD Gothic Neo",sans-serif}</style></head>
+<body><canvas id="c" width="1400" height="820"></canvas>
+<script src="../src/renderer/vector.js"></script>
+<script>
+const V = window.TP_VECTOR, c = document.getElementById('c'), ctx = c.getContext('2d');
+// 바탕화면 흉내
+const g = ctx.createLinearGradient(0,0,0,820); g.addColorStop(0,'#5B8DEF'); g.addColorStop(1,'#B5D6FF'); ctx.fillStyle=g; ctx.fillRect(0,0,1400,820);
+ctx.fillStyle='rgba(20,30,50,.85)'; ctx.fillRect(0,780,1400,40);
+function at(x,y,s,fn){ ctx.save(); ctx.translate(x,y); ctx.scale(s,s); fn(); ctx.restore(); }
+function label(x,y,t){ ctx.fillStyle='#fff'; ctx.font='bold 18px sans-serif'; ctx.textAlign='center'; ctx.fillText(t,x,y); }
+const S=0.9, Y=780-200*S;
+// 1행: 햄스터 포즈
+const poses=[['front','앉기'],['walk','걷기'],['eat','먹기'],['sleep','잠'],['drink','물 마시기']];
+poses.forEach(([p,t],i)=>{ const x=40+i*230; at(x,Y-330,S,()=>V.drawHamster(ctx,{pose:p,f:0,blink:false})); label(x+100*S,Y-330-10,t); });
+// 앵무새
+at(1200,Y-330,S,()=>V.drawCockatiel(ctx,{pose:'perch',f:0})); label(1290,Y-340,'앵무새 앉기');
+// 2행: 소품과 함께
+at(40,Y,S,()=>{ V.drawWheel(ctx,0.4); ctx.save(); ctx.translate(20,60); ctx.scale(.7,.7); V.drawHamster(ctx,{pose:'wheel',f:1}); ctx.restore(); }); label(130,Y-10,'쳇바퀴');
+at(300,Y,S,()=>V.drawBottle(ctx)); at(380,Y,S,()=>V.drawHamster(ctx,{pose:'drink',f:0})); label(430,Y-10,'물병에서 물 마시기');
+at(660,Y,S,()=>V.drawBowl(ctx)); at(740,Y,S,()=>V.drawHamster(ctx,{pose:'eat',f:1})); label(790,Y-10,'밥그릇');
+at(1000,Y,S,()=>V.drawHouse(ctx)); label(1090,Y-10,'집');
+at(1200,Y-40,S,()=>V.drawCockatiel(ctx,{pose:'fly',f:0})); label(1290,Y-50,'앵무새 날기');
+</script></body></html>
