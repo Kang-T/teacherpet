@@ -98,7 +98,8 @@
       st.yawTarget = face * 0.8;                          // 서 있을 땐 얼굴이 보이는 3/4
       if (ctl.moving > 0.5) st.yawTarget = face * 1.3;    // 걸을 땐 진행 방향(거의 옆모습)
       if (a === 'beg') st.yawTarget = face * 0.5;
-      if (a === 'sleep' || a === 'brood') st.yawTarget = face * 0.7;
+      if (a === 'sleep' || a === 'brood' || a === 'roost' || a === 'wail') st.yawTarget = face * 0.7;
+      if (a === 'ecstatic' || a === 'stomp') st.yawTarget = face * 0.5;
       if (a === 'pet') st.yawTarget = face * 0.55;
       if (a === 'scold' || a === 'startle') st.yawTarget = face * 0.4;
       if (a === 'crow' || a === 'happy' || a === 'jump' || a === 'eat' || a === 'drink' || a === 'peck') st.yawTarget = face * 0.9;
@@ -113,7 +114,9 @@
       legs[0].rotation.x = sw * 0.7 * mv; legs[1].rotation.x = -sw * 0.7 * mv;
       bodyPivot.rotation.z = -sw * 0.08 * mv;
       bodyPivot.rotation.x = 0.05 * mv + 0.22 * run * mv;
-      const hop = Math.abs(Math.cos(st.phase)) * 0.06 * mv;
+      let hop = Math.abs(Math.cos(st.phase)) * 0.06 * mv;
+      if (a === 'stomp') { const k = Math.sin(st.t * 16); legs[0].rotation.x = k * 0.9; legs[1].rotation.x = -k * 0.9; hop = Math.abs(k) * 0.12; }
+      if (a === 'ecstatic') { hop = Math.abs(Math.sin(st.t * 14)) * 0.25; bodyPivot.rotation.z = Math.sin(st.t * 14) * 0.12; }
 
       // 숨쉬기
       const br = Math.sin(st.t * 2.4) * 0.018;
@@ -122,7 +125,7 @@
       st.squashV += (-st.squash * 140 - st.squashV * 14) * dt; st.squash += st.squashV * dt;
       sy *= 1 - st.squash; sx *= 1 + st.squash * 0.7;
       // 앉기(잠·품기): 몸을 찌그러뜨리지 않고 다리를 접어 몸을 내린다
-      const squat = a === 'brood' || a === 'sleep';
+      const squat = a === 'brood' || a === 'sleep' || a === 'roost' || a === 'wail';
       st.squat = lerp(st.squat || 0, squat ? 1 : 0, 1 - Math.exp(-dt * 5));
       if (a === 'sleep') { const b2 = Math.sin(st.t * 1.1) * 0.02; sy = 1 + b2; sx = 1 - b2 * 0.5; }
       for (const l of legs) { l.visible = st.squat < 0.7; if (a === 'carry') l.rotation.x = 0.6 + Math.sin(st.t * 7 + (l === legs[0] ? 0 : 1.5)) * 0.25; }
@@ -155,6 +158,10 @@
       if (a === 'preen') { targetYaw = 1.25 * (Math.sin(st.t * 0.9) > 0 ? 1 : -1); targetPitch = 0.55 + Math.sin(st.t * 9) * 0.08; targetRoll = 0.2; }
       if (a === 'nuzzle') { targetPitch = 0.75 + Math.sin(st.t * 5) * 0.1; targetYaw = 0.3 * Math.sin(st.t * 2.5); }
       if (a === 'startle') { targetPitch = -0.35; targetYaw = Math.sin(st.t * 30) * 0.15; }
+      if (a === 'ecstatic') { targetPitch = -0.45 + Math.sin(st.t * 12) * 0.15; targetRoll = Math.sin(st.t * 8) * 0.3; }
+      if (a === 'wail') { targetPitch = 0.35 + Math.sin(st.t * 3) * 0.25; targetYaw = Math.sin(st.t * 2.2) * 0.6; targetRoll = Math.sin(st.t * 2.2) * 0.2; }
+      if (a === 'stomp') { targetPitch = 0.1; targetYaw = Math.sin(st.t * 16) * 0.35; }
+      if (a === 'roost') { targetPitch = -0.1; targetRoll = Math.sin(st.t * 1.5) * 0.06; }
       if (a === 'beg') { targetRoll = Math.sin(st.t * 5) * 0.12; }
       if (a === 'idle' && ctl.curious) { targetRoll = Math.sin(st.t * 1.7) * 0.18; }
       if (a === 'idle' || a === 'walk') { targetPitch += Math.max(0, -mood.valence) * 0.25 - Math.max(0, mood.arousal - 0.6) * 0.1; }
@@ -170,6 +177,10 @@
       if (a === 'sleep') wing = 0.05;
       if (a === 'pet') wing = 0.25 + Math.sin(st.t * 3) * 0.1;
       if (a === 'scold' || a === 'startle') wing = 1.1;
+      if (a === 'ecstatic') wing = 1.0 + Math.sin(st.t * 30) * 0.7;
+      if (a === 'wail') wing = -0.15 + Math.sin(st.t * 3) * 0.1;
+      if (a === 'stomp') wing = 0.8 + Math.abs(Math.sin(st.t * 16)) * 0.4;
+      if (a === 'roost') wing = 0.12;
       if (a === 'preen') wing = 0.45 + Math.max(0, Math.sin(st.t * 0.9)) * 0.4;
       if (a === 'sad') wing = -0.1;
       if (a === 'brood') wing = 0.35;
@@ -181,10 +192,10 @@
       // 보통(-0.25~0.25)은 무표정. 그 밖에서만 표정이 나타나고, 커질수록 과장된다
       const v = mood.valence;
       let smile = v > 0.25 ? Math.min(1, (v - 0.25) / 0.5) : 0;
-      if (a === 'pet' || a === 'happy' || a === 'jump' || (a === 'eat' && v > -0.2)) smile = Math.max(smile, 0.9);
+      if (a === 'pet' || a === 'happy' || a === 'jump' || a === 'ecstatic' || (a === 'eat' && v > -0.2)) smile = Math.max(smile, 0.9);
       const droop = Math.max(0, mood.sleepy - 0.45) * 1.8 + (a === 'sleep' ? 1 : 0);
-      const angry = (v < -0.3 && mood.arousal > 0.45) || a === 'scold' ? Math.min(1, 0.5 + (-v)) : 0;
-      const sad = v < -0.25 && !angry ? Math.min(1, 0.4 + (-v - 0.25) / 0.5) : 0;
+      const angry = (v < -0.3 && mood.arousal > 0.45 && a !== 'wail') || a === 'scold' || a === 'stomp' ? Math.min(1, 0.5 + (-v)) : 0;
+      const sad = (v < -0.25 && !angry) || a === 'wail' ? Math.min(1, Math.max(a === 'wail' ? 1 : 0, 0.4 + (-v - 0.25) / 0.5)) : 0;
       for (const e of eyes) {
         const side = Math.sign(e.position.x);
         const topT = -Math.PI * 0.5 - 1.6 + Math.min(1, droop + angry * 0.6 + sad * 0.25) * 1.55;

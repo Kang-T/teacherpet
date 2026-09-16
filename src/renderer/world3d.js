@@ -170,6 +170,18 @@
       const eggs = new THREE.Group(); eggs.position.y = 0.75; g.add(eggs); g.userData.eggs = eggs;
       return shadowed(g);
     }
+    function makeLamp() {
+      const g = new THREE.Group();
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 0.12, 24), hard(0x555B66)); base.position.y = 0.06; g.add(base);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 3.2, 10), hard(0x6E7683)); pole.position.y = 1.7; g.add(pole);
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2, 10), hard(0x6E7683)); arm.rotation.z = Math.PI / 2; arm.position.set(0.6, 3.25, 0); g.add(arm);
+      const shade = new THREE.Mesh(new THREE.ConeGeometry(0.75, 0.8, 24, 1, true), hard(0xC0392B, { side: THREE.DoubleSide })); shade.position.set(1.2, 2.95, 0); g.add(shade);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), new THREE.MeshStandardMaterial({ color: 0xFFE2A8, emissive: 0xFFB347, emissiveIntensity: 2.2 })); bulb.position.set(1.2, 2.75, 0); g.add(bulb);
+      const light = new THREE.PointLight(0xFFB870, 18, 7, 2); light.position.set(1.2, 2.6, 0); g.add(light);
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(1.6, 32), new THREE.MeshBasicMaterial({ color: 0xFFB870, transparent: true, opacity: 0.18, depthWrite: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(1.2, 0.02, 0); g.add(glow);
+      g.userData.warmSpot = { dx: 1.2, dz: 0 };
+      return shadowed(g);
+    }
     function makeWormBucket() {
       const g = new THREE.Group();
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.45, 0.7, 24), hard(0x8FB8E8)); body.position.y = 0.35; g.add(body);
@@ -194,7 +206,7 @@
       while (ws.children.length < k) { const i = ws.children.length; const w = makeWorm().group; w.scale.setScalar(0.8); w.position.set(Math.cos(i * 1.7) * 0.2, 0, Math.sin(i * 1.7) * 0.2); w.rotation.y = i * 1.3; ws.add(w); }
     }
     function setProps(layout) { // layout: { coop:{x,z}, nest:{x,z}, ... , flip }
-      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket };
+      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket, lamp: makeLamp };
       for (const k of Object.keys(makers)) {
         if (!world.props[k]) { world.props[k] = makers[k](); world.props[k].userData.propName = k; scene.add(world.props[k]); }
         const p = world.props[k], L = layout[k];
@@ -231,5 +243,5 @@
     Object.assign(world, { makeWorm, setWormCount, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
     return world;
   }
-  global.TP_WORLD = { create, STAGE_PRESET };
+  global.TP_WORLD = { create, STAGE_PRESET, COOP_ROOF_Y: 3.35 };
 })(typeof window !== 'undefined' ? window : module.exports);
