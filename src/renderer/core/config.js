@@ -44,7 +44,13 @@
     // 청결: 깃털이 더러워지는 속도와 회복량
     CLEAN: { decayPerHour: 4, dustBathGain: 55, preenGain: 7, dullBelow: 40 },
     // 위생: 암모니아 임계 (기획서 4-4)
-    HYGIENE: { poopPerBirdPerDay: 2.5, cecalRatio: 0.12, smellPpm: 15, penaltyPpm: 25, ppmPerPoopHour: 0.18, ventPerHour: 0.6, beddingDays: 7 },
+    // 위생 (기획서 4-4). 실제 닭은 하루 12~16회 배설하지만, 앱이 켜져 있는 동안 눈에 보이고
+    // 청소가 하루 일과가 되도록 시간당 기준으로 올려 잡았다.
+    HYGIENE: {
+      poopPerBirdPerHour: 12, afterMealChance: 0.85, cecalRatio: 0.12,
+      smellPpm: 15, penaltyPpm: 25, ppmPerPoopHour: 0.35, ventPerHour: 0.8,
+      beddingDays: 7, maxPoops: 20,
+    },
     // 이별 방식
     LIFE_END: { retire: '농장으로 떠나요', natural: '자연으로 돌아가요', safe: '떠나지 않아요 (안심 모드)' },
     prices: null,   // prices.json 로드 후 채워짐

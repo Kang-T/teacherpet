@@ -11,7 +11,7 @@
 
   // 배설물 하나 = 엔티티 하나
   function dropPoop(x, z, cecal, savedId, born) {
-    const mesh = world.makePoop(cecal, cecal ? 1.15 : 1);
+    const mesh = world.makePoop(cecal, cecal ? 1.6 : 1.4);
     mesh.position.set(x, 0, z);
     mesh.rotation.y = Math.random() * Math.PI * 2;
     const e = {
@@ -35,16 +35,23 @@
     for (const d of list || []) dropPoop(d.x, d.z, d.cecal, d.id, d.born);
   }
 
-  // 닭이 배설한다. 하루 2~3개(실제 12~16회를 압축), 그중 12%가 맹장 똥.
-  function maybePoop(bird, dt, now) {
-    if (bird.d.stage === 'egg' || bird.inCoop) return null;
-    const perDay = C.HYGIENE.poopPerBirdPerDay;
-    const chance = dt * perDay / (10 * 3600);          // 깨어 있는 10시간 기준
-    if (Math.random() > chance) return null;
+  // 실제 닭은 20~30분에 한 번, 하루 12~16회 배설한다. 먹거나 마신 뒤에 특히 자주.
+  function poopHere(bird) {
+    if (count() >= C.HYGIENE.maxPoops) return null;     // 화면이 똥밭이 되지 않게
     const cecal = Math.random() < C.HYGIENE.cecalRatio;
     const b = bounds ? bounds() : { min: -20, max: 20 };
-    const x = Math.max(b.min, Math.min(b.max, bird.x - bird.dir * 0.4));
+    const x = Math.max(b.min, Math.min(b.max, bird.x - bird.dir * 0.45));
     return dropPoop(x, bird.z, cecal);
+  }
+  function maybePoop(bird, dt) {
+    if (bird.d.stage === 'egg' || bird.inCoop) return null;
+    if (Math.random() > dt * C.HYGIENE.poopPerBirdPerHour / 3600) return null;
+    return poopHere(bird);
+  }
+  // 먹고·마신 뒤 10~25초 안에 한 번 (원인과 결과가 눈에 보이게)
+  function poopAfterMeal(bird, schedule) {
+    if (Math.random() > C.HYGIENE.afterMealChance) return;
+    schedule(6000 + Math.random() * 9000, () => poopHere(bird));
   }
 
   // 암모니아: 배설물 개수 × 머문 시간. 깔짚이 신선하면 덜 오른다.
@@ -72,5 +79,5 @@
     return 1;
   }
 
-  TP.hygiene = { init, dropPoop, poops, count, serialize, restore, maybePoop, tickAmmonia, level, LABEL, vacuumTick };
+  TP.hygiene = { init, dropPoop, poopHere, poops, count, serialize, restore, maybePoop, poopAfterMeal, tickAmmonia, level, LABEL, vacuumTick };
 })(typeof window !== 'undefined' ? window : module.exports);

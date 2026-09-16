@@ -339,6 +339,9 @@
       });
     }
     if (d.stage === 'hen' && mode !== 'class') {
+      // 주인 없는 알이 있으면 품어 준다 (품는 암탉이 없으면 부화가 진행되지 않는다)
+      const orphan = birds.find((q) => q.d.stage === 'egg' && !birds.some((h2) => h2.d.brooding === q.d.id));
+      if (orphan && !d.brooding && !d.old) add('adopt', 2.4 * T.sociable, () => startBrooding(b, orphan));
       // 암탉: 둥지를 들여다보고, 오래 긁는다
       if (propVisible('nest')) add('checknest', 0.35 * (d.lastLaid === today() ? 0.1 : 1), () => goTo(b, hm.nest.x + rand(-0.8, 0.8), 'gonest'));
     }
@@ -523,7 +526,7 @@
       const alone = fcx !== null && Math.abs(b.x - fcx) > 7;
       b.d.social = clamp(b.d.social + (friendNear ? -dt * 1.5 : dt * (100 / (4 * 3600)) * T.sociable * (alone ? 2.5 : 1)), 0, 100);
       b.d.clean = clamp((b.d.clean ?? 85) - dt * (C.CLEAN.decayPerHour / 3600), 0, 100);
-      if (HYG.maybePoop(b, dt, now())) { markDirty(); if (Math.random() < 0.3) showIcon(b, '💩', 1200); }
+      if (HYG.maybePoop(b, dt)) { markDirty(); if (Math.random() < 0.4) showIcon(b, '💩', 1200); }
       // 온도와 질병
       const cf = comfortOf(b);
       b.comfort = cf;
@@ -562,6 +565,19 @@
         b.look.set(kid.x, kid.y + height(kid) * 0.6, kid.z);
         if (now() > (b.panicIconAt || 0)) { b.panicIconAt = now() + 2200; showIcon(b, pick(['😰', '❗', '🆘']), 1600); }
         return;
+      }
+    }
+    // 품는 중: 알을 몸 아래에 두고, 가끔 부리로 알을 돌린다
+    if (b.d.brooding) {
+      const egg = birds.find((q) => q.d.id === b.d.brooding);
+      if (!egg) b.d.brooding = null;
+      else if (b.anim === 'brood') {
+        egg.x = b.x; egg.z = b.z + 0.12; egg.y = 0;
+        if (now() > (b.turnAt || 0)) {
+          b.turnAt = now() + rand(9000, 16000);
+          egg.f = 1; egg.wobbleUntil = performance.now() / 1000 + 0.8;
+          showIcon(b, '🥚', 2200);
+        }
       }
     }
     // 모래 목욕 진행 — 5단계, 먼지는 3단계(날개 떨기)와 5단계(털기)에 터진다
@@ -777,7 +793,7 @@
         if (boss) { b.goal = null; showIcon(b, '😣', 1200); goTo(b, b.x + (Math.sign(b.x - boss.x) || 1) * rand(2, 3.5), 'walk'); b.d.stress = clamp(b.d.stress + 8, 0, 100); return; }
       }
       if (b.anim === 'eat' && b.goal === 'treat') {
-        b.d.happy = clamp(b.d.happy + 15, 0, 100); b.d.hunger = clamp(b.d.hunger + 8, 0, 100); b.d.exp += 3; b.goal = null; affect(b, 6 * trait(b).affGain); careTick(b, 'ate'); markDirty(); renderCoop(); if (moodOf(b).valence > 0.55) burst(b, 'ecstatic'); else jump(b, 260); showIcon(b, '❤️', 1500);
+        b.d.happy = clamp(b.d.happy + 15, 0, 100); b.d.hunger = clamp(b.d.hunger + 8, 0, 100); b.goal = null; affect(b, 6 * trait(b).affGain); careTick(b, 'ate'); markDirty(); renderCoop(); if (moodOf(b).valence > 0.55) burst(b, 'ecstatic'); else jump(b, 260); showIcon(b, '❤️', 1500);
       } else if (b.anim === 'eat' && b.goal === 'eat') {
         if (state.feed >= RULE.feedPerMeal) {
           state.feed -= RULE.feedPerMeal; world.setSupplies(state.feed, state.water, state.basket);
@@ -792,11 +808,15 @@
             if (state.feedType === 'layer' && isYoungling(b)) b.d.health = clamp(b.d.health - 3, 0, 100);
             if (b.d.wrongFeed === 3) toast(`⚠️ ${b.d.name}(이)에게 ${fd.name} 사료는 맞지 않아요 — ${STAGE_KO[b.d.stage]}에게 맞는 사료로 바꿔 주세요`, true, 10000);
           } else b.d.wrongFeed = 0;
-          b.lastMeal = now(); careTick(b, 'ate'); markDirty(); renderCoop();
+          b.lastMeal = now(); careTick(b, 'ate');
+          HYG.poopAfterMeal(b, (ms, fn) => later(b, ms, () => { if (fn()) { showIcon(b, '💩', 1400); markDirty(); renderCoop(); } }));
+          markDirty(); renderCoop();
         }
         b.goal = null;
       } else if (b.anim === 'drink' && b.goal === 'drink') {
-        if (state.water >= RULE.waterPerDrink) { state.water -= RULE.waterPerDrink; world.setSupplies(state.feed, state.water, state.basket); b.d.thirst = clamp(b.d.thirst + 40, 0, 100); b.lastDrink = now(); careTick(b, 'drank'); markDirty(); renderCoop(); }
+        if (state.water >= RULE.waterPerDrink) { state.water -= RULE.waterPerDrink; world.setSupplies(state.feed, state.water, state.basket); b.d.thirst = clamp(b.d.thirst + 40, 0, 100); b.lastDrink = now(); careTick(b, 'drank');
+          if (Math.random() < 0.45) HYG.poopAfterMeal(b, (ms, fn) => later(b, ms, () => { if (fn()) { showIcon(b, '💩', 1400); markDirty(); renderCoop(); } }));
+          markDirty(); renderCoop(); }
         b.goal = null;
       }
       if (b.anim === 'preen') b.d.clean = clamp((b.d.clean ?? 85) + C.CLEAN.preenGain, 0, 100);
@@ -881,6 +901,17 @@
     markDirty(); renderCoop();
   }
   // 암탉: 돌본 날 하루 1알
+  // 품기를 시작한다 — 알을 둥지로 옮기고 그 위에 앉는다
+  function startBrooding(hen, egg) {
+    const hm = home();
+    hen.d.brooding = egg.d.id;
+    egg.x = hm.nest.x; egg.z = hm.nest.z; egg.d.x = toFrac(egg.x); egg.d.z = egg.z;
+    hen.inCoop = false; setVisible(hen, true);
+    goTo(hen, hm.nest.x, 'gonest');
+    showIcon(hen, '🥚', 3000);
+    toast(`🥚 ${hen.d.name}(이)가 ${egg.d.name}을(를) 품기 시작했어요. 매일 품어야 부화해요`, true, 9000);
+    markDirty(); renderCoop();
+  }
   function layCheck(hen) {
     if (hen.d.stage !== 'hen' || hen.d.old || hen.d.lastLaid === today()) return;
     if (HYG.level(state.ammonia) === 'bad') { showIcon(hen, '🚫', 2200); return; }  // 암모니아가 심하면 알을 낳지 않는다
@@ -1224,6 +1255,22 @@
   $$('.tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
   $('#closePanel').addEventListener('click', closePanel);
 
+  const DOING = {
+    idle: '두리번거리는 중', sit: '앉아 있는 중', walk: '산책 중', scratch: '땅을 긁는 중', peck: '땅을 쪼는 중',
+    eat: '먹는 중', drink: '물 마시는 중', sleep: '자는 중', preen: '깃털을 다듬는 중', dustbath: '모래 목욕 중',
+    sunbathe: '햇볕 쬐는 중', stretch: '기지개 켜는 중', flap: '날개를 퍼덕이는 중', frolic: '까불며 뛰는 중',
+    brood: '알을 품는 중 🥚', gonest: '둥지로 가는 중', nuzzle: '새끼를 다독이는 중', huddle: '친구와 붙어 있는 중',
+    crow: '우는 중 🐓', guard: '망을 보는 중', tidbit: '먹이를 알리는 중', roost: '홰에 앉아 있는 중',
+    chase: '쫓아가는 중', beg: '조르는 중', jump: '폴짝', happy: '신난 중', ecstatic: '신나서 뛰는 중',
+    wail: '엉엉 우는 중', sad: '시무룩한 중', stomp: '화난 중', scold: '혼나는 중', startle: '놀란 중',
+    alert: '경계하는 중', crouch: '납작 엎드린 중', pet: '쓰다듬 받는 중', carry: '들려 있는 중', fall: '떨어지는 중',
+    sick: '아파서 웅크린 중', pant: '더워서 헐떡이는 중', egg: '알 속에서 자라는 중', hatch: '알을 깨는 중 🐣',
+    spar: '겨루는 중', squat: '웅크린 중', follow: '엄마를 따라가는 중', gofeed: '밥 먹으러 가는 중',
+    gowater: '물 마시러 가는 중', gocoop: '닭장으로 가는 중', godust: '모래밭으로 가는 중', gopeek: '살피러 가는 중',
+    gowarm: '따뜻한 데로 가는 중', gocool: '시원한 데로 가는 중', golamp: '보온등으로 가는 중', gokid: '새끼에게 가는 중',
+    panic: '새끼에게 달려가는 중', gohuddle: '친구에게 가는 중', goroof: '지붕에 오르는 중',
+  };
+  const doing = (b) => DOING[b.anim] || '';
   function renderCoop() {
     if (panel.classList.contains('hidden')) return;
     $('#feedBar').style.width = state.feed + '%'; $('#waterBar').style.width = state.water + '%';
@@ -1258,7 +1305,8 @@
       card.innerHTML = `
         <div class="head"><span class="name">${esc(b.d.name)}</span>
           <span class="sex ${b.d.sex || ''}">${STAGE_KO[b.d.stage]}${b.d.sex ? (b.d.sex === 'f' ? ' ♀' : ' ♂') : ''}${b.d.old ? ' · 노년' : ''}</span>
-          <span class="stage">${days}일째 · ${b.d.trait}${b.d.stage === 'hen' ? ` · 알 ${b.d.eggsLaid}개` : ''}${b.d.brooding ? ' · 품는 중' : ''}</span></div>
+          <span class="stage">${doing(b)}</span></div>
+        <div class="head"><span class="stage">${days}일째 · ${b.d.trait}${b.d.stage === 'hen' ? ` · 알 ${b.d.eggsLaid}개` : ''}${b.d.brooding ? ' · 품는 중' : ''}</span></div>
         ${need ? `<div class="stat"><b>${b.d.stage === 'egg' ? '부화' : '성장'}</b><div class="bar exp"><i style="width:${Math.min(100, n / need * 100)}%"></i></div><span>${n}/${need}일</span></div>` : ''}
         ${b.d.stage !== 'egg' ? `<div class="stat"><b>배부름</b><div class="bar"><i style="width:${b.d.hunger}%"></i></div></div><div class="stat"><b>물</b><div class="bar water"><i style="width:${b.d.thirst}%"></i></div></div><div class="stat"><b>에너지</b><div class="bar exp"><i style="width:${b.d.energy}%"></i></div></div><div class="stat"><b>깨끗함</b><div class="bar clean"><i style="width:${b.d.clean ?? 85}%"></i></div><span>${(b.d.clean ?? 85) < 40 ? '🛁 모래 목욕이 필요해요' : ''}</span></div><div class="stat"><b>친밀도</b><div class="bar happy"><i style="width:${b.d.aff}%"></i></div><span>${b.d.aff >= 70 ? '❤️ 좋아함' : b.d.aff < 30 ? '😒 서먹함' : '🙂 보통'}</span></div><div class="hint">${b.d.trait} — ${TRAIT_DESC[b.d.trait] || ''}${b.d.momId ? ` · 엄마: ${(birds.find((h) => h.d.id === b.d.momId) || {}).d?.name || '떠남'}` : ''}${b.d.hurt ? ' · 🤕 다침' : ''}${b.d.stress > 50 ? ' · 😰 긴장' : ''}${b.d.boredom > 70 ? ' · 🥱 심심' : ''}</div>` : ''}
         <div class="actions">
@@ -1394,6 +1442,7 @@
   $('#autostart').addEventListener('change', (e) => api.setAutostart(e.target.checked));
   $('#btnQuit').addEventListener('click', async () => { await persist(); api.quit(); });
 
+  setInterval(() => { if (!panel.classList.contains('hidden')) renderCoop(); }, 1200);
   api.on('ui:toggle-menu', togglePanel);
   api.on('timer:start', (k) => startTimer(k));
   api.on('timer:stop', () => stopTimer());
