@@ -167,6 +167,35 @@
       }
       scene.add(g); puffs.push({ g, t: 0 });
     }
+    // 반짝임 (모래 목욕 직후 깃털이 반들반들)
+    const sparks = [];
+    function sparkle(x, z, h) {
+      const g = new THREE.Group(); g.position.set(x, 0, z);
+      const geo = new THREE.OctahedronGeometry(0.11, 0);
+      for (let i = 0; i < 14; i++) {
+        const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xFFF6C8, transparent: true, opacity: 0.95, depthWrite: false }));
+        const a = Math.random() * Math.PI * 2, r = 0.25 + Math.random() * 0.55;
+        m.position.set(Math.cos(a) * r, h * (0.2 + Math.random() * 0.9), Math.sin(a) * r * 0.6);
+        m.userData.d = 0.18 + Math.random() * 0.5;
+        m.userData.rise = 0.35 + Math.random() * 0.5;
+        m.scale.setScalar(0.6 + Math.random() * 0.8);
+        g.add(m);
+      }
+      scene.add(g); sparks.push({ g, t: 0 });
+    }
+    function tickSparks(dt) {
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s2 = sparks[i]; s2.t += dt;
+        for (const m of s2.g.children) {
+          m.position.y += m.userData.rise * dt;
+          m.rotation.y += dt * 7; m.rotation.x += dt * 5;
+          const k = Math.max(0, 1 - (s2.t - m.userData.d) / 0.85);
+          m.material.opacity = s2.t < m.userData.d ? 0 : 0.95 * k;
+          m.scale.setScalar((0.6 + Math.sin(s2.t * 12) * 0.25) * k + 0.05);
+        }
+        if (s2.t > 1.7) { scene.remove(s2.g); for (const m of s2.g.children) m.material.dispose(); sparks.splice(i, 1); }
+      }
+    }
     function tickPuffs(dt) {
       for (let i = puffs.length - 1; i >= 0; i--) {
         const p = puffs[i]; p.t += dt;
@@ -361,9 +390,9 @@
       return null;
     }
     let lastRender = performance.now();
-    function render() { const t = performance.now(); tickPuffs(Math.min(0.1, (t - lastRender) / 1000)); lastRender = t; tickShells(); renderer.render(scene, camera); }
+    function render() { const t = performance.now(); const d = Math.min(0.1, (t - lastRender) / 1000); tickPuffs(d); tickSparks(d); lastRender = t; tickShells(); renderer.render(scene, camera); }
 
-    Object.assign(world, { makeWorm, setWormCount, addShells, puff, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
+    Object.assign(world, { makeWorm, setWormCount, addShells, puff, sparkle, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
     return world;
   }
   global.TP_WORLD = { create, STAGE_PRESET, COOP_ROOF_Y: 3.35 };

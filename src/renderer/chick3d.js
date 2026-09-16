@@ -109,6 +109,9 @@
       if (a === 'beg') st.yawTarget = face * 0.5;
       if (a === 'sleep' || a === 'brood' || a === 'roost' || a === 'wail') st.yawTarget = face * 0.7;
       if (a === 'scratch') st.yawTarget = face * 0.85;
+      if (a === 'alert' || a === 'guard' || a === 'crouch') st.yawTarget = face * 0.55;
+      if (a === 'tidbit') st.yawTarget = face * 0.8;
+      if (a === 'huddle') st.yawTarget = face * 0.45;
       if (a === 'dustbath' || a === 'sunbathe') st.yawTarget = face * 0.6;
       if (a === 'squat') st.yawTarget = face * 0.75;
       if (a === 'ecstatic' || a === 'stomp') st.yawTarget = face * 0.5;
@@ -120,7 +123,7 @@
 
       // ── 땅 긁기 (활동 시간의 34%. 닭다움의 핵심)
       //    쫀다 → 쫀 자리로 올라선다 → 오른발·왼발로 뒤로 긁는다 → 뒤로 물러선다 → 고개 기울여 확인
-      let scratchZ = 0, scratchPitch = null, scratchYaw = null, neckDown = 0;
+      let scratchZ = 0, scratchPitch = null, scratchYaw = null, neckDown = 0, neckUp = 0;
       if (a === 'scratch') {
         const T = st.actT % 3.0;
         if (T < 0.45) {                       // ① 앞을 한 번 쫀다 — 부리가 땅에 닿는다
@@ -183,7 +186,7 @@
       const P = ctl.phase || 0;
       const lieTarget = (a === 'dustbath' && P >= 0.66 && P < 0.9) ? 1 : 0;
       st.roll = lerp(st.roll, lieTarget, 1 - Math.exp(-dt * 4));
-      const squat = a === 'brood' || a === 'sleep' || a === 'roost' || a === 'wail' || a === 'squat' || a === 'sunbathe'
+      const squat = a === 'brood' || a === 'sleep' || a === 'roost' || a === 'wail' || a === 'squat' || a === 'sunbathe' || a === 'crouch' || a === 'huddle'
         || (a === 'dustbath' && P >= 0.18 && P < 0.66);
       st.squat = lerp(st.squat || 0, squat ? 1 : 0, 1 - Math.exp(-dt * 5));
       if (a === 'sleep') { const b2 = Math.sin(st.t * 1.1) * 0.02; sy = 1 + b2; sx = 1 - b2 * 0.5; }
@@ -218,7 +221,9 @@
       }
       // 땅을 쫄 때는 목을 앞·아래로 길게 뺀다
       st.neck = lerp(st.neck || 0, neckDown, 1 - Math.exp(-dt * 14));
+      st.neckUp = lerp(st.neckUp || 0, neckUp, 1 - Math.exp(-dt * 8));
       if (st.neck > 0.002) { neck.position.z = 0.28 + st.neck * 0.5; neck.position.y = 1.0 - st.neck * 0.42; }
+      else if (st.neckUp > 0.002) { neck.position.y = 1.0 + st.neckUp * 0.52; neck.position.z = 0.28 - st.neckUp * 0.1; }
 
       // 머리: 시선 따라가기 (제한된 yaw/pitch), 자는 중엔 숙임
       if (ctl.lookTarget) st.look.copy(ctl.lookTarget);
@@ -261,6 +266,17 @@
       if (a === 'stretch') { const k = Math.sin(Math.min(1, st.actT / 1.2) * Math.PI); targetPitch = -0.2 * k; targetRoll = 0.18 * k; }
       // submissive squat: 몸을 낮추고 날개를 살짝 벌린다 (첫 산란 임박 신호)
       if (a === 'squat') { targetPitch = 0.25; targetRoll = 0; }
+      // 지상 경보 / 경계: 목을 길게 빼고 꼿꼿이 서서 좌우를 훑는다
+      if (a === 'alert' || a === 'guard') {
+        targetPitch = -0.3; targetYaw = Math.sin(st.t * (a === 'alert' ? 2.6 : 1.3)) * 0.85; targetRoll = 0;
+        neckUp = a === 'alert' ? 1 : 0.7;
+      }
+      // 공중 경보: 납작 웅크리고 하늘을 올려다본다
+      if (a === 'crouch') { targetPitch = -0.95 + Math.sin(st.t * 1.6) * 0.08; targetYaw = Math.sin(st.t * 0.9) * 0.3; }
+      // 먹이 부르기(tidbitting): 먹이를 집었다 떨어뜨리며 머리를 까딱까딱, 부리로 운다
+      if (a === 'tidbit') { const k = Math.max(0, Math.sin(st.t * 7)); targetPitch = 0.8 * k - 0.1; targetYaw = 0; bodyPivot.rotation.x = 0.45 * k; neckDown = k * 0.8; }
+      // 병아리들이 서로 붙어 뭉친다
+      if (a === 'huddle') { targetPitch = 0.12; targetRoll = Math.sin(st.t * 1.1) * 0.05; targetYaw = Math.sin(st.t * 0.7) * 0.15; }
       if (a === 'ecstatic') { targetPitch = -0.45 + Math.sin(st.t * 12) * 0.15; targetRoll = Math.sin(st.t * 8) * 0.3; }
       if (a === 'wail') { targetPitch = 0.35 + Math.sin(st.t * 3) * 0.25; targetYaw = Math.sin(st.t * 2.2) * 0.6; targetRoll = Math.sin(st.t * 2.2) * 0.2; }
       if (a === 'stomp') { targetPitch = 0.1; targetYaw = Math.sin(st.t * 16) * 0.35; }
@@ -286,6 +302,10 @@
       if (a === 'roost') wing = 0.12;
       if (a === 'preen') wing = 0.45 + Math.max(0, Math.sin(st.t * 0.9)) * 0.4;
       if (a === 'scratch') wing = 0.1;
+      if (a === 'alert' || a === 'guard') wing = 0.05;
+      if (a === 'crouch') wing = 0.0;
+      if (a === 'huddle') wing = 0.08;
+      if (a === 'tidbit') wing = 0.2 + Math.max(0, Math.sin(st.t * 7)) * 0.25;
       if (a === 'squat') wing = 0.45;
       if (a === 'dustbath') {
         const P = ctl.phase || 0;
@@ -342,7 +362,8 @@
       const closed = a === 'sleep' ? 0.08 : (a === 'sunbathe' || a === 'dustbath') ? 0.4 : st.blink > 0 ? 0.1 : 1;
       for (const e of eyes) e.scale.y = lerp(e.scale.y, closed, 1 - Math.exp(-dt * 25));
       // 부리 (울기·먹기)
-      const open = (a === 'crow' || a === 'eat') ? Math.max(0, Math.sin(st.t * (a === 'eat' ? 12 : 6))) * 0.5 : 0;
+      const open = (a === 'crow' || a === 'eat') ? Math.max(0, Math.sin(st.t * (a === 'eat' ? 12 : 6))) * 0.5
+        : a === 'tidbit' ? Math.max(0, Math.sin(st.t * 7)) * 0.4 : a === 'alert' ? Math.max(0, Math.sin(st.t * 5)) * 0.25 : 0;
       st.beakOpen = lerp(st.beakOpen, open, 1 - Math.exp(-dt * 20));
       beakBot.rotation.x = Math.PI / 2 + st.beakOpen; beakTop.rotation.x = Math.PI / 2 - st.beakOpen * 0.3;
       // 문 벌레는 달릴 때 흔들린다

@@ -60,6 +60,13 @@
     crow:        { pose: 'crow',   priority: 3, stationary: 1 },
     roost:       { pose: 'roost',  priority: 2, stationary: 1 },
     squat:       { pose: 'squat',  priority: 2, stationary: 1 },   // submissive squat
+    alert:       { pose: 'alert',  priority: 6, stationary: 1 },   // 지상 경보 — 꼿꼿이 경계
+    crouch:      { pose: 'crouch', priority: 6, stationary: 1 },   // 공중 경보 — 납작 웅크림
+    guard:       { pose: 'guard',  priority: 2, stationary: 1 },   // 수탉의 파수
+    tidbit:      { pose: 'tidbit', priority: 3, stationary: 1 },   // 먹이 부르기
+    huddle:      { pose: 'huddle', priority: 2, stationary: 1 },   // 병아리 뭉치기
+    gohuddle:    { pose: 'walk',   moving: 1, goal: 1, priority: 2 },
+    spar:        { pose: 'happy',  priority: 3, playing: 1 },      // 겨루기
     // --- 알 ---
     egg:         { pose: 'egg',    priority: 0, stationary: 1 },
     hatch:       { pose: 'egg',    priority: 9, stationary: 1 },   // 부화 중엔 무엇도 끼어들 수 없다
