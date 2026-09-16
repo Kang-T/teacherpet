@@ -83,6 +83,7 @@ label { display: inline-flex; align-items: center; gap: 4px; }
 .bar > i { display: block; height: 100%; background: #FFB347; }
 .bar.happy > i { background: #FF8AA8; }
 .bar.water > i { background: #6FB7FF; }
+.bar.clean > i { background: #C8B88A; }
 .bar.exp > i { background: #7EC8E3; }
 .stat { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px; }
 .stat b { width: 44px; }

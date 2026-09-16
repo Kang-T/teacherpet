@@ -283,6 +283,27 @@
       g.userData.warmSpot = { dx: 1.2, dz: 0 };
       return shadowed(g);
     }
+    function makeDustPit() {
+      const g = new THREE.Group();
+      const sand = hard(0xE8D5A8, { roughness: 1 }), sandD = hard(0xCDB584, { roughness: 1 });
+      // 얕게 파인 모래 구덩이
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.4, 0.22, 36), sand); rim.position.y = 0.11; rim.scale.z = 0.62; g.add(rim);
+      const hollow = new THREE.Mesh(new THREE.SphereGeometry(1.75, 32, 16, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5), sandD);
+      hollow.scale.set(1, 0.22, 0.62); hollow.position.y = 0.23; g.add(hollow);
+      // 가장자리에 흩어진 모래알
+      for (let i = 0; i < 22; i++) {
+        const a = Math.random() * Math.PI * 2, r = 2.1 + Math.random() * 0.9;
+        const gr = new THREE.Mesh(new THREE.SphereGeometry(0.07 + Math.random() * 0.06, 6, 5), Math.random() < 0.5 ? sand : sandD);
+        gr.position.set(Math.cos(a) * r, 0.05, Math.sin(a) * r * 0.62); gr.scale.y = 0.6; g.add(gr);
+      }
+      // 발자국·긁힌 자국
+      for (let i = 0; i < 6; i++) {
+        const t = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.03, 0.1), sandD);
+        t.position.set((Math.random() - 0.5) * 2.4, 0.23, (Math.random() - 0.5) * 1.2);
+        t.rotation.y = Math.random() * 1.2 - 0.6; g.add(t);
+      }
+      return shadowed(g);
+    }
     function makeWormBucket() {
       const g = new THREE.Group();
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.45, 0.7, 24), hard(0x8FB8E8)); body.position.y = 0.35; g.add(body);
@@ -307,7 +328,7 @@
       while (ws.children.length < k) { const i = ws.children.length; const w = makeWorm().group; w.scale.setScalar(0.8); w.position.set(Math.cos(i * 1.7) * 0.2, 0, Math.sin(i * 1.7) * 0.2); w.rotation.y = i * 1.3; ws.add(w); }
     }
     function setProps(layout) { // layout: { coop:{x,z}, nest:{x,z}, ... , flip }
-      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket, lamp: makeLamp };
+      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket, lamp: makeLamp, dustpit: makeDustPit };
       for (const k of Object.keys(makers)) {
         if (!world.props[k]) { world.props[k] = makers[k](); world.props[k].userData.propName = k; scene.add(world.props[k]); }
         const p = world.props[k], L = layout[k];

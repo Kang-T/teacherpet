@@ -40,7 +40,7 @@
     const bx = (d) => (left ? world.xMin + d : world.xMax - d);
     const def = {
       coop: { x: bx(3.0), z: -2.4 }, nest: { x: bx(7.0), z: -0.9 }, feeder: { x: bx(9.8), z: 0.5 },
-      waterer: { x: bx(12.2), z: -0.5 }, basket: { x: bx(14.6), z: 0.7 }, wormbucket: { x: bx(16.8), z: 0.2 }, lamp: { x: bx(19.0), z: 0.3 },
+      waterer: { x: bx(12.2), z: -0.5 }, basket: { x: bx(14.6), z: 0.7 }, wormbucket: { x: bx(16.8), z: 0.2 }, lamp: { x: bx(19.0), z: 0.3 }, dustpit: { x: bx(23.5), z: -0.6 },
     };
     const pos = state.settings.propPos || {}, hid = state.settings.propHidden || {};
     const out = { flip: !left };
@@ -92,7 +92,7 @@
     if (now() - (b.dirAt || 0) < 500) return;
     b.dir = d; b.dirAt = now();
   }
-  function jump(b, v = 300) { setAnim(b, 'jump', 0.9); b.vy = v / 60; }   // 유닛/초
+  function jump(b, v = 300) { if (b.d.hurt) { setAnim(b, 'sad', 1.5); showIcon(b, '🤕', 1200); return; } setAnim(b, 'jump', 0.9); b.vy = v / 60; }   // 유닛/초
   function showIcon(b, icon, ms = 2500) { b.icon = icon; b.iconUntil = now() + ms; }
   function goTo(b, x, anim) { if (b.onRoof) { leaveRoof(b); return; } b.inCoop = false; setVisible(b, true); b.targetX = clamp(x, world.xMin + XMARGIN, world.xMax - XMARGIN); b.dir = b.targetX > b.x ? 1 : -1; setAnim(b, anim, 25); }
   function setVisible(b, v) { b.b3.holder.visible = v; }
@@ -226,10 +226,14 @@
     }
     // ── 생태 (실제 닭의 활동 시간 배분을 반영) ──
     // 땅 긁기 = 활동 시간의 34%. 먹이통이 가득해도 긁는다(逆무임승차). 이것이 기본 자세다.
-    add('scratch', (mode === 'class' ? 0 : 1.6) * T.appetite * (0.6 + d.energy / 200) * (d.stress > 60 ? 0.3 : 1), () => setAnim(b, 'scratch', rand(4, 10)));
+    add('scratch', (mode === 'class' ? 0 : 1.6) * (d.hurt ? 0.4 : 1) * T.appetite * (0.6 + d.energy / 200) * (d.stress > 60 ? 0.3 : 1), () => setAnim(b, 'scratch', rand(4, 10)));
     // 모래 목욕 — 이틀에 한 번, 평균 27분(게임 12초). 전염된다.
     const dustGap = d.lastDust ? U.daysBetween(d.lastDust, today()) : 99;
-    add('dustbath', (mode === 'class' ? 0 : 1) * (dustGap >= 2 ? 1.5 : 0.05) * T.tidy * (1 + (b.dustUrge || 0)) * (d.stress > 50 ? 0.2 : 1), () => startDustBath(b));
+    const dirty = Math.max(0, 70 - (d.clean ?? 85)) / 70;         // 더러울수록 하고 싶어진다
+    add('dustbath', (mode === 'class' ? 0 : 1) * (dustGap >= 2 ? 1.2 : 0.05) * (1 + dirty * 2.2) * T.tidy * (1 + (b.dustUrge || 0)) * (d.stress > 50 ? 0.2 : 1), () => {
+      if (propVisible('dustpit') && Math.abs(b.x - hm.dustpit.x) > 1.6) goTo(b, hm.dustpit.x + rand(-1.2, 1.2), 'godust');
+      else startDustBath(b);
+    });
     // 햇볕 쬐기 — 끝나면 반드시 깃털 다듬기로 이어진다
     add('sunbathe', (mode === 'class' ? 0 : 0.35) * T.tidy * (M.valence > -0.2 ? 1 : 0.2), () => setAnim(b, 'sunbathe', rand(5, 9)));
     // 편안함 행동
@@ -254,7 +258,7 @@
       else jump(b, 240);
     });
     // 목적 없는 폭발적 질주 — 10주 이후 사라지는 어린 시절의 행동
-    if (isYoungling(b) && mode !== 'class') add('frolic', 0.5 * T.playful * (d.energy / 100) * (d.stress < 40 ? 1 : 0.2), () => frolic(b));
+    if (isYoungling(b) && mode !== 'class' && !d.hurt) add('frolic', 0.5 * T.playful * (d.energy / 100) * (d.stress < 40 ? 1 : 0.2), () => frolic(b));
     else if (mode === 'break') add('happy', 0.3 * T.playful, () => jump(b, 280));
     // 슬픔 세기: 1(처짐) → 2(눈물) → 3(주저앉아 엉엉 + 빙글)
     const grief = M.valence < -0.25 ? (-M.valence - 0.25) / 0.75 : 0;
@@ -269,7 +273,7 @@
     });
     if (d.stage === 'chick' || d.stage === 'hen') add('peck', 0.25 * T.appetite * (mode === 'class' ? 0 : 1), () => setAnim(b, 'peck', rand(2, 4)));
     if (d.stage === 'young') add('flap', 0.2 * T.playful * (mode === 'class' ? 0 : 1), () => setAnim(b, 'flap', rand(1.5, 3)));
-    if (d.hunger < 30 || d.thirst < 30) add('sad', 0.8, () => setAnim(b, 'sad', rand(3, 6)));
+    if (d.hunger < 30 || d.thirst < 30 || d.hurt) add('sad', d.hurt ? 1.6 : 0.8, () => setAnim(b, 'sad', rand(3, 6)));
     // 첫 산란이 가까운 어린닭은 손을 뻗으면 납작 웅크린다
     if (d.stage === 'young' && daysCared(b) >= RULE.daysYoung - 4) add('squat', 0.4, () => { setAnim(b, 'squat', rand(2, 3.5)); showIcon(b, '🥚', 1500); });
     // 소프트맥스 선택 (온도 0.35)
@@ -365,6 +369,7 @@
       b.d.boredom = clamp(b.d.boredom + (playing ? -dt * 4 : sleeping ? 0 : dt * (100 / (3 * 3600)) * T.playful), 0, 100);
       const friendNear = birds.some((o) => o !== b && o.d.stage !== 'egg' && !o.inCoop && near(o, b, 2.2));
       b.d.social = clamp(b.d.social + (friendNear ? -dt * 1.5 : dt * (100 / (4 * 3600)) * T.sociable), 0, 100);
+      b.d.clean = clamp((b.d.clean ?? 85) - dt * (C.CLEAN.decayPerHour / 3600), 0, 100);
       const momNear = momOf(b) && near(momOf(b), b, 2.5);
       b.d.stress = clamp(b.d.stress - dt * (50 / 900) * (momNear ? 3 : 1), 0, 100);
       if (b.d.hunger < 30 && now() > b.iconUntil) showIcon(b, '🌾', 1500);
@@ -399,13 +404,19 @@
       b.dustT = (b.dustT || 0) + dt;
       const prev = b.dustPhase || 0;
       b.dustPhase = Math.min(1, b.dustT / dur);
-      if (prev < 0.4 && b.dustPhase >= 0.4) world.puff(b.x, b.z, 10, 0.7);
-      if (prev < 0.55 && b.dustPhase >= 0.55) world.puff(b.x, b.z, 8, 0.8);
-      if (prev < 0.92 && b.dustPhase >= 0.92) world.puff(b.x, b.z, 16, 1.0);
+      const SAND = 0xE3CFA0;
+      if (prev < 0.22 && b.dustPhase >= 0.22) world.puff(b.x, b.z, 6, 0.5, SAND);
+      if (prev < 0.42 && b.dustPhase >= 0.42) world.puff(b.x, b.z, 14, 0.8, SAND);
+      if (prev < 0.52 && b.dustPhase >= 0.52) world.puff(b.x, b.z, 14, 0.9, SAND);
+      if (prev < 0.62 && b.dustPhase >= 0.62) world.puff(b.x, b.z, 12, 1.0, SAND);
+      if (prev < 0.75 && b.dustPhase >= 0.75) world.puff(b.x, b.z, 8, 0.8, SAND);
+      if (prev < 0.93 && b.dustPhase >= 0.93) world.puff(b.x, b.z, 22, 1.3, SAND);
       if (b.dustPhase >= 1) {
         b.d.boredom = clamp(b.d.boredom - 45, 0, 100);
         b.d.happy = clamp(b.d.happy + 8, 0, 100);
-        b.dustUrge = 0;
+        b.d.clean = clamp((b.d.clean ?? 85) + C.CLEAN.dustBathGain, 0, 100);
+        b.dustUrge = 0; markDirty(); renderCoop();
+        toast(`🛁 ${b.d.name}(이)가 모래 목욕을 마쳤어요 — 깃털이 반짝반짝`, false, 4000);
         setAnim(b, 'preen', rand(3, 5));                        // 목욕 뒤엔 깃털을 다듬는다
       }
       return;
@@ -460,16 +471,31 @@
     const gY = b.onRoof ? world3dRoof() : 0;
     if (b.y > gY || b.vy > 0) {
       const fluttering = b.anim === 'fall';
-      b.vy -= GRAV * (fluttering ? 0.55 : 1) * dt;          // 날개를 퍼덕이면 천천히 내려온다
-      if (fluttering && b.vy < -4.2) b.vy = -4.2;            // 종단 속도
+      b.vyPrev = b.vy;
+      b.vy -= GRAV * (fluttering ? 0.9 : 1) * dt;           // 닭은 날지 못한다 — 퍼덕여도 10%만 느려진다
+      if (fluttering && b.vy < -9) b.vy = -9;
       b.y += b.vy * dt;
       if (b.y <= gY && b.vy <= 0) {
         b.y = gY; b.vy = 0; b.b3.model.land();
         if (b.anim === 'fall') {
+          const hard = -b.vyPrev || 0;
           world.puff(b.x, b.z, 7, 0.45);                     // 착지 먼지
           b.d.stress = clamp(b.d.stress + (isYoungling(b) ? 18 : 6), 0, 100);
-          if (isYoungling(b)) showIcon(b, '😵', 1600);
-          setAnim(b, b.onRoof ? 'roost' : 'idle', rand(0.8, 1.6));
+          // 높은 데서 떨어지면 다친다. 어린 것일수록 쉽게 다친다.
+          const hurtLine = isYoungling(b) ? 6.5 : 8.5;
+          if (hard > hurtLine && !b.onRoof) {
+            b.d.hurt = { since: today(), heals: 1 };
+            b.d.health = clamp(b.d.health - (isYoungling(b) ? 25 : 12), 0, 100);
+            b.d.stress = clamp(b.d.stress + 25, 0, 100);
+            showIcon(b, '🤕', 4000); peepSound();
+            toast(`🤕 ${b.d.name}(이)가 떨어지며 다쳤어요. 하루 쉬면 나아요`, true, 8000);
+            setAnim(b, 'sad', rand(3, 5));
+            const mom = momOf(b); if (mom && eligible(mom)) { mom.careKid = b.d.id; goTo(mom, b.x + (mom.x < b.x ? -1 : 1) * 1.0, 'gokid'); showIcon(mom, '😰', 3000); }
+            markDirty(); renderCoop();
+          } else {
+            if (isYoungling(b)) showIcon(b, '😵', 1600);
+            setAnim(b, b.onRoof ? 'roost' : 'idle', rand(0.8, 1.6));
+          }
         } else if (b.anim === 'jump') setAnim(b, b.onRoof ? 'roost' : 'idle', rand(0.6, 1.5));
       }
     }
@@ -522,7 +548,7 @@
       return;
     }
     if (ACT.isGoal(b.anim) && b.targetX !== null) {
-      const speed = s.speed * (mode === 'break' ? 1.4 : 1) * (b.d.old ? 0.6 : 1) * (b.fleeing ? 2 : 1);
+      const speed = s.speed * (mode === 'break' ? 1.4 : 1) * (b.d.old ? 0.6 : 1) * (b.fleeing ? 2 : 1) * (b.d.hurt ? 0.45 : 1);
       faceDir(b, b.targetX > b.x ? 1 : -1);
       b.x += b.dir * speed * dt;
       if (Math.abs(b.targetX - b.x) < 0.08) {
@@ -531,6 +557,7 @@
         else if (b.anim === 'gowater') { b.goal = 'drink'; setAnim(b, 'drink', 2.5); }
         else if (b.anim === 'gocoop') { b.inCoop = true; setVisible(b, false); setAnim(b, 'sleep', rand(15, 30)); showIcon(b, '💤', 3000); }
         else if (b.anim === 'gonest') setAnim(b, 'brood', rand(8, 20));
+        else if (b.anim === 'godust') { b.z = clamp(home().dustpit.z + rand(-0.5, 0.5), -2.2, 2.2); startDustBath(b); }
         else if (b.anim === 'panic') { setAnim(b, 'flap', 1.2); }
         else if (b.anim === 'follow') { b.z = clamp(momOf(b) ? momOf(b).z + rand(-0.6, 0.6) : b.z, -1.8, 1.8); setAnim(b, 'scratch', rand(3, 6)); b.d.social = clamp(b.d.social - 35, 0, 100); }
         else if (b.anim === 'gokid') { const k = birds.find((q) => q.d.id === b.careKid); setAnim(b, 'nuzzle', 2.2); if (k) { showIcon(k, '❤️', 1500); k.d.stress = clamp(k.d.stress - 30, 0, 100); k.d.social = clamp(k.d.social - 30, 0, 100); if (k.anim === 'idle' || k.anim === 'walk') setAnim(k, 'pet', 2); } b.d.social = clamp(b.d.social - 20, 0, 100); }
@@ -558,6 +585,7 @@
         if (state.water >= RULE.waterPerDrink) { state.water -= RULE.waterPerDrink; world.setSupplies(state.feed, state.water, state.basket); b.d.thirst = clamp(b.d.thirst + 40, 0, 100); b.lastDrink = now(); careTick(b, 'drank'); markDirty(); renderCoop(); }
         b.goal = null;
       }
+      if (b.anim === 'preen') b.d.clean = clamp((b.d.clean ?? 85) + C.CLEAN.preenGain, 0, 100);
       if (b.anim === 'sunbathe') { setAnim(b, 'preen', rand(3, 5)); return; }
       if (b.anim === 'scratch' && Math.random() < 0.65) { goTo(b, b.x + rand(-1, 1) * rand(0.8, 2.6), 'walk'); return; }   // 볕을 쬐면 반드시 깃털을 다듬는다
       if (b.anim === 'sleep' && b.inCoop && Math.random() < 0.5) { setAnim(b, 'sleep', rand(15, 30)); return; }
@@ -572,7 +600,10 @@
     const wasCared = ST.caredToday(b.d);
     ST.markCare(b.d, what);
     markDirty();
-    if (!wasCared && ST.caredToday(b.d)) { growCheck(b); layCheck(b); }
+    if (!wasCared && ST.caredToday(b.d)) {
+      if (b.d.hurt) { b.d.hurt = null; b.d.health = clamp(b.d.health + 25, 0, 100); showIcon(b, '💚', 3000); toast(`💚 ${b.d.name}(이)의 다리가 다 나았어요`, false, 5000); }
+      growCheck(b); layCheck(b);
+    }
   }
   function broodTick(egg) {
     if (ST.caredToday(egg.d)) return;
@@ -674,7 +705,7 @@
         else b.look.set(b.x + rand(-6, 6), rand(0.5, 4), rand(2, 10));
       }
       const anim = ACT.pose(b.anim);
-      m.model.update(dt, { anim, moving, dir: b.dir, jumpY: b.y, lookTarget: b.look, curious: mode !== 'class', wobble: b.f === 1, hatch: b.hatching || 0, phase: b.dustPhase || 0, holdWorm: !!(worm && worm.carrier === b.d.id), speed: b.anim === 'chase' || b.fleeing ? 2.2 : 1, mood: b.d.stage === 'egg' ? null : moodOf(b) });
+      m.model.update(dt, { anim, moving, dir: b.dir, jumpY: b.y, lookTarget: b.look, curious: mode !== 'class', wobble: b.f === 1, hatch: b.hatching || 0, phase: b.dustPhase || 0, holdWorm: !!(worm && worm.carrier === b.d.id), hurt: !!b.d.hurt, dull: Math.max(0, (C.CLEAN.dullBelow - (b.d.clean ?? 85)) / C.CLEAN.dullBelow), speed: b.anim === 'chase' || b.fleeing ? 2.2 : 1, mood: b.d.stage === 'egg' ? null : moodOf(b) });
       if (b.f === 1 && b.d.stage === 'egg' && t > (b.wobbleUntil || 0)) b.f = 0;
       // 오버레이(아이콘·이름표) 위치
       const top = world.project(b.x, height(b) + b.y + 0.2, b.z);
@@ -945,7 +976,7 @@
           <span class="sex ${b.d.sex || ''}">${STAGE_KO[b.d.stage]}${b.d.sex ? (b.d.sex === 'f' ? ' ♀' : ' ♂') : ''}${b.d.old ? ' · 노년' : ''}</span>
           <span class="stage">${days}일째 · ${b.d.trait}${b.d.stage === 'hen' ? ` · 알 ${b.d.eggsLaid}개` : ''}${b.d.brooding ? ' · 품는 중' : ''}</span></div>
         ${need ? `<div class="stat"><b>${b.d.stage === 'egg' ? '부화' : '성장'}</b><div class="bar exp"><i style="width:${Math.min(100, n / need * 100)}%"></i></div><span>${n}/${need}일</span></div>` : ''}
-        ${b.d.stage !== 'egg' ? `<div class="stat"><b>배부름</b><div class="bar"><i style="width:${b.d.hunger}%"></i></div></div><div class="stat"><b>물</b><div class="bar water"><i style="width:${b.d.thirst}%"></i></div></div><div class="stat"><b>에너지</b><div class="bar exp"><i style="width:${b.d.energy}%"></i></div></div><div class="stat"><b>친밀도</b><div class="bar happy"><i style="width:${b.d.aff}%"></i></div><span>${b.d.aff >= 70 ? '❤️ 좋아함' : b.d.aff < 30 ? '😒 서먹함' : '🙂 보통'}</span></div><div class="hint">${b.d.trait} — ${TRAIT_DESC[b.d.trait] || ''}${b.d.momId ? ` · 엄마: ${(birds.find((h) => h.d.id === b.d.momId) || {}).d?.name || '떠남'}` : ''}${b.d.stress > 50 ? ' · 😰 긴장' : ''}${b.d.boredom > 70 ? ' · 🥱 심심' : ''}</div>` : ''}
+        ${b.d.stage !== 'egg' ? `<div class="stat"><b>배부름</b><div class="bar"><i style="width:${b.d.hunger}%"></i></div></div><div class="stat"><b>물</b><div class="bar water"><i style="width:${b.d.thirst}%"></i></div></div><div class="stat"><b>에너지</b><div class="bar exp"><i style="width:${b.d.energy}%"></i></div></div><div class="stat"><b>깨끗함</b><div class="bar clean"><i style="width:${b.d.clean ?? 85}%"></i></div><span>${(b.d.clean ?? 85) < 40 ? '🛁 모래 목욕이 필요해요' : ''}</span></div><div class="stat"><b>친밀도</b><div class="bar happy"><i style="width:${b.d.aff}%"></i></div><span>${b.d.aff >= 70 ? '❤️ 좋아함' : b.d.aff < 30 ? '😒 서먹함' : '🙂 보통'}</span></div><div class="hint">${b.d.trait} — ${TRAIT_DESC[b.d.trait] || ''}${b.d.momId ? ` · 엄마: ${(birds.find((h) => h.d.id === b.d.momId) || {}).d?.name || '떠남'}` : ''}${b.d.hurt ? ' · 🤕 다침' : ''}${b.d.stress > 50 ? ' · 😰 긴장' : ''}${b.d.boredom > 70 ? ' · 🥱 심심' : ''}</div>` : ''}
         <div class="actions">
           ${b.d.stage === 'egg' ? `<button class="small primary" data-act="brood" ${broodedToday ? 'disabled' : ''}>🤲 ${broodedToday ? '오늘 품었어요' : '품어주기'}</button>` : ''}
           <button class="small" data-act="rename">✏️ 이름</button><button class="small" data-act="find">📍 찾기</button><button class="small danger" data-act="release">농장으로 보내기</button>

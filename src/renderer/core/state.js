@@ -36,6 +36,9 @@
     if (d.momId === undefined) d.momId = null;
     if (d.care === undefined) d.care = {};        // { 날짜: {ate, drank, brooded} }  ← 저장된다
     if (d.health === undefined) d.health = 100;
+    if (d.clean === undefined) d.clean = 85;
+    if (d.hurt === undefined) d.hurt = null;
+    if (d.lastDust === undefined) d.lastDust = '';
     if (d.sick === undefined) d.sick = null;
     if (d.children === undefined) d.children = 0;
     if (d.z === undefined) d.z = U.rand(-1.4, 1.4);
