@@ -34,7 +34,7 @@
         f.position.set(spread, 0.95 + P.tail * 0.35 - Math.abs(spread) * 0.4, -0.95 - Math.abs(spread) * 0.2); f.rotation.x = -0.75 + Math.abs(spread) * 0.3; f.rotation.z = spread * 0.9; bodyPivot.add(f);
       }
     }
-    if (P.ruff) { const r = new THREE.Mesh(S(0.9), mat(P.ruff)); r.scale.set(1.02, 0.55, 1.02); r.position.set(0, 1.0, 0.3); bodyPivot.add(r); }
+    if (P.ruff) { const r = new THREE.Mesh(S(0.86), mat(P.ruff)); r.scale.set(1.0, 0.42, 0.98); r.position.set(0, 1.08, 0.28); bodyPivot.add(r); }
     // 머리
     const neck = new THREE.Group(); neck.position.set(0, 1.0, 0.28); bodyPivot.add(neck);
     const head = new THREE.Group(); neck.add(head);
@@ -58,7 +58,7 @@
       for (let i = 0; i < n; i++) {
         const k = 1 - Math.abs(i - (n - 1) / 2) / n; // 가운데가 크게
         const c = new THREE.Mesh(S(0.19 * P.comb * (0.7 + k * 0.6)), hard(0xE8323C, { roughness: 0.55 }));
-        c.scale.set(0.45, 1.25, 0.9); c.position.set(0, 1.45 + k * 0.12 * P.comb, 0.42 - i * 0.26); head.add(c);
+        c.scale.set(0.55, 1.25, 0.9); c.position.set(0, 1.45 + k * 0.12 * P.comb, 0.42 - i * 0.26); c.rotation.z = (i - (n - 1) / 2) * 0.12; head.add(c);
       }
     } else {
       for (let i = 0; i < 3; i++) { const t = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 12), mat(0xF2C230)); t.position.set((i - 1) * 0.1, 1.62, -0.05 + (i - 1) * 0.05); t.rotation.z = (i - 1) * 0.35; t.rotation.x = -0.2; head.add(t); }
@@ -86,7 +86,7 @@
       // 방향 전환은 몸을 부드럽게 돌려서
       const face = ctl.dir < 0 ? 1 : -1;               // +z(정면)를 진행 방향으로 돌리는 부호
       st.yawTarget = face * 0.95;                        // 기본: 얼굴이 보이는 3/4
-      if (ctl.moving > 0.5) st.yawTarget = face * 1.25;  // 걸을 땐 좀 더 옆모습
+      if (ctl.moving > 0.5) st.yawTarget = face * 1.1;   // 걸을 땐 조금 더 옆모습
       if (a === 'sleep') st.yawTarget = face * 1.35;
       if (a === 'crow' || a === 'happy' || a === 'jump') st.yawTarget = face * 0.6;
       st.yaw = lerp(st.yaw, st.yawTarget, 1 - Math.exp(-dt * 6));
@@ -107,8 +107,12 @@
       // 착지 찌그러짐 (스프링)
       st.squashV += (-st.squash * 140 - st.squashV * 14) * dt; st.squash += st.squashV * dt;
       sy *= 1 - st.squash; sx *= 1 + st.squash * 0.7;
+      const squat = a === 'brood' || a === 'sleep';
+      st.squat = lerp(st.squat || 0, squat ? 1 : 0, 1 - Math.exp(-dt * 5));
+      sy *= 1 - st.squat * 0.18; sx *= 1 + st.squat * 0.08;
+      for (const l of legs) { l.visible = st.squat < 0.7; if (a === 'carry') l.rotation.x = 0.6 + Math.sin(st.t * 7 + (l === legs[0] ? 0 : 1.5)) * 0.25; }
       root.scale.set(sx, sy, sx);
-      root.position.y = (ctl.jumpY || 0) + hop;
+      root.position.y = (ctl.jumpY || 0) + hop - st.squat * 0.45;
 
       // 머리: 시선 따라가기 (제한된 yaw/pitch), 자는 중엔 숙임
       if (ctl.lookTarget) st.look.copy(ctl.lookTarget);
@@ -124,6 +128,11 @@
       if (a === 'sleep') { targetPitch = 0.45; targetYaw = 0.4 * ctl.dir * -1; targetRoll = 0.15; }
       if (a === 'happy' || a === 'jump') { targetPitch = -0.35; }
       if (a === 'crow') { targetPitch = -0.7; targetYaw = 0; bodyPivot.rotation.x = -0.15; }
+      if (a === 'eat') { const k = Math.max(0, Math.sin(st.t * 5)); targetPitch = 0.75 * k + 0.25; targetYaw = 0; bodyPivot.rotation.x = 0.28 * k + 0.08; }
+      if (a === 'drink') { const k = Math.sin(st.t * 3); targetPitch = k > 0 ? 0.6 * k : -0.55 * -k; targetYaw = 0; bodyPivot.rotation.x = k > 0 ? 0.15 * k : -0.05 * -k; }
+      if (a === 'sad') { targetPitch = 0.45; targetRoll = Math.sin(st.t * 1.2) * 0.08; }
+      if (a === 'brood') { targetPitch = 0.15; targetRoll = Math.sin(st.t * 0.8) * 0.06; }
+      if (a === 'carry') { targetPitch = -0.2; targetRoll = Math.sin(st.t * 6) * 0.1; }
       if (a === 'idle' && ctl.curious) { targetRoll = Math.sin(st.t * 1.7) * 0.18; }
       head.rotation.y = lerp(head.rotation.y, targetYaw, 1 - Math.exp(-dt * 6));
       head.rotation.x = lerp(head.rotation.x, targetPitch, 1 - Math.exp(-dt * 6));
@@ -134,6 +143,9 @@
       if (a === 'walk') wing = 0.15 + Math.abs(sw) * 0.1;
       if (a === 'flap' || a === 'happy' || a === 'jump' || a === 'crow') wing = 0.6 + Math.sin(st.t * 22) * 0.55;
       if (a === 'sleep') wing = 0.05;
+      if (a === 'sad') wing = -0.1;
+      if (a === 'brood') wing = 0.35;
+      if (a === 'carry') wing = 0.9 + Math.sin(st.t * 18) * 0.3;
       wings[0].rotation.z = wing; wings[1].rotation.z = -wing;
 
       // 눈 깜빡임 / 감기

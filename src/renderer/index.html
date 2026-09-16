@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<canvas id="stage"></canvas>
+<div id="stageHost"></div>
 <div id="bubbles"></div>
 <div id="toasts"></div>
 
@@ -92,7 +92,9 @@
 
 <div id="albumModal" class="ui hidden"><div class="modalCard"><h3>📖 우리 반 닭 앨범</h3><div id="albumList"></div><button id="closeAlbum">닫기</button></div></div>
 
-<script src="engine.js"></script>
+<script src="vendor/three.global.js"></script>
+<script src="chick3d.js"></script>
+<script src="world3d.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

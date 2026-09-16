@@ -78,6 +78,7 @@ function createWindow() {
   // 디버그: 환경변수로 지정한 경로에 몇 초 뒤 화면을 저장 (맥에서 자동 검증용)
   const shot = process.env.TEACHERPET_SHOT;
   if (shot) {
+    win.webContents.on('console-message', (_e, level, msg, line, src) => { if (level >= 2) console.log(`[renderer:${level}] ${msg} (${src.split('/').pop()}:${line})`); });
     const delay = Number(process.env.TEACHERPET_SHOT_DELAY || 4000);
     setTimeout(async () => {
       try {
