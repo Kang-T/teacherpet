@@ -90,6 +90,8 @@
       if (ctl.moving > 0.5) st.yawTarget = face * 1.3;    // 걸을 땐 진행 방향(거의 옆모습)
       if (a === 'beg') st.yawTarget = face * 0.5;
       if (a === 'sleep' || a === 'brood') st.yawTarget = face * 0.7;
+      if (a === 'pet') st.yawTarget = face * 0.55;
+      if (a === 'scold') st.yawTarget = face * 0.4;
       if (a === 'crow' || a === 'happy' || a === 'jump' || a === 'eat' || a === 'drink' || a === 'peck') st.yawTarget = face * 0.9;
       st.yaw = lerp(st.yaw, st.yawTarget, 1 - Math.exp(-dt * 6));
       root.rotation.y = st.yaw;
@@ -110,12 +112,15 @@
       // 착지 찌그러짐 (스프링)
       st.squashV += (-st.squash * 140 - st.squashV * 14) * dt; st.squash += st.squashV * dt;
       sy *= 1 - st.squash; sx *= 1 + st.squash * 0.7;
+      // 앉기(잠·품기): 몸을 찌그러뜨리지 않고 다리를 접어 몸을 내린다
       const squat = a === 'brood' || a === 'sleep';
       st.squat = lerp(st.squat || 0, squat ? 1 : 0, 1 - Math.exp(-dt * 5));
-      sy *= 1 - st.squat * 0.18; sx *= 1 + st.squat * 0.08;
+      if (a === 'sleep') { const b2 = Math.sin(st.t * 1.1) * 0.02; sy = 1 + b2; sx = 1 - b2 * 0.5; }
       for (const l of legs) { l.visible = st.squat < 0.7; if (a === 'carry') l.rotation.x = 0.6 + Math.sin(st.t * 7 + (l === legs[0] ? 0 : 1.5)) * 0.25; }
+      if (a === 'scold') { sx *= 1.04; sy *= 0.96; }
       root.scale.set(sx, sy, sx);
-      root.position.y = (ctl.jumpY || 0) + hop - st.squat * 0.45;
+      root.position.y = (ctl.jumpY || 0) + hop - st.squat * 0.5;
+      bodyPivot.rotation.z += (a === 'pet' ? Math.sin(st.t * 3) * 0.06 : 0) + (a === 'scold' ? Math.sin(st.t * 30) * 0.03 : 0);
 
       // 머리: 시선 따라가기 (제한된 yaw/pitch), 자는 중엔 숙임
       if (ctl.lookTarget) st.look.copy(ctl.lookTarget);
@@ -128,7 +133,9 @@
       hy = Math.max(-1.0, Math.min(1.0, hy)); hp = Math.max(-0.5, Math.min(0.6, hp));
       let targetPitch = hp, targetYaw = hy, targetRoll = 0;
       if (a === 'peck') { const k = Math.max(0, Math.sin(st.t * 9)); targetPitch = 0.9 * k + 0.2; targetYaw = 0; bodyPivot.rotation.x = 0.35 * k + 0.1; }
-      if (a === 'sleep') { targetPitch = 0.62 + Math.sin(st.t * 1.1) * 0.04; targetYaw = 0; targetRoll = 0.05; }
+      if (a === 'sleep') { targetPitch = 0.42 + Math.sin(st.t * 1.1) * 0.03; targetYaw = 0.25 * (ctl.dir > 0 ? 1 : -1); targetRoll = 0.04; }
+      if (a === 'pet') { targetPitch = 0.15; targetRoll = Math.sin(st.t * 3) * 0.22; }
+      if (a === 'scold') { targetPitch = -0.15; targetYaw = Math.sin(st.t * 24) * 0.25; targetRoll = 0; }
       if (a === 'happy' || a === 'jump') { targetPitch = -0.35; }
       if (a === 'crow') { targetPitch = -0.7; targetYaw = 0; bodyPivot.rotation.x = -0.15; }
       if (a === 'eat') { const k = Math.max(0, Math.sin(st.t * 5)); targetPitch = 0.75 * k + 0.25; targetYaw = 0; bodyPivot.rotation.x = 0.28 * k + 0.08; }
@@ -148,6 +155,8 @@
       if (a === 'flap' || a === 'happy' || a === 'jump' || a === 'crow' || a === 'beg') wing = 0.6 + Math.sin(st.t * 22) * 0.55;
       if (a === 'walk' && run) wing = 0.5 + Math.abs(sw) * 0.35;
       if (a === 'sleep') wing = 0.05;
+      if (a === 'pet') wing = 0.25 + Math.sin(st.t * 3) * 0.1;
+      if (a === 'scold') wing = 1.1;
       if (a === 'sad') wing = -0.1;
       if (a === 'brood') wing = 0.35;
       if (a === 'carry') wing = 0.9 + Math.sin(st.t * 18) * 0.3;
@@ -157,7 +166,7 @@
       st.blinkAt -= dt;
       if (st.blinkAt < 0) { st.blink = 0.14; st.blinkAt = 2 + Math.random() * 4; }
       st.blink = Math.max(0, st.blink - dt);
-      const closed = a === 'sleep' ? 0.08 : st.blink > 0 ? 0.1 : 1;
+      const closed = a === 'sleep' ? 0.08 : a === 'pet' ? 0.35 : st.blink > 0 ? 0.1 : 1;
       for (const e of eyes) e.scale.y = lerp(e.scale.y, closed, 1 - Math.exp(-dt * 25));
       // 부리 (울기·먹기)
       const open = (a === 'crow' || a === 'eat') ? Math.max(0, Math.sin(st.t * (a === 'eat' ? 12 : 6))) * 0.5 : 0;

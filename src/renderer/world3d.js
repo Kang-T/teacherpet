@@ -47,10 +47,10 @@
       for (let i = 0; i < 40; i++) {
         const mid = (lo + hi) / 2; camera.lookAt(0, mid, 0); camera.updateMatrixWorld();
         tmp.set(0, 0, 0).project(camera);
-        if (tmp.y > -0.93) lo = mid; else hi = mid;  // 원점이 너무 위에 있으면 lookAt을 올린다
+        if (tmp.y > -0.985) lo = mid; else hi = mid;  // 원점이 너무 위에 있으면 lookAt을 올린다
       }
       camera.lookAt(0, (lo + hi) / 2, 0); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-      const a = screenToGround(0, H * 0.96), b = screenToGround(W, H * 0.96);
+      const a = screenToGround(0, H * 0.99), b = screenToGround(W, H * 0.99);
       world.xMin = a ? a.x : -10; world.xMax = b ? b.x : 10;
       const span = Math.max(20, (world.xMax - world.xMin) * 0.8);
       sun.shadow.camera.left = -span; sun.shadow.camera.right = span; sun.shadow.camera.top = span * 0.6; sun.shadow.camera.bottom = -span * 0.6;
@@ -200,6 +200,7 @@
         const p = world.props[k], L = layout[k];
         p.position.set(L.x, 0, L.z); p.rotation.y = layout.flip ? Math.PI : 0;
         if (k === 'coop') p.rotation.y = layout.flip ? -0.25 : 0.25;
+        p.visible = L.visible !== false;
         p.userData.layout = L;
       }
     }
@@ -218,7 +219,7 @@
       ndc.set((px / world.W) * 2 - 1, -(py / world.H) * 2 + 1); ray.setFromCamera(ndc, camera);
       const meshes = []; for (const b of world.birds.values()) if (b.holder.visible) meshes.push(...b.meshes);
       const birdHits = ray.intersectObjects(meshes, false);
-      const propObjs = Object.values(world.props);
+      const propObjs = Object.values(world.props).filter((o) => o.visible);
       const propHits = propObjs.length ? ray.intersectObjects(propObjs, true) : [];
       const bh = birdHits[0], ph = propHits[0];
       if (bh && (!ph || bh.distance <= ph.distance)) return { type: 'bird', id: bh.object.userData.birdId };
