@@ -81,14 +81,17 @@ function createWindow() {
     win.webContents.on('console-message', (_e, level, msg, line, src) => { if (level >= 2) console.log(`[renderer:${level}] ${msg} (${src.split('/').pop()}:${line})`); });
     const delay = Number(process.env.TEACHERPET_SHOT_DELAY || 4000);
     if (process.env.TEACHERPET_SHOT_JS) setTimeout(() => win.webContents.executeJavaScript(process.env.TEACHERPET_SHOT_JS).catch((e) => console.log('shot-js error', e.message)), 1500);
+    const count = Number(process.env.TEACHERPET_SHOT_COUNT || 1);
+    const every = Number(process.env.TEACHERPET_SHOT_EVERY || 1000);
     setTimeout(async () => {
-      try {
-        const img = await win.webContents.capturePage();
-        fs.writeFileSync(shot, img.toPNG());
-        console.log('shot saved', shot);
-      } catch (e) {
-        console.error('shot failed', e);
+      for (let i = 0; i < count; i++) {
+        try {
+          const img = await win.webContents.capturePage();
+          fs.writeFileSync(count > 1 ? shot.replace(/\.png$/, `_${String(i).padStart(2, '0')}.png`) : shot, img.toPNG());
+        } catch (e) { console.error('shot failed', e); }
+        if (i < count - 1) await new Promise((r) => setTimeout(r, every));
       }
+      console.log('shot saved', shot, count);
       if (process.env.TEACHERPET_SHOT_QUIT) app.quit();
     }, delay);
   }

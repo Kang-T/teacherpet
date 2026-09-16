@@ -267,8 +267,22 @@
     b.burstT = 0; b.spin = 0;
     if (kind === 'ecstatic') showIcon(b, pick(['🎉', '✨', '💖']), 1500); else showIcon(b, '😭', 1500);
   }
-  function leaveRoof(b) { b.onRoof = false; b.groundY = 0; b.y = Math.max(b.y, world3dRoof()); b.vy = 1.5; setAnim(b, 'fall', 99); }
   const world3dRoof = () => window.TP_WORLD.COOP_ROOF_Y;
+  // 포물선 도약: 나는 동안 x·z를 함께 옮겨서 닭장을 통과하지 않는다
+  function leapTo(b, x1, z1, vy, dur) { b.leap = { x0: b.x, z0: b.z, x1, z1, t: 0, dur }; b.vy = vy; }
+  function jumpToRoof(b) {
+    const c = home().coop, h = world3dRoof(), vy = Math.sqrt(2 * GRAV * h) + 1.2;
+    const dur = (vy + Math.sqrt(Math.max(0, vy * vy - 2 * GRAV * h))) / GRAV;
+    b.onRoof = true; leapTo(b, c.x, c.z, vy, dur); setAnim(b, 'jump', 2.2); showIcon(b, '⬆️', 900);
+  }
+  function leaveRoof(b) {
+    const c = home().coop, h = world3dRoof(), vy = 2.2;
+    const dur = (vy + Math.sqrt(vy * vy + 2 * GRAV * h)) / GRAV;
+    b.onRoof = false; b.y = Math.max(b.y, h);
+    const side = b.x > c.x ? 1 : -1;
+    leapTo(b, clamp(c.x + side * rand(1.6, 2.4), world.xMin + XMARGIN, world.xMax - XMARGIN), clamp(c.z + rand(2.4, 3.0), -1.8, 1.8), vy, dur);
+    setAnim(b, 'fall', 99); showIcon(b, '⬇️', 700);
+  }
   // 수탉 울음 → 근처 새끼들이 놀란다
   function startleKids(r) {
     for (const k of birds) {
@@ -297,6 +311,15 @@
       if (b.d.hunger < 30 && now() > b.iconUntil) showIcon(b, '🌾', 1500);
       else if (b.d.thirst < 30 && now() > b.iconUntil) showIcon(b, '💧', 1500);
     }
+    if (b.anim === 'hatch') {
+      const prev = b.hatching || 0;
+      b.hatching = Math.min(1, prev + dt / HATCH_SEC);
+      if (prev < 0.2 && b.hatching >= 0.2) { pipSound(); toast('🐣 부리로 껍질을 톡톡 쪼기 시작했어요', false, 5000); }
+      else if (prev < 0.3 && b.hatching >= 0.3) { pipSound(); toast('🐣 껍질을 빙 둘러 깨는 중이에요', false, 5000); }
+      else if (prev < 0.72 && b.hatching >= 0.72) pipSound();
+      if (b.hatching >= 1) finishHatch(b);
+      return;
+    }
     if (b.carrying) return;
     // 감정 폭발 진행 (신남: 뛰어다니며 파닥 / 엉엉: 주저앉아 빙글빙글)
     if (b.anim === 'ecstatic') {
@@ -307,6 +330,14 @@
     } else if (b.anim === 'wail') {
       b.spin = (b.spin || 0) + dt * 1.6; b.b3.holder.rotation.y = b.spin;
     } else if (b.b3.holder.rotation.y !== 0) { b.b3.holder.rotation.y *= Math.max(0, 1 - dt * 6); if (Math.abs(b.b3.holder.rotation.y) < 0.01) b.b3.holder.rotation.y = 0; }
+    if (b.leap) {
+      b.leap.t += dt;
+      const k = Math.min(1, b.leap.t / b.leap.dur);
+      b.x = b.leap.x0 + (b.leap.x1 - b.leap.x0) * k;
+      b.z = b.leap.z0 + (b.leap.z1 - b.leap.z0) * k;
+      if (Math.abs(b.leap.x1 - b.leap.x0) > 0.2) b.dir = b.leap.x1 > b.leap.x0 ? 1 : -1;
+      if (k >= 1) b.leap = null;
+    }
     // 중력 (지붕 위면 지붕이 바닥)
     const gY = b.onRoof ? world3dRoof() : 0;
     if (b.y > gY || b.vy > 0) {
@@ -319,9 +350,9 @@
     }
     if (b.anim === 'fall') return;
     // 겹침 방지: 가까운 닭끼리 서로 살짝 밀어낸다 (알·품는 닭 제외)
-    if (b.d.stage !== 'egg' && !b.d.brooding && !b.inCoop) {
+    if (b.d.stage !== 'egg' && !b.d.brooding && !b.inCoop && !b.onRoof && !b.leap) {
       for (const o of birds) {
-        if (o === b || o.d.stage === 'egg' || o.inCoop || o.carrying) continue;
+        if (o === b || o.d.stage === 'egg' || o.inCoop || o.carrying || o.onRoof) continue;
         const dx = b.x - o.x, dz = b.z - o.z, minD = 0.55 * (height(b) + height(o)) * 0.55;
         const dist = Math.hypot(dx, dz * 1.6);
         if (dist < minD && dist > 0.001) { const push = (minD - dist) * dt * 2.2; b.x += (dx / dist) * push; b.z = clamp(b.z + (dz / dist) * push * 0.6, -1.8, 1.8); }
@@ -330,7 +361,7 @@
     }
     // 벌레가 나타나면 하던 일을 멈추고 달려간다
     const tgt = chaseTarget(b);
-    if (tgt && eligible(b) && !['chase', 'beg', 'eat'].includes(b.anim) && !(tgt.kind === 'call' && (b.anim === 'sleep' || b.inCoop) && b.d.aff < 60)) { b.inCoop = false; setVisible(b, true); b.targetX = null; if (b.onRoof) leaveRoof(b); setAnim(b, 'chase', 30); }
+    if (tgt && eligible(b) && !['chase', 'beg', 'eat'].includes(b.anim) && !(tgt.kind === 'call' && (b.anim === 'sleep' || b.inCoop) && b.d.aff < 60)) { b.inCoop = false; setVisible(b, true); b.targetX = null; if (b.onRoof) { leaveRoof(b); return; } setAnim(b, 'chase', 30); }
     if (b.anim === 'chase') {
       if (!tgt) { decide(b); return; }
       if (tgt.kind === 'worm') { // 반원으로 둘러싸도록 자리 배정
@@ -372,7 +403,7 @@
         else if (b.anim === 'gokid') { const k = birds.find((q) => q.d.id === b.careKid); setAnim(b, 'nuzzle', 2.2); if (k) { showIcon(k, '❤️', 1500); k.d.stress = clamp(k.d.stress - 30, 0, 100); k.d.social = clamp(k.d.social - 30, 0, 100); if (k.anim === 'idle' || k.anim === 'walk') setAnim(k, 'pet', 2); } b.d.social = clamp(b.d.social - 20, 0, 100); }
         else if (b.anim === 'golamp') { b.z = clamp(home().lamp.z + rand(-0.6, 0.6), -2, 2); setAnim(b, Math.random() < 0.5 ? 'idle' : 'preen', rand(4, 9)); showIcon(b, '🔥', 1200); b.d.stress = clamp(b.d.stress - 10, 0, 100); }
         else if (b.anim === 'golamp-sleep') { b.z = clamp(home().lamp.z + rand(-0.6, 0.6), -2, 2); setAnim(b, 'sleep', rand(20, 40)); showIcon(b, '💤', 2000); }
-        else if (b.anim === 'goroof') { b.z = home().coop.z; b.onRoof = true; b.vy = 9.5; setAnim(b, 'jump', 2); showIcon(b, '⬆️', 800); }
+        else if (b.anim === 'goroof') jumpToRoof(b);
         else if (b.anim === 'gomom-sleep') { setAnim(b, 'sleep', rand(15, 35)); const m = momOf(b); if (m && eligible(m) && (m.anim === 'idle' || m.anim === 'walk' || m.anim === 'preen')) { m.targetX = null; setAnim(m, 'brood', rand(15, 35)); } }
         else setAnim(b, 'idle', rand(1, 3));
         b.fleeing = false;
@@ -412,9 +443,7 @@
   function growCheck(b) {
     const n = daysCared(b);
     if (b.d.stage === 'egg' && n >= RULE.daysEgg) {
-      advance(b, 'chick'); b.anim = 'idle'; jump(b, 260);
-      const hen = birds.find((h) => h.d.brooding === b.d.id); if (hen) { hen.d.brooding = null; hen.d.children = (hen.d.children || 0) + 1; b.d.momId = hen.d.id; }
-      toast(`🐣 ${b.d.name}(이)가 알에서 깨어났어요!`, true, 8000); chime();
+      if (b.hatching === undefined || b.hatching === null) startHatching(b);
     } else if (b.d.stage === 'chick' && n >= RULE.daysChick) {
       advance(b, 'young'); jump(b, 280); toast(`${b.d.name}(이)가 어린닭이 됐어요. 볏이 보이기 시작해요`, true, 7000); chime();
     } else if (b.d.stage === 'young' && n >= RULE.daysYoung) {
@@ -430,6 +459,31 @@
       farewell(b);
     }
     markDirty();
+  }
+  // 부화: 톡톡(pip) → 빙 둘러 깨기(zip) → 뚜껑 열림 → 젖은 병아리가 마르며 일어선다
+  const HATCH_SEC = 12;
+  function startHatching(b) {
+    b.hatching = 0; b.targetX = null; b.leap = null; b.inCoop = false; setVisible(b, true);
+    setAnim(b, 'hatch', 99);
+    toast(`🥚 ${b.d.name}... 알이 움직여요!`, true, 6000);
+    const mom = birds.find((h) => h.d.brooding === b.d.id);
+    if (mom) { mom.targetX = null; setAnim(mom, 'brood', HATCH_SEC); showIcon(mom, '👀', 4000); }
+    markDirty();
+  }
+  function finishHatch(b) {
+    const mom = birds.find((h) => h.d.brooding === b.d.id);
+    world.addShells(b.x, b.z);
+    advance(b, 'chick');
+    b.hatching = null; b.newborn = 4;
+    b.d.energy = 55; b.d.hunger = 60; b.d.thirst = 60; b.d.stress = 30;
+    setAnim(b, 'idle', 3); showIcon(b, '🐣', 3500);
+    if (mom) {
+      mom.d.brooding = null; mom.d.children = (mom.d.children || 0) + 1; b.d.momId = mom.d.id;
+      setAnim(mom, 'nuzzle', 3); showIcon(mom, '❤️', 3000);
+      toast(`🐣 ${b.d.name}(이)가 태어났어요! 엄마는 ${mom.d.name}`, true, 10000);
+    } else toast(`🐣 ${b.d.name}(이)가 태어났어요!`, true, 10000);
+    chime(); peepSound();
+    markDirty(); renderCoop();
   }
   function farewell(b) {
     const natural = state.settings.lifeEnd === 'natural';
@@ -480,7 +534,7 @@
         else b.look.set(b.x + rand(-6, 6), rand(0.5, 4), rand(2, 10));
       }
       const anim = ['gofeed', 'gowater', 'gocoop', 'gonest', 'chase', 'gokid', 'gomom-sleep', 'golamp', 'golamp-sleep', 'goroof'].includes(b.anim) ? 'walk' : b.anim === 'sit' ? 'idle' : b.anim === 'fall' ? 'carry' : b.anim;
-      m.model.update(dt, { anim, moving, dir: b.dir, jumpY: b.y, lookTarget: b.look, curious: mode !== 'class', wobble: b.f === 1, speed: b.anim === 'chase' || b.fleeing ? 2.2 : 1, mood: b.d.stage === 'egg' ? null : moodOf(b) });
+      m.model.update(dt, { anim, moving, dir: b.dir, jumpY: b.y, lookTarget: b.look, curious: mode !== 'class', wobble: b.f === 1, hatch: b.hatching || 0, speed: b.anim === 'chase' || b.fleeing ? 2.2 : 1, mood: b.d.stage === 'egg' ? null : moodOf(b) });
       if (b.f === 1 && b.d.stage === 'egg' && t > (b.wobbleUntil || 0)) b.f = 0;
       // 오버레이(아이콘·이름표) 위치
       const top = world.project(b.x, height(b) + b.y + 0.2, b.z);
@@ -661,6 +715,8 @@
     o.connect(g).connect(ac().destination); o.start(t0); o.stop(t0 + dur + 0.05);
   }
   function chime() { if (!state.settings.sound) return; try { const t = ac().currentTime; [523, 659, 784].forEach((f, i) => tone(f, f, t + i * 0.18, 0.5)); } catch (_) {} }
+  function pipSound() { if (!state.settings.sound) return; try { const t = ac().currentTime; for (let i = 0; i < 3; i++) tone(1400, 900, t + i * 0.13, 0.06, 'square', 0.07); } catch (_) {} }
+  function peepSound() { if (!state.settings.sound) return; try { const t = ac().currentTime; [880, 1180, 980, 1320].forEach((f, i) => tone(f, f * 1.15, t + i * 0.16, 0.13, 'sine', 0.13)); } catch (_) {} }
   function crowSound() { if (!state.settings.sound) return; try { const t = ac().currentTime; tone(520, 620, t, 0.18, 'sawtooth', 0.12); tone(700, 760, t + 0.2, 0.18, 'sawtooth', 0.12); tone(880, 980, t + 0.4, 0.35, 'sawtooth', 0.14); tone(760, 520, t + 0.78, 0.5, 'sawtooth', 0.1); } catch (_) {} }
   function morningCrow() {
     const r = birds.find((b) => b.d.stage === 'rooster');
@@ -859,6 +915,6 @@
     requestAnimationFrame(loop);
   }
   // 디버그 훅 (자동 캡처용)
-  window.__tp = { set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const p = world.screenToPlaneZ(px, py, 1.2); if (p) { worm.x = p.x; worm.y = Math.max(0.15, p.y); } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(1) })) };
+  window.__tp = { at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const p = world.screenToPlaneZ(px, py, 1.2); if (p) { worm.x = p.x; worm.y = Math.max(0.15, p.y); } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(1) })) };
   init();
 })();

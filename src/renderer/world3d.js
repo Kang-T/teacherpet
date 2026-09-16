@@ -90,14 +90,86 @@
     // 알 (품질감: 크림색 + 살구색 점)
     function makeEgg() {
       const group = new THREE.Group();
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhysicalMaterial({ color: 0xFFF6E6, roughness: 0.55, sheen: 0.5, sheenColor: new THREE.Color(0xFFE8D0) }));
-      m.scale.set(1, 1.3, 1); m.position.y = 0.65; m.castShadow = true; group.add(m);
-      for (const [x, y, z] of [[-0.18, 0.85, 0.42], [0.22, 0.6, 0.4], [0.05, 1.05, 0.35], [-0.3, 0.5, 0.35]]) {
-        const s = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), new THREE.MeshStandardMaterial({ color: 0xF4B78F, roughness: 1 })); s.scale.set(1, 1, 0.3); s.position.set(x, y, z); s.lookAt(0, 0.65, 0); group.add(s);
+      const shellMat = () => new THREE.MeshPhysicalMaterial({ color: 0xFFF6E6, roughness: 0.55, sheen: 0.5, sheenColor: new THREE.Color(0xFFE8D0), side: THREE.DoubleSide });
+      const R = 0.5, CUT = 1.15, BASE = 0.65;   // CUT = 껍질이 갈라지는 위도(rad)
+      // 아래 껍질(그릇) + 위 껍질(뚜껑) — 부화 때 뚜껑만 열린다
+      const bottomPivot = new THREE.Group(); bottomPivot.position.y = BASE; bottomPivot.scale.set(1, 1.3, 1); group.add(bottomPivot);
+      const bottom = new THREE.Mesh(new THREE.SphereGeometry(R, 32, 24, 0, Math.PI * 2, CUT, Math.PI - CUT), shellMat()); bottom.castShadow = true; bottomPivot.add(bottom);
+      const topPivot = new THREE.Group(); topPivot.position.y = BASE; topPivot.scale.set(1, 1.3, 1); group.add(topPivot);
+      const top = new THREE.Mesh(new THREE.SphereGeometry(R, 32, 24, 0, Math.PI * 2, 0, CUT), shellMat()); top.castShadow = true; topPivot.add(top);
+      // 점무늬
+      for (const [x, y, z, onTop] of [[-0.18, 0.2, 0.42, 1], [0.22, -0.05, 0.4, 0], [0.05, 0.4, 0.35, 1], [-0.3, -0.15, 0.35, 0]]) {
+        const sp = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), new THREE.MeshStandardMaterial({ color: 0xF4B78F, roughness: 1 }));
+        sp.scale.set(1, 1, 0.3); sp.position.set(x, y, z); sp.lookAt(0, 0, 0); (onTop ? topPivot : bottomPivot).add(sp);
       }
+      // 갈라지는 선의 톱니 금
+      const cracks = [];
+      const ringR = R * Math.sin(CUT), ringY = R * Math.cos(CUT);
+      for (let i = 0; i < 18; i++) {
+        const a = i / 18 * Math.PI * 2;
+        const c = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.05, 0.035), new THREE.MeshStandardMaterial({ color: 0x8A6A4A, roughness: 1 }));
+        c.position.set(Math.cos(a) * ringR * 1.02, (ringY + (i % 2 ? 0.05 : -0.05)) * 1.3 + BASE, Math.sin(a) * ringR * 1.02);
+        c.lookAt(0, c.position.y, 0); c.visible = false; group.add(c); cracks.push(c);
+      }
+      // 부리가 뚫은 구멍(pip)
+      const pip = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 10), new THREE.MeshStandardMaterial({ color: 0x2A1A10, roughness: 1 }));
+      pip.scale.set(1, 1, 0.35); pip.position.set(0.1, BASE + 0.3, 0.44); pip.lookAt(0.1, BASE + 0.3, 0); pip.visible = false; group.add(pip);
+      // 안에서 내미는 노란 부리 끝
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.16, 12), new THREE.MeshStandardMaterial({ color: 0xFF9438, roughness: 0.45 }));
+      beak.rotation.x = Math.PI / 2; beak.position.set(0.1, BASE + 0.3, 0.46); beak.visible = false; group.add(beak);
+
       const st = { t: 0 };
-      function update(dt, ctl) { st.t += dt; group.rotation.z = ctl.wobble ? Math.sin(st.t * 14) * 0.12 : Math.sin(st.t * 1.2) * 0.02; group.position.y = ctl.jumpY || 0; }
+      function update(dt, ctl) {
+        st.t += dt;
+        const h = ctl.hatch || 0;
+        if (h <= 0) {
+          group.rotation.z = ctl.wobble ? Math.sin(st.t * 14) * 0.12 : Math.sin(st.t * 1.2) * 0.02;
+          group.position.y = ctl.jumpY || 0;
+          topPivot.position.y = BASE; topPivot.rotation.set(0, 0, 0); topPivot.position.x = 0; topPivot.position.z = 0;
+          pip.visible = beak.visible = false; for (const c of cracks) c.visible = false;
+          return;
+        }
+        // ① 흔들림이 점점 세진다  ② 구멍(pip)  ③ 금이 빙 둘러(zip)  ④ 뚜껑이 열린다
+        const shake = h < 0.8 ? 0.06 + h * 0.3 : Math.max(0, (1 - h) / 0.2) * 0.3;
+        group.rotation.z = Math.sin(st.t * (12 + h * 26)) * shake;
+        group.rotation.x = Math.sin(st.t * (9 + h * 18)) * shake * 0.4;
+        pip.visible = h > 0.2;
+        if (pip.visible) pip.scale.set(Math.min(1.3, 0.5 + (h - 0.2) * 3), Math.min(1.3, 0.5 + (h - 0.2) * 3), 0.35);
+        beak.visible = h > 0.24 && h < 0.72 && Math.sin(st.t * 7) > 0.2;
+        const zip = clamp01((h - 0.3) / 0.38);
+        for (let i = 0; i < cracks.length; i++) cracks[i].visible = i / cracks.length < zip;
+        const open = clamp01((h - 0.72) / 0.28);
+        topPivot.position.y = BASE + open * 0.5;
+        topPivot.position.x = open * 0.45;
+        topPivot.position.z = open * 0.15;
+        topPivot.rotation.z = open * 1.5;
+        topPivot.rotation.x = open * 0.5;
+        bottomPivot.scale.set(1 + open * 0.05, 1.3 - open * 0.15, 1 + open * 0.05);
+        group.position.y = ctl.jumpY || 0;
+      }
+      const clamp01 = (v) => Math.max(0, Math.min(1, v));
       return { group, update, land() {}, state: st };
+    }
+
+    // 부화하고 남은 껍질 조각 (잠시 바닥에 남는다)
+    const shellPiles = [];
+    function addShells(x, z) {
+      const g = new THREE.Group(); g.position.set(x, 0, z);
+      const mat = () => new THREE.MeshPhysicalMaterial({ color: 0xFFF6E6, roughness: 0.55, side: THREE.DoubleSide, transparent: true, opacity: 1 });
+      const a = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 14, 0, Math.PI * 2, 0, 1.15), mat());
+      a.scale.set(1, 1.3, 1); a.rotation.set(Math.PI * 0.62, Math.random() * 3, 0.35); a.position.set(-0.45, 0.14, 0.15); a.castShadow = true; g.add(a);
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 14, 0, Math.PI * 2, 1.15, Math.PI - 1.15), mat());
+      b.scale.set(1, 1.3, 1); b.rotation.set(-0.3, Math.random() * 3, -0.25); b.position.set(0.4, 0.16, -0.1); b.castShadow = true; g.add(b);
+      scene.add(g); shellPiles.push({ g, born: performance.now() });
+      return g;
+    }
+    function tickShells() {
+      const t = performance.now();
+      for (let i = shellPiles.length - 1; i >= 0; i--) {
+        const s = shellPiles[i], age = (t - s.born) / 1000;
+        if (age > 120) { scene.remove(s.g); shellPiles.splice(i, 1); }
+        else if (age > 100) s.g.traverse((o) => { if (o.isMesh) o.material.opacity = 1 - (age - 100) / 20; });
+      }
     }
 
     // ---- 소품 ----
@@ -238,9 +310,9 @@
       if (ph) { let o = ph.object; while (o && !o.userData.propName) o = o.parent; return o ? { type: 'prop', name: o.userData.propName } : null; }
       return null;
     }
-    function render() { renderer.render(scene, camera); }
+    function render() { tickShells(); renderer.render(scene, camera); }
 
-    Object.assign(world, { makeWorm, setWormCount, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
+    Object.assign(world, { makeWorm, setWormCount, addShells, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
     return world;
   }
   global.TP_WORLD = { create, STAGE_PRESET, COOP_ROOF_Y: 3.35 };
