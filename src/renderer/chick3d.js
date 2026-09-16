@@ -88,6 +88,7 @@
       const face = ctl.dir > 0 ? 1 : -1;
       st.yawTarget = face * 0.8;                          // 서 있을 땐 얼굴이 보이는 3/4
       if (ctl.moving > 0.5) st.yawTarget = face * 1.3;    // 걸을 땐 진행 방향(거의 옆모습)
+      if (a === 'beg') st.yawTarget = face * 0.5;
       if (a === 'sleep' || a === 'brood') st.yawTarget = face * 0.7;
       if (a === 'crow' || a === 'happy' || a === 'jump' || a === 'eat' || a === 'drink' || a === 'peck') st.yawTarget = face * 0.9;
       st.yaw = lerp(st.yaw, st.yawTarget, 1 - Math.exp(-dt * 6));
@@ -95,11 +96,12 @@
 
       // 걷기: 다리 교차 + 몸 좌우 흔들림 + 살짝 통통
       st.phase += dt * (a === 'walk' ? 9 : 0) * (ctl.speed || 1);
+      const run = (ctl.speed || 1) > 1.5 ? 1 : 0;
       const mv = ctl.moving || 0;
       const sw = Math.sin(st.phase);
       legs[0].rotation.x = sw * 0.7 * mv; legs[1].rotation.x = -sw * 0.7 * mv;
       bodyPivot.rotation.z = -sw * 0.08 * mv;
-      bodyPivot.rotation.x = 0.05 * mv;
+      bodyPivot.rotation.x = 0.05 * mv + 0.22 * run * mv;
       const hop = Math.abs(Math.cos(st.phase)) * 0.06 * mv;
 
       // 숨쉬기
@@ -134,6 +136,7 @@
       if (a === 'sad') { targetPitch = 0.45; targetRoll = Math.sin(st.t * 1.2) * 0.08; }
       if (a === 'brood') { targetPitch = 0.15; targetRoll = Math.sin(st.t * 0.8) * 0.06; }
       if (a === 'carry') { targetPitch = -0.2; targetRoll = Math.sin(st.t * 6) * 0.1; }
+      if (a === 'beg') { targetRoll = Math.sin(st.t * 5) * 0.12; }
       if (a === 'idle' && ctl.curious) { targetRoll = Math.sin(st.t * 1.7) * 0.18; }
       head.rotation.y = lerp(head.rotation.y, targetYaw, 1 - Math.exp(-dt * 6));
       head.rotation.x = lerp(head.rotation.x, targetPitch, 1 - Math.exp(-dt * 6));
@@ -142,7 +145,8 @@
       // 날개
       let wing = 0.15;
       if (a === 'walk') wing = 0.15 + Math.abs(sw) * 0.1;
-      if (a === 'flap' || a === 'happy' || a === 'jump' || a === 'crow') wing = 0.6 + Math.sin(st.t * 22) * 0.55;
+      if (a === 'flap' || a === 'happy' || a === 'jump' || a === 'crow' || a === 'beg') wing = 0.6 + Math.sin(st.t * 22) * 0.55;
+      if (a === 'walk' && run) wing = 0.5 + Math.abs(sw) * 0.35;
       if (a === 'sleep') wing = 0.05;
       if (a === 'sad') wing = -0.1;
       if (a === 'brood') wing = 0.35;

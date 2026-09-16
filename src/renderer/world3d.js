@@ -170,8 +170,31 @@
       const eggs = new THREE.Group(); eggs.position.y = 0.75; g.add(eggs); g.userData.eggs = eggs;
       return shadowed(g);
     }
+    function makeWormBucket() {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.45, 0.7, 24), hard(0x8FB8E8)); body.position.y = 0.35; g.add(body);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.05, 8, 24), hard(0x6E9AD0)); rim.rotation.x = Math.PI / 2; rim.position.y = 0.7; g.add(rim);
+      const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.08, 24), hard(0x6B4A2E, { roughness: 1 })); soil.position.y = 0.66; g.add(soil);
+      const worms = new THREE.Group(); worms.position.y = 0.72; g.add(worms); g.userData.worms = worms;
+      const label = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.02), hard(0xFFF7EC)); label.position.set(0, 0.35, 0.5); g.add(label);
+      return shadowed(g);
+    }
+    function makeWorm() {
+      const g = new THREE.Group(); const segs = [];
+      for (let i = 0; i < 5; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.11 - i * 0.008, 12, 8), hard(i ? 0xF29AA6 : 0xE87F8E, { roughness: 0.6 })); m.position.x = (i - 2) * 0.16; m.castShadow = true; g.add(m); segs.push(m); }
+      const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), hard(0x2A1A10)); e1.position.set(-0.36, 0.06, 0.07); g.add(e1);
+      const e2 = e1.clone(); e2.position.z = -0.07; g.add(e2);
+      let t = 0;
+      return { group: g, update(dt) { t += dt; segs.forEach((m, i) => { m.position.y = Math.sin(t * 9 + i * 1.1) * 0.05; m.position.z = Math.sin(t * 6 + i * 0.9) * 0.04; }); } };
+    }
+    function setWormCount(n) {
+      const b = world.props.wormbucket; if (!b) return;
+      const ws = b.userData.worms; const k = Math.min(4, n);
+      while (ws.children.length > k) ws.remove(ws.children[ws.children.length - 1]);
+      while (ws.children.length < k) { const i = ws.children.length; const w = makeWorm().group; w.scale.setScalar(0.8); w.position.set(Math.cos(i * 1.7) * 0.2, 0, Math.sin(i * 1.7) * 0.2); w.rotation.y = i * 1.3; ws.add(w); }
+    }
     function setProps(layout) { // layout: { coop:{x,z}, nest:{x,z}, ... , flip }
-      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, waterer: makeWaterer, basket: makeBasket };
+      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket };
       for (const k of Object.keys(makers)) {
         if (!world.props[k]) { world.props[k] = makers[k](); world.props[k].userData.propName = k; scene.add(world.props[k]); }
         const p = world.props[k], L = layout[k];
@@ -204,7 +227,7 @@
     }
     function render() { renderer.render(scene, camera); }
 
-    Object.assign(world, { fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
+    Object.assign(world, { makeWorm, setWormCount, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
     return world;
   }
   global.TP_WORLD = { create, STAGE_PRESET };

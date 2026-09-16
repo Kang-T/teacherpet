@@ -80,6 +80,7 @@ function createWindow() {
   if (shot) {
     win.webContents.on('console-message', (_e, level, msg, line, src) => { if (level >= 2) console.log(`[renderer:${level}] ${msg} (${src.split('/').pop()}:${line})`); });
     const delay = Number(process.env.TEACHERPET_SHOT_DELAY || 4000);
+    if (process.env.TEACHERPET_SHOT_JS) setTimeout(() => win.webContents.executeJavaScript(process.env.TEACHERPET_SHOT_JS).catch((e) => console.log('shot-js error', e.message)), 1500);
     setTimeout(async () => {
       try {
         const img = await win.webContents.capturePage();
