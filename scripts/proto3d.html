@@ -1,0 +1,60 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;overflow:hidden;background:linear-gradient(#6FA3F0,#CFE4FF 70%,#E8F0FA)}canvas{display:block}</style></head>
+<body>
+<script src="../src/renderer/vendor/three.global.js"></script>
+<script src="../src/renderer/chick3d.js"></script>
+<script>
+const THREE = window.THREE;
+const W = innerWidth, H = innerHeight;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(W, H); renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(28, W / H, 0.1, 100);
+const kindScale = { chick: 1, young: 1.2, hen: 1.45, rooster: 1.65 };
+let camZ = 11;
+scene.add(new THREE.HemisphereLight(0xFFFFFF, 0xC9D6EA, 1.6));
+const sun = new THREE.DirectionalLight(0xFFF6E8, 2.2); sun.position.set(2.5, 7, 6); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 6; sun.shadow.camera.left = -8; sun.shadow.camera.right = 8; sun.shadow.camera.top = 8; sun.shadow.camera.bottom = -8;
+scene.add(sun);
+const rim = new THREE.DirectionalLight(0xDDEEFF, 0.9); rim.position.set(-5, 4, -3); scene.add(rim);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.22 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+const params = new URLSearchParams(location.search);
+const kind = params.get('kind') || 'chick';
+const presets = {
+  chick: { scale: 0.75 },
+  young: { scale: 0.95, body: 0xFFE9A8, belly: 0xFFF7DE, comb: 0.6, tail: 0.3 },
+  hen: { scale: 1.15, body: 0xFDF6EC, belly: 0xFFFFFF, comb: 1.0, wattle: 1.0, tail: 0.7 },
+  rooster: { scale: 1.3, body: 0xFBF3E4, belly: 0xF7D98A, comb: 1.5, wattle: 1.3, tail: 1.6, ruff: 0xF2B84B },
+};
+const chick = window.TP_CHICK3D.createChick(THREE, presets[kind]); scene.add(chick.group);
+camZ = 11 * (kindScale[kind] || 1); cam.position.set(0, 2.6 * (kindScale[kind] || 1), camZ); cam.lookAt(0, 1.3 * (kindScale[kind] || 1), 0);
+const still = params.get('still');
+
+// 시나리오: 둘러보기 → 오른쪽으로 걷기 → 쪼기 → 점프 → 왼쪽으로 걷기 → 잠
+const timeline = [
+  [0, 'idle', 0, 1], [2.2, 'walk', 1, 1], [5.0, 'peck', 0, 1], [7.2, 'jump', 0, 1], [8.2, 'idle', 0, 1], [9.2, 'walk', 0, -1], [12.0, 'sleep', 0, -1], [15, 'crow', 0, 1], [17, 'idle', 0, 1],
+];
+let x = still ? 0 : -2.5, vy = 0, jy = 0, t0 = performance.now(), last = t0;
+const look = new THREE.Vector3(3, 2.5, 6);
+function tick(now) {
+  const t = (now - t0) / 1000, dt = Math.min(0.05, (now - last) / 1000); last = now;
+  let cur = timeline[0]; for (const e of timeline) if (t >= e[0]) cur = e;
+  if (still) cur = [0, still === '1' ? 'idle' : still, 0, 1];
+  const [, anim, moving, dir] = cur;
+  if (anim === 'walk') x += dir * 1.5 * dt;
+  if (anim === 'jump' && jy === 0 && vy === 0 && t - cur[0] < 0.1) vy = 6;
+  if (jy > 0 || vy > 0) { vy -= 20 * dt; jy += vy * dt; if (jy <= 0) { jy = 0; vy = 0; chick.land(); } }
+  // 시선: 둘러볼 땐 천천히 좌우, 걸을 땐 진행 방향, 아니면 카메라(관객)
+  if (anim === 'idle') look.set(Math.sin(t * 0.9) * 5, 1.5 + Math.sin(t * 0.5), 6);
+  else if (anim === 'walk') look.set(x + dir * 4, 1.2, 1);
+  else look.set(0, 2, 8);
+  chick.group.position.x = x;
+  chick.update(dt, { anim, moving, dir, jumpY: jy, lookTarget: look, curious: true });
+  renderer.render(scene, cam);
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script></body></html>

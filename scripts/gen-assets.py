@@ -7,9 +7,12 @@ BACKEND = "zero"
 TOKEN = open(os.path.expanduser("~/.config/teacherpet/hf_token")).read().strip().strip('"').strip("'")
 HOST = "https://evalstate-flux1-schnell.hf.space/gradio_api"
 
-STYLE = ("3D rendered like a Pixar toy, big round glossy black eyes with highlights, soft fluffy texture, "
-         "soft studio lighting, subtle soft shadow under body, isolated on plain pure white background, "
-         "centered, full body, clean game sprite style")
+BG = {"white": "isolated on plain pure white background",
+      "green": "isolated on a plain solid bright green chroma key background, no shadow on the background",
+      "magenta": "isolated on a plain solid bright magenta chroma key background, no shadow on the background"}
+BGNAME = "white"
+def STYLE_(): return ("3D rendered like a Pixar toy, big round glossy black eyes with highlights, soft fluffy texture, "
+         "soft studio lighting, " + BG[BGNAME] + ", centered, full body, clean game sprite style")
 SPECIES = {
     # 닭 한살이 4형태 (같은 식구로 보이게 색·눈·부리 묘사를 맞춘다)
     "chick": "Adorable chibi baby chick mascot, fluffy round yellow body, tiny orange beak, little orange feet, small wing nubs, a tiny tuft of down on its head",
@@ -92,16 +95,18 @@ def main():
     ap.add_argument("--poses", default="idle")
     ap.add_argument("--seeds", default="777")
     ap.add_argument("--out", default="assets-src")
+    ap.add_argument("--bg", default="white", help="white | green | magenta (흰 동물은 green으로)")
     ap.add_argument("--backend", default="zero", help="zero(ZeroGPU 스페이스, 무료 할당량) | fal(HF 라우터→fal.ai, 크레딧 과금)")
     a = ap.parse_args()
-    global BACKEND; BACKEND = a.backend
+    global BACKEND, BGNAME; BACKEND = a.backend; BGNAME = a.bg
+    if a.bg != "white" and a.out == "assets-src": a.out = "assets-src-" + a.bg
     poses = a.poses.split(","); seeds = [int(s) for s in a.seeds.split(",")]
     if a.species == ["props"]:
         for name, desc in PROPS.items():
             out = os.path.join(a.out, "props", f"{name}_s{seeds[0]}.png")
             if os.path.exists(out): print("skip", out); continue
             os.makedirs(os.path.dirname(out), exist_ok=True)
-            st = gen(f"{desc}, {STYLE}", seeds[0], out); print(f"props/{name}: {st}", flush=True); time.sleep(1)
+            st = gen(f"{desc}, {STYLE_()}", seeds[0], out); print(f"props/{name}: {st}", flush=True); time.sleep(1)
         return
     for sp in a.species:
         table = POSES_BIRD if sp == "cockatiel" else POSES
@@ -113,7 +118,7 @@ def main():
                 if pose == "special": name, desc = SPECIAL[sp]; out = os.path.join(a.out, sp, f"{name}_s{seed}.png")
                 else: desc = table[pose]
                 if os.path.exists(out): print("skip", out); continue
-                prompt = f"{SPECIES[sp]}, {desc}, {STYLE}"
+                prompt = f"{SPECIES[sp]}, {desc}, {STYLE_()}"
                 for attempt in range(3):
                     t0 = time.time()
                     try: st = gen(prompt, seed, out)
