@@ -86,6 +86,12 @@
     sad: 'sad', egg: 'egg', gofeed: 'walk', gowater: 'walk', gocoop: 'walk', gonest: 'walk', peck: 'peck', flap: 'flap', brood: 'brood', crow: 'crow' };
 
   function setAnim(b, anim, dur) { b.anim = anim; b.animT = 0; b.animDur = dur; }
+  // 방향은 0.5초에 한 번만 바꾼다 — 화면 끝이나 양쪽에 닭이 있을 때 매 프레임 뒤집히며 떨던 문제
+  function faceDir(b, d) {
+    if (!d || d === b.dir) return;
+    if (now() - (b.dirAt || 0) < 500) return;
+    b.dir = d; b.dirAt = now();
+  }
   function jump(b, v = 300) { setAnim(b, 'jump', 0.9); b.vy = v / 60; }   // 유닛/초
   function showIcon(b, icon, ms = 2500) { b.icon = icon; b.iconUntil = now() + ms; }
   function goTo(b, x, anim) { if (b.onRoof) { leaveRoof(b); return; } b.inCoop = false; setVisible(b, true); b.targetX = clamp(x, world.xMin + XMARGIN, world.xMax - XMARGIN); b.dir = b.targetX > b.x ? 1 : -1; setAnim(b, anim, 25); }
@@ -131,6 +137,28 @@
     from.d.boredom = clamp(from.d.boredom - 20, 0, 100);
   }
   const wormCarrier = () => (worm && worm.carrier ? birds.find((q) => q.d.id === worm.carrier) : null);
+  // 새끼를 들어 올리면 어미가 놀라 그 아래로 달려와 올려다본다
+  function momPanic(kid) {
+    const mom = momOf(kid);
+    if (!mom || !eligible(mom)) return null;
+    mom.inCoop = false; setVisible(mom, true); mom.targetX = null; mom.leap = null;
+    if (mom.onRoof) leaveRoof(mom);
+    mom.panicKid = kid.d.id;
+    mom.d.stress = clamp(mom.d.stress + 45, 0, 100);
+    goTo(mom, kid.x, 'panic');
+    showIcon(mom, '😰', 3000);
+    toast(`😰 ${mom.d.name}(이)가 ${kid.d.name}(이)를 보고 달려와요`, false, 4000);
+    return mom;
+  }
+  function momRelief(kid) {
+    const mom = birds.find((q) => q.panicKid === kid.d.id);
+    if (!mom) return;
+    mom.panicKid = null;
+    mom.d.stress = clamp(mom.d.stress - 30, 0, 100);
+    mom.careKid = kid.d.id;
+    goTo(mom, kid.x + (mom.x < kid.x ? -1 : 1) * 1.0, 'gokid');
+    showIcon(mom, '❤️', 2500);
+  }
   function callFlock(x, z, except) {
     let n = 0;
     for (const b of birds) { if (!eligible(b) || b === except) continue; if ((b.d.aff < 35 && Math.random() < 0.7) || (trait(b).stubborn >= 1.4 && Math.random() < 0.5)) { showIcon(b, '😒', 1500); continue; } b.callTarget = { x: clamp(x + rand(-1.6, 1.6), world.xMin + XMARGIN, world.xMax - XMARGIN), z: clamp(z + rand(-0.8, 0.8), -1.6, 1.6) }; b.inCoop = false; setVisible(b, true); setAnim(b, 'chase', 30); n++; }
@@ -179,6 +207,11 @@
         if (f.length && Math.random() < 0.6) { const o = pick(f); b.playWith = o.d.id; b.callTarget = { x: o.x, z: o.z, follow: o.d.id }; setAnim(b, 'chase', 6); o.playFlee = b.d.id; if (o.anim === 'idle' || o.anim === 'walk') { goTo(o, o.x + (o.x > b.x ? 1 : -1) * rand(3, 6), 'walk'); o.fleeing = true; } }
         else if (Math.random() < 0.5) setAnim(b, 'flap', rand(1.5, 3)); else { goTo(b, b.x + (Math.random() < 0.5 ? -1 : 1) * rand(4, 9), 'walk'); b.fleeing = true; }
       });
+      // 각인: 병아리는 어미가 멀어지면 종종 따라간다 (10~12일까지 바짝 붙어 다닌다)
+      if (mom && isYoungling(b)) {
+        const gap = Math.abs(mom.x - b.x);
+        add('follow', gap > 3.5 ? 2.2 * (d.stage === 'chick' ? 1.4 : 0.7) : 0.2, () => goTo(b, mom.x + (b.x < mom.x ? -1 : 1) * rand(0.8, 1.6), 'follow'));
+      }
       add('social', (d.social / 100) * 1.4 * T.sociable * (friends.length || mom ? 1 : 0) * (isYoungling(b) && mom ? 1.5 : 1), () => {
         const target = mom && Math.random() < 0.7 ? mom : pick(friends);
         if (target) goTo(b, target.x + (b.x < target.x ? -1 : 1) * rand(1.2, 2), 'walk');
@@ -347,10 +380,18 @@
       return;
     }
     if (b.carrying) return;
-    // 땅을 긁으면서 조금씩 앞으로 나아간다
-    if (b.anim === 'scratch') {
-      b.x = clamp(b.x + b.dir * 0.22 * dt, world.xMin + XMARGIN, world.xMax - XMARGIN);
-      if (b.x <= world.xMin + XMARGIN + 0.02 || b.x >= world.xMax - XMARGIN - 0.02) b.dir *= -1;
+    // 놀란 어미는 새끼 밑을 따라다니며 올려다본다
+    if (b.panicKid) {
+      const kid = birds.find((q) => q.d.id === b.panicKid);
+      if (!kid || !kid.carrying) { b.panicKid = null; if (kid) momRelief(kid); }
+      else {
+        const dx = kid.x - b.x;
+        if (Math.abs(dx) > 0.6) { faceDir(b, dx > 0 ? 1 : -1); b.x = clamp(b.x + b.dir * s.speed * 2.2 * dt, world.xMin + XMARGIN, world.xMax - XMARGIN); if (b.anim !== 'panic') setAnim(b, 'panic', 30); }
+        else if (b.anim !== 'flap') setAnim(b, 'flap', 1.2);
+        b.look.set(kid.x, kid.y + height(kid) * 0.6, kid.z);
+        if (now() > (b.panicIconAt || 0)) { b.panicIconAt = now() + 2200; showIcon(b, pick(['😰', '❗', '🆘']), 1600); }
+        return;
+      }
     }
     // 모래 목욕 진행 — 5단계, 먼지는 3단계(날개 떨기)와 5단계(털기)에 터진다
     if (b.anim === 'dustbath') {
@@ -372,7 +413,7 @@
     // 까불며 뛰기 — 폭발적 질주 + 급격한 방향 전환
     if (b.frolicking) {
       b.frolicT -= dt;
-      if (Math.random() < dt * 1.6) b.dir *= -1;
+      if (Math.random() < dt * 1.6) faceDir(b, -b.dir);
       b.x = clamp(b.x + b.dir * s.speed * 2.8 * dt, world.xMin + XMARGIN, world.xMax - XMARGIN);
       if (b.y === 0 && b.vy === 0 && Math.random() < dt * 1.8) b.vy = rand(3, 5);
       if (b.frolicT <= 0) { b.frolicking = false; b.fleeing = false; decide(b); }
@@ -384,18 +425,23 @@
       const chasers = birds.filter((o) => o !== b && (o.anim === 'chase' || o.anim === 'beg'));
       let near0 = null, nd = Infinity;
       for (const o of chasers) { const d2 = Math.abs(o.x - b.x); if (d2 < nd) { nd = d2; near0 = o; } }
-      const away = near0 ? (Math.sign(b.x - near0.x) || 1) : b.dir;
-      b.dir = away;
-      b.x = clamp(b.x + away * s.speed * 2.5 * dt, world.xMin + XMARGIN, world.xMax - XMARGIN);
+      // 도망 방향: 쫓는 놈이 확실히 가까이 붙었을 때만 튼다. 끝에 몰리면 돌파한다.
+      const atEdge = b.x < world.xMin + XMARGIN + 1.2 || b.x > world.xMax - XMARGIN - 1.2;
+      if (near0 && nd < 2.2) {
+        const away = Math.sign(b.x - near0.x) || 1;
+        if (atEdge && Math.sign(b.x) === away) faceDir(b, -away);   // 벽을 등졌으면 뚫고 나간다
+        else faceDir(b, away);
+      }
+      b.x = clamp(b.x + b.dir * s.speed * 2.5 * dt, world.xMin + XMARGIN, world.xMax - XMARGIN);
       worm.x = b.x + b.dir * 0.45; worm.z = b.z + 0.1; worm.y = height(b) * 0.5;
       if (near0 && nd < 0.75 && Math.random() < dt * 0.9) { stealWorm(b, near0); return; }
       const cornered = b.x <= world.xMin + XMARGIN + 0.05 || b.x >= world.xMax - XMARGIN - 0.05;
-      if (b.wormRun <= 0 || (cornered && nd > 1.2)) { b.fleeing = false; eatWorm(b); }
+      if (b.wormRun <= 0 || (cornered && nd < 0.9)) { b.fleeing = false; eatWorm(b); }
       return;
     }
     // 감정 폭발 진행 (신남: 뛰어다니며 파닥 / 엉엉: 주저앉아 빙글빙글)
     if (b.anim === 'ecstatic') {
-      b.burstT = (b.burstT || 0) + dt; b.dir = Math.sin(b.burstT * 2.2) > 0 ? 1 : -1;
+      b.burstT = (b.burstT || 0) + dt; faceDir(b, Math.sin(b.burstT * 2.2) > 0 ? 1 : -1);
       b.x = clamp(b.x + b.dir * s.speed * 2.6 * dt, world.xMin + XMARGIN, world.xMax - XMARGIN);
       if (b.y === 0 && b.vy === 0 && Math.random() < dt * 2.5) b.vy = rand(4, 6.5);
       b.spin = (b.spin || 0) + dt * 5; b.b3.holder.rotation.y = Math.sin(b.spin) * 0.6;
@@ -413,11 +459,18 @@
     // 중력 (지붕 위면 지붕이 바닥)
     const gY = b.onRoof ? world3dRoof() : 0;
     if (b.y > gY || b.vy > 0) {
-      b.vy -= GRAV * dt; b.y += b.vy * dt;
+      const fluttering = b.anim === 'fall';
+      b.vy -= GRAV * (fluttering ? 0.55 : 1) * dt;          // 날개를 퍼덕이면 천천히 내려온다
+      if (fluttering && b.vy < -4.2) b.vy = -4.2;            // 종단 속도
+      b.y += b.vy * dt;
       if (b.y <= gY && b.vy <= 0) {
-        if (b.anim === 'fall' && b.vy < -6) b.d.stress = clamp(b.d.stress + 15, 0, 100);
         b.y = gY; b.vy = 0; b.b3.model.land();
-        if (b.anim === 'fall' || b.anim === 'jump') setAnim(b, b.onRoof ? 'roost' : 'idle', rand(0.6, 1.5));
+        if (b.anim === 'fall') {
+          world.puff(b.x, b.z, 7, 0.45);                     // 착지 먼지
+          b.d.stress = clamp(b.d.stress + (isYoungling(b) ? 18 : 6), 0, 100);
+          if (isYoungling(b)) showIcon(b, '😵', 1600);
+          setAnim(b, b.onRoof ? 'roost' : 'idle', rand(0.8, 1.6));
+        } else if (b.anim === 'jump') setAnim(b, b.onRoof ? 'roost' : 'idle', rand(0.6, 1.5));
       }
     }
     if (b.anim === 'fall') return;
@@ -447,7 +500,7 @@
       }
       const dx = tgt.x - b.x, dist = Math.abs(dx), reach = tgt.kind === 'worm' ? 0.35 : 0.5;
       if (dist > reach) {
-        b.dir = dx > 0 ? 1 : -1;
+        faceDir(b, dx > 0 ? 1 : -1);
         b.x += b.dir * s.speed * 2.4 * (b.d.old ? 0.7 : 1) * dt;
         b.z += (tgt.z - b.z) * Math.min(1, dt * 2.5);
         if (Math.abs(b.x - tgt.x) < dist * 0.02) b.x = tgt.x;
@@ -470,7 +523,7 @@
     }
     if (ACT.isGoal(b.anim) && b.targetX !== null) {
       const speed = s.speed * (mode === 'break' ? 1.4 : 1) * (b.d.old ? 0.6 : 1) * (b.fleeing ? 2 : 1);
-      b.dir = b.targetX > b.x ? 1 : -1;
+      faceDir(b, b.targetX > b.x ? 1 : -1);
       b.x += b.dir * speed * dt;
       if (Math.abs(b.targetX - b.x) < 0.08) {
         b.x = b.targetX; b.targetX = null;
@@ -478,6 +531,8 @@
         else if (b.anim === 'gowater') { b.goal = 'drink'; setAnim(b, 'drink', 2.5); }
         else if (b.anim === 'gocoop') { b.inCoop = true; setVisible(b, false); setAnim(b, 'sleep', rand(15, 30)); showIcon(b, '💤', 3000); }
         else if (b.anim === 'gonest') setAnim(b, 'brood', rand(8, 20));
+        else if (b.anim === 'panic') { setAnim(b, 'flap', 1.2); }
+        else if (b.anim === 'follow') { b.z = clamp(momOf(b) ? momOf(b).z + rand(-0.6, 0.6) : b.z, -1.8, 1.8); setAnim(b, 'scratch', rand(3, 6)); b.d.social = clamp(b.d.social - 35, 0, 100); }
         else if (b.anim === 'gokid') { const k = birds.find((q) => q.d.id === b.careKid); setAnim(b, 'nuzzle', 2.2); if (k) { showIcon(k, '❤️', 1500); k.d.stress = clamp(k.d.stress - 30, 0, 100); k.d.social = clamp(k.d.social - 30, 0, 100); if (k.anim === 'idle' || k.anim === 'walk') setAnim(k, 'pet', 2); } b.d.social = clamp(b.d.social - 20, 0, 100); }
         else if (b.anim === 'golamp') { b.z = clamp(home().lamp.z + rand(-0.6, 0.6), -2, 2); setAnim(b, Math.random() < 0.5 ? 'idle' : 'preen', rand(4, 9)); showIcon(b, '🔥', 1200); b.d.stress = clamp(b.d.stress - 10, 0, 100); }
         else if (b.anim === 'golamp-sleep') { b.z = clamp(home().lamp.z + rand(-0.6, 0.6), -2, 2); setAnim(b, 'sleep', rand(20, 40)); showIcon(b, '💤', 2000); }
@@ -486,7 +541,7 @@
         else setAnim(b, 'idle', rand(1, 3));
         b.fleeing = false;
       }
-      if (b.x < world.xMin + XMARGIN || b.x > world.xMax - XMARGIN) { b.x = clamp(b.x, world.xMin + XMARGIN, world.xMax - XMARGIN); b.dir *= -1; b.targetX = null; setAnim(b, 'idle', 1); }
+      if (b.x < world.xMin + XMARGIN || b.x > world.xMax - XMARGIN) { b.x = clamp(b.x, world.xMin + XMARGIN, world.xMax - XMARGIN); b.dir = -b.dir; b.dirAt = now(); b.targetX = null; setAnim(b, 'idle', 1); }
     }
     b.animT += dt;
     if (b.animT >= b.animDur) {
@@ -503,7 +558,8 @@
         if (state.water >= RULE.waterPerDrink) { state.water -= RULE.waterPerDrink; world.setSupplies(state.feed, state.water, state.basket); b.d.thirst = clamp(b.d.thirst + 40, 0, 100); b.lastDrink = now(); careTick(b, 'drank'); markDirty(); renderCoop(); }
         b.goal = null;
       }
-      if (b.anim === 'sunbathe') { setAnim(b, 'preen', rand(3, 5)); return; }   // 볕을 쬐면 반드시 깃털을 다듬는다
+      if (b.anim === 'sunbathe') { setAnim(b, 'preen', rand(3, 5)); return; }
+      if (b.anim === 'scratch' && Math.random() < 0.65) { goTo(b, b.x + rand(-1, 1) * rand(0.8, 2.6), 'walk'); return; }   // 볕을 쬐면 반드시 깃털을 다듬는다
       if (b.anim === 'sleep' && b.inCoop && Math.random() < 0.5) { setAnim(b, 'sleep', rand(15, 30)); return; }
       decide(b);
     }
@@ -618,7 +674,7 @@
         else b.look.set(b.x + rand(-6, 6), rand(0.5, 4), rand(2, 10));
       }
       const anim = ACT.pose(b.anim);
-      m.model.update(dt, { anim, moving, dir: b.dir, jumpY: b.y, lookTarget: b.look, curious: mode !== 'class', wobble: b.f === 1, hatch: b.hatching || 0, phase: b.dustPhase || 0, speed: b.anim === 'chase' || b.fleeing ? 2.2 : 1, mood: b.d.stage === 'egg' ? null : moodOf(b) });
+      m.model.update(dt, { anim, moving, dir: b.dir, jumpY: b.y, lookTarget: b.look, curious: mode !== 'class', wobble: b.f === 1, hatch: b.hatching || 0, phase: b.dustPhase || 0, holdWorm: !!(worm && worm.carrier === b.d.id), speed: b.anim === 'chase' || b.fleeing ? 2.2 : 1, mood: b.d.stage === 'egg' ? null : moodOf(b) });
       if (b.f === 1 && b.d.stage === 'egg' && t > (b.wobbleUntil || 0)) b.f = 0;
       // 오버레이(아이콘·이름표) 위치
       const top = world.project(b.x, height(b) + b.y + 0.2, b.z);
@@ -632,7 +688,7 @@
     }
     if (worm) {
       if (!worm.held && !worm.carrier) { if (worm.y > 0 || worm.vy > 0) { worm.vy -= GRAV * dt; worm.y += worm.vy * dt; if (worm.y <= 0) { worm.y = 0; worm.vy = 0; } } if (now() - worm.bornAt > 90000) removeWorm(); }
-      if (worm) { worm.model.group.position.set(worm.x, worm.y + 0.12, worm.z); worm.model.update(dt); }
+      if (worm) { worm.model.group.visible = !worm.carrier; worm.model.group.position.set(worm.x, worm.y + 0.12, worm.z); worm.model.update(dt); }
     }
     tickCuriosity(dt);
     if (visible) world.render();
@@ -718,7 +774,11 @@
         setIgnore(false); return;
       }
       // 닭 들어 올리기
-      if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) { drag.moved = true; drag.b.carrying = true; drag.b.inCoop = false; setVisible(drag.b, true); setAnim(drag.b, 'carry', 99); if (drag.b.d.aff < 40 && Math.random() < 0.5) showIcon(drag.b, '😣', 1500); }
+      if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) {
+        drag.moved = true; drag.b.carrying = true; drag.b.inCoop = false; setVisible(drag.b, true); setAnim(drag.b, 'carry', 99);
+        if (isYoungling(drag.b)) { drag.b.d.stress = clamp(drag.b.d.stress + 30, 0, 100); showIcon(drag.b, '😣', 2000); peepSound(); momPanic(drag.b); }
+        else if (drag.b.d.aff < 40 && Math.random() < 0.5) showIcon(drag.b, '😣', 1500);
+      }
       if (drag.moved) {
         const p = world.screenToPlaneZ(e.clientX, e.clientY, drag.b.z);
         if (p) { drag.b.x = clamp(p.x - drag.offX, world.xMin + XMARGIN, world.xMax - XMARGIN); drag.b.y = Math.max(0, p.y - height(drag.b) * 0.5); }
@@ -757,7 +817,12 @@
     if (drag.worm) { if (worm) worm.held = false; drag = null; canvas.style.cursor = 'default'; setIgnore(!interactiveAt(e.clientX, e.clientY)); return; }
     if (drag.prop) { if (!drag.moved) propClick(drag.prop); else toast('📦 자리를 옮겼어요 (설정에서 초기화 가능)'); drag = null; canvas.style.cursor = 'pointer'; setIgnore(!interactiveAt(e.clientX, e.clientY)); return; }
     const b = drag.b;
-    if (drag.moved) { b.carrying = false; b.d.x = toFrac(b.x); b.targetX = null; if (b.y > 0) { setAnim(b, 'fall', 99); b.vy = 0; } else decide(b); markDirty(); }
+    if (drag.moved) {
+      b.carrying = false; b.d.x = toFrac(b.x); b.targetX = null;
+      if (b.y > 0) { setAnim(b, 'fall', 99); b.vy = 0; } else decide(b);
+      momRelief(b);
+      markDirty();
+    }
     else touch(b);
     drag = null; canvas.style.cursor = 'grab'; setIgnore(!interactiveAt(e.clientX, e.clientY));
   });

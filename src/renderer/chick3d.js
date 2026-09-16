@@ -60,6 +60,12 @@
     // 부리 (위/아래)
     const beakTop = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.36, 24), hard(P.beak, { roughness: 0.45 })); beakTop.rotation.x = Math.PI / 2; beakTop.position.set(0, 0.5, 1.1); head.add(beakTop);
     const beakBot = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.28, 24), hard(0xE0761F, { roughness: 0.45 })); beakBot.rotation.x = Math.PI / 2; beakBot.position.set(0, 0.42, 1.05); head.add(beakBot);
+    // 부리에 문 벌레 (물고 달아나기)
+    const heldWorm = new THREE.Group(); heldWorm.position.set(0, 0.42, 1.25); heldWorm.visible = false; head.add(heldWorm);
+    for (let i = 0; i < 5; i++) {
+      const seg = new THREE.Mesh(S(0.075 - i * 0.006), hard(i ? 0xF29AA6 : 0xE87F8E, { roughness: 0.6 }));
+      seg.position.set((i - 2) * 0.1, 0, 0); heldWorm.add(seg);
+    }
     // 머리털 / 볏
     if (P.comb) {
       const n = 4;
@@ -105,7 +111,7 @@
       if (a === 'squat') st.yawTarget = face * 0.75;
       if (a === 'ecstatic' || a === 'stomp') st.yawTarget = face * 0.5;
       if (a === 'pet') st.yawTarget = face * 0.55;
-      if (a === 'scold' || a === 'startle') st.yawTarget = face * 0.4;
+      if (a === 'scold' || a === 'startle' || a === 'flutter') st.yawTarget = face * 0.4;
       if (a === 'crow' || a === 'happy' || a === 'jump' || a === 'eat' || a === 'drink' || a === 'peck') st.yawTarget = face * 0.9;
       st.yaw = lerp(st.yaw, st.yawTarget, 1 - Math.exp(-dt * 6));
       root.rotation.y = st.yaw;
@@ -172,14 +178,22 @@
       const lieTarget = a === 'sunbathe' ? 1 : (a === 'dustbath' && P >= 0.66 && P < 0.9) ? 1 : 0;
       st.roll = lerp(st.roll, lieTarget, 1 - Math.exp(-dt * 4));
       const squat = a === 'brood' || a === 'sleep' || a === 'roost' || a === 'wail' || a === 'squat'
-        || a === 'sunbathe' || (a === 'dustbath' && P >= 0.18);
+        || (a === 'dustbath' && P >= 0.18 && P < 0.66);
       st.squat = lerp(st.squat || 0, squat ? 1 : 0, 1 - Math.exp(-dt * 5));
       if (a === 'sleep') { const b2 = Math.sin(st.t * 1.1) * 0.02; sy = 1 + b2; sx = 1 - b2 * 0.5; }
-      for (const l of legs) { l.visible = st.squat < 0.7; if (a === 'carry') l.rotation.x = 0.6 + Math.sin(st.t * 7 + (l === legs[0] ? 0 : 1.5)) * 0.25; }
+      for (const l of legs) {
+        l.visible = st.squat < 0.7;
+        if (a === 'carry') l.rotation.x = 0.6 + Math.sin(st.t * 7 + (l === legs[0] ? 0 : 1.5)) * 0.25;
+        else if (a === 'flutter') l.rotation.x = -0.35 + Math.sin(st.t * 12 + (l === legs[0] ? 0 : 1)) * 0.15;   // 다리를 앞으로 뻗어 착지 준비
+      }
       if (a === 'scold') { sx *= 1.04; sy *= 0.96; }
       root.scale.set(sx, sy, sx);
-      root.position.y = (ctl.jumpY || 0) + hop - st.squat * 0.5 - st.roll * 0.15;
-      root.rotation.z = st.roll * 1.15 * (ctl.dir > 0 ? 1 : -1);
+      // 옆으로 누울 때는 몸 중심(y≈1.0)을 축으로 굴리고, 가라앉지 않게 들어 올린다
+      const lieAng = st.roll * 1.05;
+      const CY = 1.0;
+      root.position.y = (ctl.jumpY || 0) + hop - st.squat * 0.5 + st.roll * (CY - Math.cos(lieAng) * CY) + st.roll * 0.12;
+      root.rotation.z = lieAng * (ctl.dir > 0 ? 1 : -1);
+      if (st.roll > 0.5) for (const l of legs) l.visible = false;
       // 스트레칭: 같은 쪽 다리를 뒤로 뻗는다
       if (a === 'stretch') { const k = Math.sin(Math.min(1, st.actT / 1.2) * Math.PI); legs[1].rotation.x = -k * 1.1; }
       bodyPivot.rotation.z += (a === 'pet' ? Math.sin(st.t * 3) * 0.06 : 0) + (a === 'scold' ? Math.sin(st.t * 30) * 0.03 : 0);
@@ -218,6 +232,7 @@
       if (a === 'sad') { targetPitch = 0.45; targetRoll = Math.sin(st.t * 1.2) * 0.08; }
       if (a === 'brood') { targetPitch = 0.15; targetRoll = Math.sin(st.t * 0.8) * 0.06; }
       if (a === 'carry') { targetPitch = -0.2; targetRoll = Math.sin(st.t * 6) * 0.1; }
+      if (a === 'flutter') { targetPitch = -0.45; targetRoll = Math.sin(st.t * 9) * 0.14; targetYaw = 0; }
       if (a === 'preen') { targetYaw = 1.25 * (Math.sin(st.t * 0.9) > 0 ? 1 : -1); targetPitch = 0.55 + Math.sin(st.t * 9) * 0.08; targetRoll = 0.2; }
       if (a === 'nuzzle') { targetPitch = 0.75 + Math.sin(st.t * 5) * 0.1; targetYaw = 0.3 * Math.sin(st.t * 2.5); }
       if (a === 'startle') { targetPitch = -0.35; targetYaw = Math.sin(st.t * 30) * 0.15; }
@@ -275,6 +290,7 @@
       if (a === 'sad') wing = -0.1;
       if (a === 'brood') wing = 0.35;
       if (a === 'carry') wing = 0.9 + Math.sin(st.t * 18) * 0.3;
+      if (a === 'flutter') wing = 1.25 + Math.sin(st.t * 34) * 0.75;   // 날개를 크게 퍼덕여 낙하를 늦춘다
       wing -= Math.max(0, -mood.valence) * 0.2;
       wings[0].rotation.z = wing; wings[1].rotation.z = -wing;
 
@@ -310,6 +326,9 @@
       const open = (a === 'crow' || a === 'eat') ? Math.max(0, Math.sin(st.t * (a === 'eat' ? 12 : 6))) * 0.5 : 0;
       st.beakOpen = lerp(st.beakOpen, open, 1 - Math.exp(-dt * 20));
       beakBot.rotation.x = Math.PI / 2 + st.beakOpen; beakTop.rotation.x = Math.PI / 2 - st.beakOpen * 0.3;
+      // 문 벌레는 달릴 때 흔들린다
+      heldWorm.visible = !!ctl.holdWorm;
+      if (heldWorm.visible) { heldWorm.rotation.z = Math.sin(st.t * 16) * 0.5; heldWorm.rotation.y = Math.sin(st.t * 11) * 0.3; }
     }
     function land() { st.squashV = -3.2; }
     return { group, update, land, state: st };
