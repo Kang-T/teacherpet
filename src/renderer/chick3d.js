@@ -46,8 +46,15 @@
       const ball = new THREE.Mesh(S(0.24), hard(P.eye, { roughness: 0.12 })); eye.add(ball);
       const hl = new THREE.Mesh(S(0.085), hard(0xFFFFFF, { emissive: 0xFFFFFF, emissiveIntensity: 0.8 })); hl.position.set(-0.07 * side + 0.03, 0.1, 0.19); eye.add(hl);
       const hl2 = new THREE.Mesh(S(0.04), hard(0xFFFFFF, { emissive: 0xFFFFFF, emissiveIntensity: 0.7 })); hl2.position.set(0.07 * side, -0.09, 0.2); eye.add(hl2);
+      // 눈꺼풀: 위(졸림·화남)와 아래(웃음)에서 덮는 반구
+      const lidMat = mat(P.body);
+      const lidTop = new THREE.Mesh(new THREE.SphereGeometry(0.255, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), lidMat); lidTop.rotation.x = -Math.PI; lidTop.position.z = -0.01; eye.add(lidTop); eye.userData.lidTop = lidTop;
+      const lidBot = new THREE.Mesh(new THREE.SphereGeometry(0.255, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), lidMat); lidBot.position.z = -0.01; eye.add(lidBot); eye.userData.lidBot = lidBot;
+      lidTop.rotation.x = -Math.PI * 0.5 - 1.6; lidBot.rotation.x = Math.PI * 0.5 + 1.6; // 기본: 활짝
+      // 눈썹
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.05, 0.06), hard(0xC98A2E)); brow.position.set(side * 0.38, 1.02, 0.78); brow.rotation.y = side * 0.35; brow.visible = false; head.add(brow); eye.userData.brow = brow;
       eyes.push(eye);
-      const cheek = new THREE.Mesh(S(0.2), hard(P.cheek, { transparent: true, opacity: 0.5, roughness: 1 })); cheek.scale.set(1, 0.7, 0.3); cheek.position.set(side * 0.62, 0.42, 0.72); head.add(cheek);
+      const cheek = new THREE.Mesh(S(0.2), hard(P.cheek, { transparent: true, opacity: 0.5, roughness: 1 })); cheek.scale.set(1, 0.7, 0.3); cheek.position.set(side * 0.62, 0.42, 0.72); head.add(cheek); eye.userData.cheek = cheek;
     }
     // 부리 (위/아래)
     const beakTop = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.36, 24), hard(P.beak, { roughness: 0.45 })); beakTop.rotation.x = Math.PI / 2; beakTop.position.set(0, 0.5, 1.1); head.add(beakTop);
@@ -83,6 +90,7 @@
       // ctl: { anim, moving(0..1), dir(-1|1), speed, jumpY, lookTarget(v3 world) }
       st.t += dt;
       const a = ctl.anim || 'idle';
+      const mood = ctl.mood || { valence: 0, arousal: 0.5, sleepy: 0 };
       // 방향 전환은 몸을 부드럽게 돌려서
       // rotation.y = θ 이면 정면(+z)이 (sinθ, 0, cosθ)를 향한다 → +x로 가려면 θ > 0
       const face = ctl.dir > 0 ? 1 : -1;
@@ -91,7 +99,7 @@
       if (a === 'beg') st.yawTarget = face * 0.5;
       if (a === 'sleep' || a === 'brood') st.yawTarget = face * 0.7;
       if (a === 'pet') st.yawTarget = face * 0.55;
-      if (a === 'scold') st.yawTarget = face * 0.4;
+      if (a === 'scold' || a === 'startle') st.yawTarget = face * 0.4;
       if (a === 'crow' || a === 'happy' || a === 'jump' || a === 'eat' || a === 'drink' || a === 'peck') st.yawTarget = face * 0.9;
       st.yaw = lerp(st.yaw, st.yawTarget, 1 - Math.exp(-dt * 6));
       root.rotation.y = st.yaw;
@@ -143,8 +151,12 @@
       if (a === 'sad') { targetPitch = 0.45; targetRoll = Math.sin(st.t * 1.2) * 0.08; }
       if (a === 'brood') { targetPitch = 0.15; targetRoll = Math.sin(st.t * 0.8) * 0.06; }
       if (a === 'carry') { targetPitch = -0.2; targetRoll = Math.sin(st.t * 6) * 0.1; }
+      if (a === 'preen') { targetYaw = 1.25 * (Math.sin(st.t * 0.9) > 0 ? 1 : -1); targetPitch = 0.55 + Math.sin(st.t * 9) * 0.08; targetRoll = 0.2; }
+      if (a === 'nuzzle') { targetPitch = 0.75 + Math.sin(st.t * 5) * 0.1; targetYaw = 0.3 * Math.sin(st.t * 2.5); }
+      if (a === 'startle') { targetPitch = -0.35; targetYaw = Math.sin(st.t * 30) * 0.15; }
       if (a === 'beg') { targetRoll = Math.sin(st.t * 5) * 0.12; }
       if (a === 'idle' && ctl.curious) { targetRoll = Math.sin(st.t * 1.7) * 0.18; }
+      if (a === 'idle' || a === 'walk') { targetPitch += Math.max(0, -mood.valence) * 0.25 - Math.max(0, mood.arousal - 0.6) * 0.1; }
       head.rotation.y = lerp(head.rotation.y, targetYaw, 1 - Math.exp(-dt * 6));
       head.rotation.x = lerp(head.rotation.x, targetPitch, 1 - Math.exp(-dt * 6));
       head.rotation.z = lerp(head.rotation.z, targetRoll, 1 - Math.exp(-dt * 4));
@@ -156,17 +168,35 @@
       if (a === 'walk' && run) wing = 0.5 + Math.abs(sw) * 0.35;
       if (a === 'sleep') wing = 0.05;
       if (a === 'pet') wing = 0.25 + Math.sin(st.t * 3) * 0.1;
-      if (a === 'scold') wing = 1.1;
+      if (a === 'scold' || a === 'startle') wing = 1.1;
+      if (a === 'preen') wing = 0.45 + Math.max(0, Math.sin(st.t * 0.9)) * 0.4;
       if (a === 'sad') wing = -0.1;
       if (a === 'brood') wing = 0.35;
       if (a === 'carry') wing = 0.9 + Math.sin(st.t * 18) * 0.3;
+      wing -= Math.max(0, -mood.valence) * 0.2;
       wings[0].rotation.z = wing; wings[1].rotation.z = -wing;
 
+      // 표정: 기분 → 눈꺼풀·눈썹·볼
+      const smile = Math.max(0, mood.valence) * (a === 'pet' ? 1 : 0.55);          // 아래 눈꺼풀이 올라와 초승달 눈
+      const droop = Math.max(0, mood.sleepy - 0.35) * 1.3 + (a === 'sleep' ? 1 : 0); // 위 눈꺼풀 내려옴
+      const angry = mood.valence < -0.35 && mood.arousal > 0.5 ? Math.min(1, -mood.valence) : 0;
+      const sad = mood.valence < -0.2 && !angry ? Math.min(1, -mood.valence * 1.4) : 0;
+      for (const e of eyes) {
+        const side = Math.sign(e.position.x);
+        const topT = -Math.PI * 0.5 - 1.6 + Math.min(1, droop + angry * 0.45) * 1.55;
+        const botT = Math.PI * 0.5 + 1.6 - Math.min(1, smile) * 1.35;
+        e.userData.lidTop.rotation.x = lerp(e.userData.lidTop.rotation.x, topT, 1 - Math.exp(-dt * 8));
+        e.userData.lidBot.rotation.x = lerp(e.userData.lidBot.rotation.x, botT, 1 - Math.exp(-dt * 8));
+        const br = e.userData.brow; br.visible = angry > 0.1 || sad > 0.1;
+        const target = angry > 0.1 ? side * 0.55 * angry : -side * 0.5 * sad; // 안쪽 내려감(화) / 안쪽 올라감(슬픔)
+        br.rotation.z = lerp(br.rotation.z, target, 1 - Math.exp(-dt * 6)); br.position.y = 1.02 - angry * 0.06;
+        e.userData.cheek.material.opacity = 0.25 + Math.max(0, mood.valence) * 0.45;
+      }
       // 눈 깜빡임 / 감기
       st.blinkAt -= dt;
       if (st.blinkAt < 0) { st.blink = 0.14; st.blinkAt = 2 + Math.random() * 4; }
       st.blink = Math.max(0, st.blink - dt);
-      const closed = a === 'sleep' ? 0.08 : a === 'pet' ? 0.35 : st.blink > 0 ? 0.1 : 1;
+      const closed = a === 'sleep' ? 0.08 : st.blink > 0 ? 0.1 : 1;
       for (const e of eyes) e.scale.y = lerp(e.scale.y, closed, 1 - Math.exp(-dt * 25));
       // 부리 (울기·먹기)
       const open = (a === 'crow' || a === 'eat') ? Math.max(0, Math.sin(st.t * (a === 'eat' ? 12 : 6))) * 0.5 : 0;

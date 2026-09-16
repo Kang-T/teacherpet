@@ -30,8 +30,11 @@ const presets = {
   rooster: { scale: 1.3, body: 0xFBF3E4, belly: 0xF7D98A, comb: 1.5, wattle: 1.3, tail: 1.6, ruff: 0xF2B84B },
 };
 const chick = window.TP_CHICK3D.createChick(THREE, presets[kind]); scene.add(chick.group);
-camZ = 11 * (kindScale[kind] || 1); cam.position.set(0, 2.6 * (kindScale[kind] || 1), camZ); cam.lookAt(0, 1.3 * (kindScale[kind] || 1), 0);
+const zoom = params.get('zoom') ? 0.55 : 1;
+camZ = 11 * (kindScale[kind] || 1) * zoom; cam.position.set(0, 2.6 * (kindScale[kind] || 1) * zoom + (zoom < 1 ? 1.2 : 0), camZ); cam.lookAt(0, (zoom < 1 ? 2.1 : 1.3) * (kindScale[kind] || 1), 0);
 const still = params.get('still');
+const MOODS = { happy: { valence: 0.9, arousal: 0.6, sleepy: 0 }, angry: { valence: -0.8, arousal: 0.9, sleepy: 0 }, sad: { valence: -0.6, arousal: 0.2, sleepy: 0.2 }, sleepy: { valence: 0.1, arousal: 0.2, sleepy: 0.8 }, neutral: { valence: 0, arousal: 0.5, sleepy: 0 } };
+const moodP = MOODS[params.get('mood') || 'neutral'];
 
 // 시나리오: 둘러보기 → 오른쪽으로 걷기 → 쪼기 → 점프 → 왼쪽으로 걷기 → 잠
 const timeline = [
@@ -52,7 +55,7 @@ function tick(now) {
   else if (anim === 'walk') look.set(x + dir * 4, 1.2, 1);
   else look.set(0, 2, 8);
   chick.group.position.x = x;
-  chick.update(dt, { anim, moving, dir, jumpY: jy, lookTarget: look, curious: true });
+  chick.update(dt, { anim, moving, dir, jumpY: jy, lookTarget: look, curious: true, mood: moodP });
   renderer.render(scene, cam);
   requestAnimationFrame(tick);
 }
