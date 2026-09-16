@@ -33,6 +33,20 @@ out[..., 3] = 255
 shadow = np.clip((255 - lum) / 255 * 1.6, 0, 1)   # 밝기 기반 그림자 진하기
 out[mask, 0:3] = 30
 out[mask, 3] = (shadow[mask] * 255).astype(np.uint8) if keep_shadow else 0
+# 가장자리 흰 테두리 제거: 배경과 맞닿은 3px 안쪽 전경 픽셀은 '흰색 위에 합성된 것'으로 보고 알파를 되돌린다
+edge = np.zeros_like(mask)
+m = mask.copy()
+for _ in range(3):
+    grown = m.copy()
+    grown[1:, :] |= m[:-1, :]; grown[:-1, :] |= m[1:, :]; grown[:, 1:] |= m[:, :-1]; grown[:, :-1] |= m[:, 1:]
+    edge |= grown & ~mask; m = grown
+ys, xs = np.where(edge)
+for y, x in zip(ys, xs):
+    r, g, b = im[y, x]
+    a = min(1.0, max(0.0, (255 - min(r, g, b)) / 140.0))   # 밝을수록 투명
+    if a <= 0.02: out[y, x] = (0, 0, 0, 0); continue
+    out[y, x, 0:3] = [int(max(0, min(255, (c - (1 - a) * 255) / a))) for c in (r, g, b)]
+    out[y, x, 3] = int(a * 255)
 # 경계 부드럽게: 배경과 맞닿은 전경 픽셀의 흰 기운 제거 (1px 링)
 img = Image.fromarray(out, "RGBA")
 # 여백 자르기 (알파 기준) + 아래쪽 그림자는 남김
