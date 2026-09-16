@@ -44,15 +44,16 @@
     for (const side of [-1, 1]) {
       const eye = new THREE.Group(); eye.position.set(side * 0.4, 0.7, 0.8); eye.rotation.y = side * 0.35; head.add(eye);
       const ball = new THREE.Mesh(S(0.24), hard(P.eye, { roughness: 0.12 })); eye.add(ball);
-      const hl = new THREE.Mesh(S(0.085), hard(0xFFFFFF, { emissive: 0xFFFFFF, emissiveIntensity: 0.8 })); hl.position.set(-0.07 * side + 0.03, 0.1, 0.19); eye.add(hl);
-      const hl2 = new THREE.Mesh(S(0.04), hard(0xFFFFFF, { emissive: 0xFFFFFF, emissiveIntensity: 0.7 })); hl2.position.set(0.07 * side, -0.09, 0.2); eye.add(hl2);
+      const hl = new THREE.Mesh(S(0.085), hard(0xFFFFFF, { emissive: 0xFFFFFF, emissiveIntensity: 0.8 })); hl.position.set(-0.07 * side + 0.03, 0.1, 0.19); eye.add(hl); eye.userData.hl = hl;
+      const hl2 = new THREE.Mesh(S(0.04), hard(0xFFFFFF, { emissive: 0xFFFFFF, emissiveIntensity: 0.7 })); hl2.position.set(0.07 * side, -0.09, 0.2); eye.add(hl2); eye.userData.hl2 = hl2;
       // 눈꺼풀: 위(졸림·화남)와 아래(웃음)에서 덮는 반구
       const lidMat = mat(P.body);
       const lidTop = new THREE.Mesh(new THREE.SphereGeometry(0.255, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), lidMat); lidTop.rotation.x = -Math.PI; lidTop.position.z = -0.01; eye.add(lidTop); eye.userData.lidTop = lidTop;
       const lidBot = new THREE.Mesh(new THREE.SphereGeometry(0.255, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), lidMat); lidBot.position.z = -0.01; eye.add(lidBot); eye.userData.lidBot = lidBot;
       lidTop.rotation.x = -Math.PI * 0.5 - 1.6; lidBot.rotation.x = Math.PI * 0.5 + 1.6; // 기본: 활짝
       // 눈썹
-      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.05, 0.06), hard(0xC98A2E)); brow.position.set(side * 0.38, 1.02, 0.78); brow.rotation.y = side * 0.35; brow.visible = false; head.add(brow); eye.userData.brow = brow;
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.07), hard(0x8B5A2B)); brow.position.set(side * 0.4, 1.06, 0.8); brow.rotation.y = side * 0.35; brow.visible = false; head.add(brow); eye.userData.brow = brow;
+      const tear = new THREE.Mesh(S(0.07), hard(0x7EC8FF, { roughness: 0.2, transparent: true, opacity: 0.9 })); tear.scale.set(0.8, 1.3, 0.8); tear.position.set(side * 0.12, -0.3, 0.16); tear.visible = false; eye.add(tear); eye.userData.tear = tear;
       eyes.push(eye);
       const cheek = new THREE.Mesh(S(0.2), hard(P.cheek, { transparent: true, opacity: 0.5, roughness: 1 })); cheek.scale.set(1, 0.7, 0.3); cheek.position.set(side * 0.62, 0.42, 0.72); head.add(cheek); eye.userData.cheek = cheek;
     }
@@ -177,20 +178,26 @@
       wings[0].rotation.z = wing; wings[1].rotation.z = -wing;
 
       // 표정: 기분 → 눈꺼풀·눈썹·볼
-      const smile = Math.max(0, mood.valence) * (a === 'pet' ? 1 : 0.55);          // 아래 눈꺼풀이 올라와 초승달 눈
-      const droop = Math.max(0, mood.sleepy - 0.35) * 1.3 + (a === 'sleep' ? 1 : 0); // 위 눈꺼풀 내려옴
-      const angry = mood.valence < -0.35 && mood.arousal > 0.5 ? Math.min(1, -mood.valence) : 0;
-      const sad = mood.valence < -0.2 && !angry ? Math.min(1, -mood.valence * 1.4) : 0;
+      // 보통(-0.25~0.25)은 무표정. 그 밖에서만 표정이 나타나고, 커질수록 과장된다
+      const v = mood.valence;
+      let smile = v > 0.25 ? Math.min(1, (v - 0.25) / 0.5) : 0;
+      if (a === 'pet' || a === 'happy' || a === 'jump' || (a === 'eat' && v > -0.2)) smile = Math.max(smile, 0.9);
+      const droop = Math.max(0, mood.sleepy - 0.45) * 1.8 + (a === 'sleep' ? 1 : 0);
+      const angry = (v < -0.3 && mood.arousal > 0.45) || a === 'scold' ? Math.min(1, 0.5 + (-v)) : 0;
+      const sad = v < -0.25 && !angry ? Math.min(1, 0.4 + (-v - 0.25) / 0.5) : 0;
       for (const e of eyes) {
         const side = Math.sign(e.position.x);
-        const topT = -Math.PI * 0.5 - 1.6 + Math.min(1, droop + angry * 0.45) * 1.55;
-        const botT = Math.PI * 0.5 + 1.6 - Math.min(1, smile) * 1.35;
+        const topT = -Math.PI * 0.5 - 1.6 + Math.min(1, droop + angry * 0.6 + sad * 0.25) * 1.55;
+        const botT = Math.PI * 0.5 + 1.6 - Math.min(1, smile) * 1.6;
         e.userData.lidTop.rotation.x = lerp(e.userData.lidTop.rotation.x, topT, 1 - Math.exp(-dt * 8));
         e.userData.lidBot.rotation.x = lerp(e.userData.lidBot.rotation.x, botT, 1 - Math.exp(-dt * 8));
-        const br = e.userData.brow; br.visible = angry > 0.1 || sad > 0.1;
-        const target = angry > 0.1 ? side * 0.55 * angry : -side * 0.5 * sad; // 안쪽 내려감(화) / 안쪽 올라감(슬픔)
-        br.rotation.z = lerp(br.rotation.z, target, 1 - Math.exp(-dt * 6)); br.position.y = 1.02 - angry * 0.06;
-        e.userData.cheek.material.opacity = 0.25 + Math.max(0, mood.valence) * 0.45;
+        const br = e.userData.brow; br.visible = angry > 0.15 || sad > 0.15;
+        const target = angry > 0.15 ? side * 0.75 * angry : -side * 0.65 * sad; // 안쪽 내려감(화) / 안쪽 올라감(슬픔)
+        br.rotation.z = lerp(br.rotation.z, target, 1 - Math.exp(-dt * 6)); br.position.y = 1.06 - angry * 0.12 + sad * 0.06;
+        e.userData.tear.visible = sad > 0.6 && Math.sin(st.t * 2) > -0.3;
+        const covered = Math.max(smile, droop, angry * 0.6) > 0.7 || a === 'sleep';
+        e.userData.hl.visible = !covered; e.userData.hl2.visible = !covered;
+        e.userData.cheek.material.opacity = 0.12 + smile * 0.55;
       }
       // 눈 깜빡임 / 감기
       st.blinkAt -= dt;

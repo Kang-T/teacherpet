@@ -146,7 +146,7 @@
   function moodOf(b) {
     const d = b.d;
     const hungerDef = Math.max(0, 40 - d.hunger) / 40, thirstDef = Math.max(0, 40 - d.thirst) / 40;
-    const valence = clamp((d.aff - 50) / 100 + (d.happy - 50) / 120 - hungerDef * 0.6 - thirstDef * 0.5 - d.stress / 140 - Math.max(0, d.social - 70) / 200, -1, 1);
+    const valence = clamp((d.aff - 50) / 110 + (d.happy - 60) / 160 - hungerDef * 0.9 - thirstDef * 0.8 - d.stress / 100 - Math.max(0, d.social - 70) / 150 - Math.max(0, d.boredom - 80) / 200, -1, 1);
     const arousal = clamp(d.energy / 200 + d.stress / 150 + Math.max(0, 50 - d.boredom) / 300 + 0.15, 0, 1);
     return { valence, arousal, sleepy: clamp(1 - d.energy / 100, 0, 1) };
   }
