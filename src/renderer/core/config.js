@@ -1,0 +1,52 @@
+// 티처펫 — 상수. 단계·수치를 바꿀 때는 이 파일만 고친다.
+(function (g) {
+  const TP = (g.TP = g.TP || {});
+
+  // 1 "돌본 날" = 실제 3일. (기획서 4-1)
+  const DAY_SCALE = 3;
+  const STAGE_DAYS = { egg: 7, chick: 14, young: 28, adult: 40, old: 20 };
+
+  TP.config = {
+    DAY_SCALE,
+    STAGE_DAYS,
+    RULE: {
+      maxFlock: 6,
+      // 성장에 필요한 "돌본 날"
+      daysEgg: STAGE_DAYS.egg, daysChick: STAGE_DAYS.chick, daysYoung: STAGE_DAYS.young,
+      daysToOld: STAGE_DAYS.adult, daysToLeave: STAGE_DAYS.adult + STAGE_DAYS.old,
+      feedPerMeal: 15, waterPerDrink: 12,
+      refillCooldownMin: 60,
+      offlineCapHours: 12,          // 오프라인 진행 상한
+      careFreezePerTerm: 3,         // 학기당 돌봄 프리즈
+      automationEffect: 0.5,        // 자동화는 효과의 절반만
+    },
+    // 크기 설정 → 3D 1유닛의 픽셀 수 (암탉 ≈ 2.85유닛)
+    PX_PER_UNIT: { 3: 24, 4: 33, 6: 50 },
+    STAGE_KO: { egg: '알', chick: '병아리', young: '어린닭', hen: '암탉', rooster: '수탉' },
+    STAGE_ORDER: { rooster: 0, hen: 1, young: 2, chick: 3, egg: 4 },
+    SPEED: { egg: 0, chick: 1.6, young: 1.9, hen: 1.5, rooster: 1.8 },  // 유닛/초
+    RANK: { rooster: 3, hen: 2, young: 1, chick: 0, egg: -1 },
+    NAMES: ['삐약이', '노랑이', '콩콩', '햇살', '보리', '구름', '달걀이', '방울', '초코', '땅콩', '꼬꼬', '모카', '레몬', '솜이', '토리', '봄이'],
+    PROP_NAMES: ['coop', 'nest', 'feeder', 'waterer', 'basket', 'wormbucket', 'lamp'],
+    PROP_KO: {
+      coop: '닭장 — 클릭하면 메뉴', nest: '둥지 — 클릭하면 알 품어주기', feeder: '모이통', waterer: '물통',
+      basket: '달걀 바구니', wormbucket: '벌레통 — 끌어다 놓으면 닭들이 달려와요', lamp: '보온등 — 병아리들이 따뜻한 불빛 아래 모여요',
+    },
+    // 병아리 보온: 필요 온도 = 35 − 2.8 × (병아리 돌본 날)  (기획서 4-2)
+    BROOD: { startC: 35, dropPerDay: 2.8, tolerance: 2, minC: 21 },
+    // 위생: 암모니아 임계 (기획서 4-4)
+    HYGIENE: { poopPerBirdPerDay: 2.5, cecalRatio: 0.12, smellPpm: 15, penaltyPpm: 25, ppmPerPoopHour: 0.9 },
+    // 이별 방식
+    LIFE_END: { retire: '농장으로 떠나요', natural: '자연으로 돌아가요', safe: '떠나지 않아요 (안심 모드)' },
+    prices: null,   // prices.json 로드 후 채워짐
+  };
+
+  // file:// 에서는 fetch가 막히므로 메인 프로세스를 거친다.
+  TP.config.loadPrices = async function (api) {
+    let p = null;
+    try { p = api && api.loadPrices ? await api.loadPrices() : null; } catch (e) { console.warn('단가 로드 실패', e); }
+    TP.config.prices = p || { 기준일: '—', 품목: {} };
+    return TP.config.prices;
+  };
+  TP.config.price = (key) => ((TP.config.prices || {}).품목 || {})[key] || null;
+})(typeof window !== 'undefined' ? window : module.exports);

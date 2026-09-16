@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('teacherpet', {
   loadState: () => ipcRenderer.invoke('state:load'),
+  loadPrices: () => ipcRenderer.invoke('prices:load'),
+  pricesPath: () => ipcRenderer.invoke('prices:path'),
+  savePrices: (d) => ipcRenderer.invoke('prices:save', d),
   saveState: (s) => ipcRenderer.invoke('state:save', s),
   workArea: () => ipcRenderer.invoke('work-area'),
   info: () => ipcRenderer.invoke('app:info'),

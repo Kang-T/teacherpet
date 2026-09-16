@@ -162,6 +162,19 @@ function send(ch, payload) {
 
 // ---- IPC ----
 ipcMain.handle('state:load', () => loadState());
+ipcMain.handle('prices:load', () => {
+  // 교사가 고친 단가가 있으면 그것을, 없으면 기본 단가를 쓴다
+  const userFile = path.join(app.getPath('userData'), 'prices.json');
+  const builtIn = path.join(__dirname, 'renderer', 'prices.json');
+  for (const f of [userFile, builtIn]) {
+    try { if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { console.error('prices 읽기 실패', f, e.message); }
+  }
+  return null;
+});
+ipcMain.handle('prices:path', () => path.join(app.getPath('userData'), 'prices.json'));
+ipcMain.handle('prices:save', (_e, data) => {
+  try { fs.writeFileSync(path.join(app.getPath('userData'), 'prices.json'), JSON.stringify(data, null, 2), 'utf8'); return true; } catch (e) { return false; }
+});
 ipcMain.handle('state:save', (_e, s) => saveState(s));
 ipcMain.handle('work-area', () => workArea());
 ipcMain.on('mouse:ignore', (_e, ignore) => {
