@@ -84,11 +84,12 @@
       st.t += dt;
       const a = ctl.anim || 'idle';
       // 방향 전환은 몸을 부드럽게 돌려서
-      const face = ctl.dir < 0 ? 1 : -1;               // +z(정면)를 진행 방향으로 돌리는 부호
-      st.yawTarget = face * 0.95;                        // 기본: 얼굴이 보이는 3/4
-      if (ctl.moving > 0.5) st.yawTarget = face * 1.1;   // 걸을 땐 조금 더 옆모습
-      if (a === 'sleep') st.yawTarget = face * 1.35;
-      if (a === 'crow' || a === 'happy' || a === 'jump') st.yawTarget = face * 0.6;
+      // rotation.y = θ 이면 정면(+z)이 (sinθ, 0, cosθ)를 향한다 → +x로 가려면 θ > 0
+      const face = ctl.dir > 0 ? 1 : -1;
+      st.yawTarget = face * 0.8;                          // 서 있을 땐 얼굴이 보이는 3/4
+      if (ctl.moving > 0.5) st.yawTarget = face * 1.3;    // 걸을 땐 진행 방향(거의 옆모습)
+      if (a === 'sleep' || a === 'brood') st.yawTarget = face * 0.7;
+      if (a === 'crow' || a === 'happy' || a === 'jump' || a === 'eat' || a === 'drink' || a === 'peck') st.yawTarget = face * 0.9;
       st.yaw = lerp(st.yaw, st.yawTarget, 1 - Math.exp(-dt * 6));
       root.rotation.y = st.yaw;
 
@@ -125,7 +126,7 @@
       hy = Math.max(-1.0, Math.min(1.0, hy)); hp = Math.max(-0.5, Math.min(0.6, hp));
       let targetPitch = hp, targetYaw = hy, targetRoll = 0;
       if (a === 'peck') { const k = Math.max(0, Math.sin(st.t * 9)); targetPitch = 0.9 * k + 0.2; targetYaw = 0; bodyPivot.rotation.x = 0.35 * k + 0.1; }
-      if (a === 'sleep') { targetPitch = 0.45; targetYaw = 0.4 * ctl.dir * -1; targetRoll = 0.15; }
+      if (a === 'sleep') { targetPitch = 0.62 + Math.sin(st.t * 1.1) * 0.04; targetYaw = 0; targetRoll = 0.05; }
       if (a === 'happy' || a === 'jump') { targetPitch = -0.35; }
       if (a === 'crow') { targetPitch = -0.7; targetYaw = 0; bodyPivot.rotation.x = -0.15; }
       if (a === 'eat') { const k = Math.max(0, Math.sin(st.t * 5)); targetPitch = 0.75 * k + 0.25; targetYaw = 0; bodyPivot.rotation.x = 0.28 * k + 0.08; }

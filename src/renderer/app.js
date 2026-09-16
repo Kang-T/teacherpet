@@ -246,9 +246,11 @@
       const m = b.b3;
       m.holder.position.set(b.x, 0, b.z);
       // 시선: 커서가 최근에 움직였으면 커서를, 아니면 이따금 다른 곳을
-      if (now() - mouse.movedAt < 4000 && mouse.x >= 0) b.look.copy(world.pointAlongRay(mouse.x, mouse.y, 30));
-      else if (t > b.lookAt) { b.lookAt = t + rand(2, 5); b.look.set(b.x + rand(-6, 6), rand(0.5, 4), rand(2, 10)); }
       const moving = ['walk', 'gofeed', 'gowater', 'gocoop', 'gonest'].includes(b.anim) ? 1 : 0;
+      if (moving) b.look.set(b.x + b.dir * 8, 1.4, b.z + 3);                  // 걸을 땐 앞을 본다
+      else if (b.carrying) b.look.copy(world.pointAlongRay(mouse.x, mouse.y, 30));
+      else if (now() - mouse.movedAt < 4000 && mouse.x >= 0) b.look.copy(world.pointAlongRay(mouse.x, mouse.y, 30));
+      else if (t > b.lookAt) { b.lookAt = t + rand(2, 5); b.look.set(b.x + rand(-6, 6), rand(0.5, 4), rand(2, 10)); }
       const anim = b.anim === 'gofeed' || b.anim === 'gowater' || b.anim === 'gocoop' || b.anim === 'gonest' ? 'walk' : b.anim === 'sit' ? 'idle' : b.anim === 'fall' ? 'carry' : b.anim;
       m.model.update(dt, { anim, moving, dir: b.dir, jumpY: b.y, lookTarget: b.look, curious: mode !== 'class', wobble: b.f === 1 });
       if (b.f === 1 && b.d.stage === 'egg' && t > (b.wobbleUntil || 0)) b.f = 0;
@@ -276,8 +278,31 @@
   // ---- 마우스 ----
   let ignoring = true;
   function setIgnore(v) { if (v !== ignoring) { ignoring = v; api.setIgnoreMouse(v); } }
-  function birdAt(x, y) { const id = world.pick(x, y); return id ? birds.find((b) => b.d.id === id) || null : null; }
-  function interactiveAt(x, y) { const el = document.elementFromPoint(x, y); if (el && el.closest && el.closest('.ui')) return true; return visible && !!birdAt(x, y); }
+  function birdAt(x, y) { const h = world.pick(x, y); return h && h.type === 'bird' ? birds.find((b) => b.d.id === h.id) || null : null; }
+  function propAt(x, y) { const h = world.pick(x, y); return h && h.type === 'prop' ? h.name : null; }
+  const PROP_KO = { coop: '닭장 — 클릭하면 메뉴', nest: '둥지 — 클릭하면 알 품어주기', feeder: '모이통', waterer: '물통', basket: '달걀 바구니' };
+  let hoverProp = null;
+  const propTag = document.createElement('div'); propTag.className = 'tag'; propTag.style.display = 'none'; $('#bubbles').appendChild(propTag);
+  function propLabel(name) {
+    if (name === 'feeder') return `🌾 모이통 ${Math.round(state.feed)}% — 클릭하면 채우기`;
+    if (name === 'waterer') return `💧 물통 ${Math.round(state.water)}% — 클릭하면 채우기`;
+    if (name === 'basket') return `🧺 달걀 ${state.basket}개 · 🪙 ${state.coins}`;
+    return PROP_KO[name] || name;
+  }
+  function propClick(name) {
+    const hm = home();
+    if (name === 'feeder') { if (now() - state.lastFeedRefill < RULE.refillCooldownMin * 60000) { toast(`모이는 ${Math.ceil((RULE.refillCooldownMin * 60000 - (now() - state.lastFeedRefill)) / 60000)}분 후에 다시 채울 수 있어요`); return; } $('#btnFeed').click(); }
+    else if (name === 'waterer') { if (now() - state.lastWaterRefill < RULE.refillCooldownMin * 60000) { toast(`물은 ${Math.ceil((RULE.refillCooldownMin * 60000 - (now() - state.lastWaterRefill)) / 60000)}분 후에 다시 채울 수 있어요`); return; } $('#btnWater').click(); }
+    else if (name === 'nest') {
+      const eggs = birds.filter((b) => b.d.stage === 'egg' && !b.d.careDays.includes(today()));
+      if (!eggs.length) { toast(birds.some((b) => b.d.stage === 'egg') ? '오늘은 이미 품어줬어요. 내일 또 만나요' : '둥지에 알이 없어요'); return; }
+      for (const e of eggs) { broodTick(e); e.f = 1; e.wobbleUntil = performance.now() / 1000 + 1; showIcon(e, '✨'); }
+      toast(`🤲 알 ${eggs.length}개를 따뜻하게 품어줬어요`); renderCoop();
+    }
+    else if (name === 'basket') { openPanel('coop'); toast(state.basket ? `🧺 달걀 ${state.basket}개가 모였어요` : '🧺 아직 달걀이 없어요'); }
+    else if (name === 'coop') togglePanel();
+  }
+  function interactiveAt(x, y) { const el = document.elementFromPoint(x, y); if (el && el.closest && el.closest('.ui')) return true; return visible && !!world.pick(x, y); }
   let drag = null;
   addEventListener('mousemove', (e) => {
     if (drag) {
@@ -289,14 +314,18 @@
       setIgnore(false); return;
     }
     mouse = { x: e.clientX, y: e.clientY, movedAt: now() };
-    const b = visible ? birdAt(e.clientX, e.clientY) : null;
+    const hit = visible ? world.pick(e.clientX, e.clientY) : null;
+    const b = hit && hit.type === 'bird' ? birds.find((q) => q.d.id === hit.id) : null;
     hoverId = b ? b.d.id : null;
-    setIgnore(!interactiveAt(e.clientX, e.clientY));
-    canvas.style.cursor = b ? 'grab' : 'default';
+    hoverProp = hit && hit.type === 'prop' ? hit.name : null;
+    if (hoverProp) { propTag.textContent = propLabel(hoverProp); propTag.style.display = ''; propTag.style.left = e.clientX + 'px'; propTag.style.top = (e.clientY - 14) + 'px'; }
+    else propTag.style.display = 'none';
+    setIgnore(!!hit || (document.elementFromPoint(e.clientX, e.clientY) || {}).closest?.('.ui') ? false : true);
+    canvas.style.cursor = b ? 'grab' : hoverProp ? 'pointer' : 'default';
   });
   canvas.addEventListener('mousedown', (e) => {
     const b = birdAt(e.clientX, e.clientY);
-    if (!b) { closePanel(); return; }
+    if (!b) { const pr = propAt(e.clientX, e.clientY); if (pr) propClick(pr); else closePanel(); return; }
     const p = world.screenToPlaneZ(e.clientX, e.clientY, b.z);
     drag = { b, offX: p ? p.x - b.x : 0, sx: e.clientX, sy: e.clientY, moved: false };
     canvas.style.cursor = 'grabbing';

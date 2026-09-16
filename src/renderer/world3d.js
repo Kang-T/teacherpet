@@ -105,12 +105,39 @@
     function shadowed(o) { o.traverse((m) => { if (m.isMesh) { m.castShadow = true; } }); return o; }
     function makeCoop() {
       const g = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.2, 2.6), hard(0xE9C9A0)); body.position.y = 1.1; g.add(body);
-      const roof = new THREE.Mesh(new THREE.CylinderGeometry(0, 2.55, 1.5, 4, 1), hard(0xE0645A)); roof.rotation.y = Math.PI / 4; roof.scale.set(1.15, 1, 0.95); roof.position.y = 2.95; g.add(roof);
-      const door = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.1, 24, 1, false, 0, Math.PI), hard(0x5B3A21)); door.rotation.x = Math.PI / 2; door.rotation.z = 0; door.position.set(0, 0.62, 1.31); g.add(door);
-      const doorB = new THREE.Mesh(new THREE.BoxGeometry(1.24, 0.62, 0.1), hard(0x5B3A21)); doorB.position.set(0, 0.31, 1.31); g.add(doorB);
-      const ramp = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.08, 1.6), hard(0xC9A272)); ramp.position.set(0, 0.25, 2.0); ramp.rotation.x = 0.32; g.add(ramp);
-      const win = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.6, 0.1), hard(0xBFE3F7, { roughness: 0.3 })); win.position.set(1.61, 1.5, 0.3); win.rotation.y = Math.PI / 2; g.add(win);
+      const wood = hard(0xE3BF92), trim = hard(0xFFF7EC), dark = hard(0x5B3A21), roofC = hard(0xD9574F);
+      // 몸체 (앞면이 +z)
+      const W = 3.6, D = 2.6, Hh = 2.0;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(W, Hh, D), wood); body.position.y = Hh / 2 + 0.1; g.add(body);
+      // 바닥 받침(기둥)
+      for (const [x, z] of [[-W / 2 + 0.2, D / 2 - 0.2], [W / 2 - 0.2, D / 2 - 0.2], [-W / 2 + 0.2, -D / 2 + 0.2], [W / 2 - 0.2, -D / 2 + 0.2]]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.2, 0.25), dark); leg.position.set(x, 0.05, z); g.add(leg); }
+      // 박공 지붕: 삼각기둥(Shape → Extrude), 처마 여유
+      const rh = 1.1, ow = 0.35;
+      const tri = new THREE.Shape(); tri.moveTo(-W / 2 - ow, 0); tri.lineTo(W / 2 + ow, 0); tri.lineTo(0, rh); tri.closePath();
+      const gable = new THREE.Mesh(new THREE.ExtrudeGeometry(tri, { depth: D + ow * 2, bevelEnabled: false }), trim); gable.position.set(0, Hh + 0.1, -D / 2 - ow); g.add(gable);
+      const slopeLen = Math.hypot(W / 2 + ow, rh) + 0.12, ang = Math.atan2(rh, W / 2 + ow);
+      for (const side of [-1, 1]) {
+        const panel = new THREE.Mesh(new THREE.BoxGeometry(slopeLen, 0.12, D + ow * 2 + 0.2), roofC);
+        panel.position.set(side * (W / 2 + ow) / 2, Hh + 0.1 + rh / 2 + 0.06, 0); panel.rotation.z = -side * ang; g.add(panel);
+      }
+      const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, D + ow * 2 + 0.3), hard(0xB84640)); ridge.position.set(0, Hh + 0.1 + rh + 0.06, 0); g.add(ridge);
+      // 문 (아치) + 문틀
+      const arch = new THREE.Shape(); arch.moveTo(-0.55, 0); arch.lineTo(-0.55, 0.7); arch.absarc(0, 0.7, 0.55, Math.PI, 0, true); arch.lineTo(0.55, 0); arch.closePath();
+      const door = new THREE.Mesh(new THREE.ExtrudeGeometry(arch, { depth: 0.08, bevelEnabled: false }), dark); door.position.set(0, 0.1, D / 2 - 0.02); g.add(door);
+      const frame = new THREE.Mesh(new THREE.ExtrudeGeometry(arch, { depth: 0.06, bevelEnabled: false }), trim); frame.scale.set(1.14, 1.1, 1); frame.position.set(0, 0.1, D / 2 - 0.06); g.add(frame);
+      // 경사로 + 발판
+      const ramp = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.08, 1.7), hard(0xC9A272)); ramp.position.set(0, 0.16, D / 2 + 0.75); ramp.rotation.x = 0.22; g.add(ramp);
+      for (let i = 0; i < 4; i++) { const c = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.05, 0.08), dark); c.position.set(0, 0.2 + (3 - i) * 0.07, D / 2 + 0.35 + i * 0.36); c.rotation.x = 0.22; g.add(c); }
+      // 창문 + 창틀 (옆면)
+      const win = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.6, 0.7), hard(0xBFE3F7, { roughness: 0.25 })); win.position.set(W / 2 + 0.02, 1.4, 0.2); g.add(win);
+      const wf = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.72, 0.82), trim); wf.position.set(W / 2, 1.4, 0.2); g.add(wf);
+      const bar1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.62, 0.05), trim); bar1.position.set(W / 2 + 0.04, 1.4, 0.2); g.add(bar1);
+      const bar2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.72), trim); bar2.position.set(W / 2 + 0.04, 1.4, 0.2); g.add(bar2);
+      // 모서리 기둥 장식
+      for (const x of [-W / 2, W / 2]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, Hh, 0.14), trim); post.position.set(x, Hh / 2 + 0.1, D / 2); g.add(post); }
+      // 풍향계 대신 작은 닭 실루엣 원반
+      const vane = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 8), dark); vane.position.set(0, Hh + 0.1 + rh + 0.35, 0); g.add(vane);
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 8), hard(0xF2B84B, { roughness: 0.4 })); ball.position.set(0, Hh + 0.1 + rh + 0.62, 0); g.add(ball);
       return shadowed(g);
     }
     function makeNest() {
@@ -146,10 +173,10 @@
     function setProps(layout) { // layout: { coop:{x,z}, nest:{x,z}, ... , flip }
       const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, waterer: makeWaterer, basket: makeBasket };
       for (const k of Object.keys(makers)) {
-        if (!world.props[k]) { world.props[k] = makers[k](); scene.add(world.props[k]); }
+        if (!world.props[k]) { world.props[k] = makers[k](); world.props[k].userData.propName = k; scene.add(world.props[k]); }
         const p = world.props[k], L = layout[k];
         p.position.set(L.x, 0, L.z); p.rotation.y = layout.flip ? Math.PI : 0;
-        if (k === 'coop') p.rotation.y = layout.flip ? -0.35 : 0.35;
+        if (k === 'coop') p.rotation.y = layout.flip ? -0.25 : 0.25;
         p.userData.layout = L;
       }
     }
@@ -167,8 +194,13 @@
     function pick(px, py) {
       ndc.set((px / world.W) * 2 - 1, -(py / world.H) * 2 + 1); ray.setFromCamera(ndc, camera);
       const meshes = []; for (const b of world.birds.values()) if (b.holder.visible) meshes.push(...b.meshes);
-      const hits = ray.intersectObjects(meshes, false);
-      return hits.length ? hits[0].object.userData.birdId : null;
+      const birdHits = ray.intersectObjects(meshes, false);
+      const propObjs = Object.values(world.props);
+      const propHits = propObjs.length ? ray.intersectObjects(propObjs, true) : [];
+      const bh = birdHits[0], ph = propHits[0];
+      if (bh && (!ph || bh.distance <= ph.distance)) return { type: 'bird', id: bh.object.userData.birdId };
+      if (ph) { let o = ph.object; while (o && !o.userData.propName) o = o.parent; return o ? { type: 'prop', name: o.userData.propName } : null; }
+      return null;
     }
     function render() { renderer.render(scene, camera); }
 
