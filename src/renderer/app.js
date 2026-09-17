@@ -102,26 +102,71 @@
   // 초상 — npc/granny.png 이 있으면 그걸 쓰고, 없으면 임시 svg 로 떨어진다.
   // (CSP 가 통신을 막고 있어 파일 존재를 미리 확인할 수 없다. img 의 onerror 로 갈아탄다.)
   const FACE = { normal: 'granny', smile: 'granny_smile', worry: 'granny_worry' };
+  let curMood = 'normal';
+  // 눈 깜빡임·입 움직임은 그림이 더 있어야 한다. 없으면 조용히 건너뛴다.
+  const extra = {};
+  for (const k of ['blink', 'talk']) {
+    const im = new Image();
+    im.onload = () => { extra[k] = true; };
+    im.src = 'npc/granny_' + k + '.png';
+  }
+  function frameSrc(kind) {
+    if (kind && curMood === 'normal' && extra[kind]) return 'npc/granny_' + kind + '.png';
+    return 'npc/' + (FACE[curMood] || FACE.normal) + '.png';
+  }
   function setFace(mood) {
-    const img = $('#gImg'), base = 'npc/' + (FACE[mood] || FACE.normal);
-    if (img.dataset.base === base) return;
-    img.dataset.base = base;
+    curMood = FACE[mood] ? mood : 'normal';
+    const img = $('#gImg'), src = frameSrc(null);
+    if (img.getAttribute('src') === src) return;
     img.onerror = () => { img.onerror = null; img.src = 'npc/granny.svg'; };
-    img.src = base + '.png';
+    img.src = src;
+  }
+  // 이따금 눈을 깜빡인다 — 정지 그림 두 장이면 살아 있는 것처럼 보인다
+  setInterval(() => {
+    const card = $('#granny');
+    if (!card || card.classList.contains('hidden') || !extra.blink || talking) return;
+    const img = $('#gImg');
+    img.src = frameSrc('blink');
+    setTimeout(() => { if (!talking) img.src = frameSrc(null); }, 130);
+  }, 4200);
+
+  let talking = false, typeTimer = null, mouthTimer = null;
+  function stopTyping(full) {
+    clearInterval(typeTimer); clearInterval(mouthTimer); talking = false;
+    if (full !== undefined) $('#gSay').innerHTML = esc(full).replace(/\n/g, '<br>');
+    $('#gImg').src = frameSrc(null);
   }
   function grannySay(text, btns, mood) {
     setFace(mood);
-    const card = $('#granny'), box = $('#gBtns');
-    $('#gSay').innerHTML = esc(text).replace(/\n/g, '<br>');
+    const card = $('#granny'), box = $('#gBtns'), say = $('#gSay');
+    stopTyping();
     box.innerHTML = '';
-    for (const b of (btns || [])) {
-      const el = document.createElement('button');
-      if (b.primary) el.className = 'primary';
-      el.innerHTML = esc(b.label) + (b.sub ? `<small>${esc(b.sub)}</small>` : '');
-      el.addEventListener('click', b.fn);
-      box.appendChild(el);
-    }
     card.classList.remove('hidden');
+
+    // 한 글자씩 — 말하고 있다는 느낌이 여기서 나온다. 누르면 바로 다 보인다.
+    let i = 0;
+    talking = true;
+    say.innerHTML = '';
+    const finish = () => {
+      stopTyping(text);
+      for (const b of (btns || [])) {
+        const el = document.createElement('button');
+        if (b.primary) el.className = 'primary';
+        el.innerHTML = esc(b.label) + (b.sub ? `<small>${esc(b.sub)}</small>` : '');
+        el.addEventListener('click', b.fn);
+        box.appendChild(el);
+      }
+    };
+    typeTimer = setInterval(() => {
+      i += 1;
+      say.innerHTML = esc(text.slice(0, i)).replace(/\n/g, '<br>');
+      if (i >= text.length) finish();
+    }, 28);
+    if (extra.talk) {
+      let on = false;
+      mouthTimer = setInterval(() => { on = !on; $('#gImg').src = frameSrc(on ? 'talk' : null); }, 170);
+    }
+    card.onclick = () => { if (talking) finish(); };
   }
   function grannyHide() { $('#granny').classList.add('hidden'); }
   function askGranny() {
