@@ -502,12 +502,17 @@
       if (!eligible(b) || b.d.hurt) continue;
       const dx = cursorSpot.x - b.x, d2 = Math.abs(dx), dz = Math.abs(b.z - cursorSpot.z);
 
-      // 이미 쪼는 중이면 커서를 따라간다 (앞뒤로도 조금씩 붙는다)
+      // 이미 쪼는 중 — 제자리에서 좌우로만 맞추고, 높으면 폴짝 뛰어 잡으려 한다
       if (b.anim === 'peckat') {
         if (!still || d2 > 2.8) { setAnim(b, 'idle', 0.6); continue; }
         faceDir(b, dx > 0 ? 1 : -1);
         if (d2 > 0.5) b.x = clamp(b.x + Math.sign(dx) * spec(b).speed * 0.45 * dt, world.xMin + XMARGIN, world.xMax - XMARGIN);
-        if (dz > 0.4) b.z = clampZ(b.z + Math.sign(cursorSpot.z - b.z) * 0.8 * dt);
+        // 커서가 머리보다 한참 위면 뛰어서 닿으려 한다
+        const head = world.project(b.x, height(b), b.z);
+        if (head && mouse.y < head.y - 26 && b.y === 0 && b.vy === 0 && Math.random() < 0.55) {
+          b.vy = rand(3.4, 5.2) * (mouse.y < head.y - 90 ? 1.25 : 1);
+          if (Math.random() < 0.35) showIcon(b, '✨', 700);
+        }
         continue;
       }
       // 다가가는 중이면 그대로 둔다
@@ -529,7 +534,6 @@
       const reach = 3.5 + cursorStill * 1.8;
       if (d2 < reach && d2 >= 1.6 && ACT.canInterrupt(b.anim, 'gopeckat') && b.d.stress < 55) {
         if (Math.random() > 0.45 * T.curiosity * T.approach) continue;
-        b.peckZ = cursorSpot.z;
         b.curious = true;
         goTo(b, cursorSpot.x - Math.sign(dx) * 0.7, 'gopeckat');
         if (Math.random() < 0.35) showIcon(b, '👀', 1600);
@@ -816,14 +820,14 @@
             if (b.anim !== 'cock') return;
             const gap = Math.abs(lure.x - b.x);
             // 충분히 가까워졌으면 이제 부리로 쪼아 본다
-            if (gap < 2.0) { faceDir(b, lure.x > b.x ? 1 : -1); if (cursorSpot) b.z = clampZ(cursorSpot.z); setAnim(b, 'peckat', rand(2.5, 5)); b.d.boredom = clamp(b.d.boredom - 12, 0, 100); return; }
+            if (gap < 2.0) { faceDir(b, lure.x > b.x ? 1 : -1); setAnim(b, 'peckat', rand(2.5, 5)); b.d.boredom = clamp(b.d.boredom - 12, 0, 100); return; }
             if ((b.peekLeft || 0) > 0 && lure.active > 0.3 && now() - lure.at < 4000) peek(b);
             else { b.peekLeft = 0; decide(b); }
           });
         }
         else if (b.anim === 'gowarm') { b.z = clampZ((warmSpot() || { z: b.z }).z + rand(-0.6, 0.6)); setAnim(b, 'huddle', rand(4, 8)); showIcon(b, '🥶', 2000); }
         else if (b.anim === 'gocool') { setAnim(b, 'pant', rand(3, 6)); showIcon(b, '🥵', 2000); }
-        else if (b.anim === 'gopeckat') { if (b.peckZ !== undefined) b.z = clampZ(b.peckZ); setAnim(b, 'peckat', rand(2.5, 5)); }
+        else if (b.anim === 'gopeckat') setAnim(b, 'peckat', rand(2.5, 5));
         else if (b.anim === 'gohuddle') { setAnim(b, 'huddle', rand(4, 9)); b.d.stress = clamp(b.d.stress - 12, 0, 100); b.d.social = clamp(b.d.social - 25, 0, 100); }
         else if (b.anim === 'godust') { b.z = clamp(home().dustpit.z + rand(-0.5, 0.5), -2.2, 2.2); startDustBath(b); }
         else if (b.anim === 'panic') { setAnim(b, 'flap', 1.2); }

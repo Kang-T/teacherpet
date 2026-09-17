@@ -214,7 +214,7 @@
       // 옆으로 누울 때는 몸 중심(y≈1.0)을 축으로 굴리고, 가라앉지 않게 들어 올린다
       const lieAng = st.roll * 1.05;
       const CY = 1.0;
-      root.position.y = (ctl.jumpY || 0) + hop - st.squat * 0.5 + st.roll * (CY - Math.cos(lieAng) * CY) + st.roll * 0.12;
+      root.position.y = (ctl.jumpY || 0) + hop - st.squat * 0.5 + st.roll * (CY - Math.cos(lieAng) * CY) + st.roll * 0.12 + (st.tiptoe || 0) * 0.22;
       root.rotation.z = lieAng * (ctl.dir > 0 ? 1 : -1);
       if (a === 'shake') { const k = Math.min(1, st.actT / 0.9); root.rotation.z += Math.sin(st.t * 30) * 0.1 * (1 - k); bodyPivot.rotation.z += Math.sin(st.t * 30 + 1) * 0.16 * (1 - k); }
       if (st.roll > 0.5) for (const l of legs) l.visible = false;
@@ -296,14 +296,23 @@
       // (일정한 사인파로 흔들면 쪼는 게 아니라 인사하는 것처럼 보인다)
       if (a === 'peckat') {
         const strike = peckEnv(st.actT);
-        const aimP = Math.max(-0.5, Math.min(1.5, hpRaw));      // 클램프를 풀어 실제 지점을 겨눈다
+        const aimP = Math.max(-1.0, Math.min(1.5, hpRaw));      // 클램프를 풀어 실제 지점을 겨눈다
         targetPitch = aimP + strike * 0.5;
         targetYaw = Math.max(-1.2, Math.min(1.2, hyRaw));
-        const lean = Math.max(0, aimP) * 0.4 + strike * 0.28;
-        bodyPivot.rotation.x = 0.08 + lean;
-        neckDown = Math.max(0, aimP) * 0.55 + strike * 0.45;
         targetRoll = 0;
-      }
+        if (aimP < -0.12) {
+          // 높이 있는 것을 쪼려 애쓴다 — 몸을 세우고 목을 위로 쭉 뻗는다
+          const up = Math.min(1, -aimP / 0.9);
+          bodyPivot.rotation.x = -0.18 * up - strike * 0.12;
+          neckUp = 0.5 + up * 0.7 + strike * 0.3;
+          st.tiptoe = up;
+        } else {
+          const lean = Math.max(0, aimP) * 0.4 + strike * 0.28;
+          bodyPivot.rotation.x = 0.08 + lean;
+          neckDown = Math.max(0, aimP) * 0.55 + strike * 0.45;
+          st.tiptoe = 0;
+        }
+      } else st.tiptoe = lerp(st.tiptoe || 0, 0, 1 - Math.exp(-dt * 8));
       // 고개 갸웃 — 한쪽 눈으로 대상을 뜯어본다 (닭이 궁금할 때 하는 진짜 동작)
       // 몸 털기 — 머리부터 꼬리까지 파도처럼 부르르 (닭이 수시로 한다)
       if (a === 'shake') { const k = Math.min(1, st.actT / 0.9); targetRoll = Math.sin(st.t * 34) * 0.35 * (1 - k); targetPitch = -0.1; }
@@ -338,7 +347,7 @@
       if (a === 'roost') wing = 0.12;
       if (a === 'preen') wing = 0.45 + Math.max(0, Math.sin(st.t * 0.9)) * 0.4;
       if (a === 'scratch') wing = 0.1;
-      if (a === 'peckat') wing = 0.12;
+      if (a === 'peckat') wing = 0.12 + (st.tiptoe || 0) * (0.5 + Math.abs(Math.sin(st.t * 16)) * 0.6);   // 높은 걸 노릴 땐 날개로 균형을 잡는다
       if (a === 'cock') wing = 0.08;
       if (a === 'shake') { const k = Math.min(1, st.actT / 0.9); wing = 0.25 + Math.abs(Math.sin(st.t * 30)) * 0.5 * (1 - k); }
       if (a === 'alert' || a === 'guard') wing = 0.05;

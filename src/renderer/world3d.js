@@ -20,7 +20,8 @@
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(30, 1, 0.5, 400);
+    // 직교 카메라 — 어디에 있든 닭 크기가 같다. (원근이면 뒤로 갈수록 작아져 이상하다)
+    const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 600);
     scene.add(new THREE.HemisphereLight(0xFFFFFF, 0xC9D6EA, 1.6));
     const sun = new THREE.DirectionalLight(0xFFF6E8, 2.2); sun.position.set(6, 14, 12); sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 5; sun.shadow.bias = -0.0005;
@@ -29,7 +30,7 @@
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 160), new THREE.ShadowMaterial({ opacity: 0.22 }));
     ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
-    const world = { renderer, scene, camera, birds: new Map(), props: {}, pxPerUnit: 50, elevDeg: 21, xMin: -10, xMax: 10, zMin: -6, zMax: 2, roamTop: 0.42, W: 1, H: 1 };
+    const world = { renderer, scene, camera, birds: new Map(), props: {}, pxPerUnit: 50, elevDeg: 24, xMin: -10, xMax: 10, zMin: -6, zMax: 2, roamTop: 0.35, W: 1, H: 1 };
     const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2(); const tmp = new THREE.Vector3();
     const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
@@ -38,29 +39,37 @@
       world.W = W; world.H = H; world.pxPerUnit = pxPerUnit;
       renderer.setSize(W, H, false);
       renderer.domElement.style.width = W + 'px'; renderer.domElement.style.height = H + 'px';
-      camera.aspect = W / H; camera.fov = 30;
-      const D = H / (2 * pxPerUnit * Math.tan(THREE.MathUtils.degToRad(15)));
-      const elev = THREE.MathUtils.degToRad(world.elevDeg || 21);
+      // 1 유닛 = pxPerUnit 픽셀 (거리와 무관하게 항상 같은 크기)
+      const halfW = W / (2 * pxPerUnit), halfH = H / (2 * pxPerUnit);
+      camera.left = -halfW; camera.right = halfW; camera.top = halfH; camera.bottom = -halfH;
+      camera.near = 0.1; camera.far = 800;
+      const elev = THREE.MathUtils.degToRad(world.elevDeg || 24);
+      const D = 200;
       camera.position.set(0, D * Math.sin(elev), D * Math.cos(elev));
-      // lookAt 높이를 이분 탐색: 바닥 원점이 화면 y = 96% 지점에 오도록
-      let lo = -50, hi = 50;
-      for (let i = 0; i < 40; i++) {
-        const mid = (lo + hi) / 2; camera.lookAt(0, mid, 0); camera.updateMatrixWorld();
-        tmp.set(0, 0, 0).project(camera);
-        if (tmp.y > -0.985) lo = mid; else hi = mid;  // 원점이 너무 위에 있으면 lookAt을 올린다
-      }
-      camera.lookAt(0, (lo + hi) / 2, 0); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+      camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+      // 바닥 원점이 화면 아래쪽(99%)에 오도록 카메라를 화면 위 방향으로 민다
+      const viewUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+      camera.position.addScaledVector(viewUp, halfH * 0.97);
+      camera.updateMatrixWorld();
+
       const a = screenToGround(0, H * 0.99), b = screenToGround(W, H * 0.99);
-      world.xMin = a ? a.x : -10; world.xMax = b ? b.x : 10;
-      // 닭들이 돌아다닐 수 있는 앞뒤(깊이) 범위 — 화면 위쪽 roamTop 지점까지
-      const nearP = screenToGround(W / 2, H * 0.995), farP = screenToGround(W / 2, H * (world.roamTop || 0.52));
-      world.zMax = nearP ? nearP.z : 2;          // 화면 아래쪽(카메라에 가까움)
-      world.zMin = farP ? farP.z : -6;           // 화면 위쪽(멀리)
-      if (!(world.zMin < world.zMax)) { world.zMin = -6; world.zMax = 2; }
-      const span = Math.max(20, (world.xMax - world.xMin) * 0.8);
-      sun.shadow.camera.left = -span; sun.shadow.camera.right = span; sun.shadow.camera.top = span * 0.6; sun.shadow.camera.bottom = -span * 0.6;
-      sun.shadow.camera.near = 1; sun.shadow.camera.far = D * 3; sun.shadow.camera.updateProjectionMatrix();
-      sun.position.set(6, 14, 12).multiplyScalar(Math.max(1, D / 30));
+      world.xMin = a ? a.x : -halfW; world.xMax = b ? b.x : halfW;
+      const nearP = screenToGround(W / 2, H * 0.995), farP = screenToGround(W / 2, H * (world.roamTop || 0.35));
+      world.zMax = nearP ? nearP.z : 2;
+      world.zMin = farP ? farP.z : -20;
+      if (!(world.zMin < world.zMax)) { world.zMin = -20; world.zMax = 2; }
+
+      const span = Math.max(30, (world.xMax - world.xMin) * 0.8);
+      const zSpan = Math.max(30, (world.zMax - world.zMin) * 0.8);
+      sun.shadow.camera.left = -span; sun.shadow.camera.right = span;
+      sun.shadow.camera.top = zSpan; sun.shadow.camera.bottom = -zSpan;
+      sun.shadow.camera.near = 1; sun.shadow.camera.far = 600;
+      sun.shadow.camera.updateProjectionMatrix();
+      sun.position.set(30, 90, 60);
+      sun.target.position.set(0, 0, (world.zMin + world.zMax) / 2);
+      sun.target.updateMatrixWorld();
     }
     function screenToGround(px, py) {
       ndc.set((px / world.W) * 2 - 1, -(py / world.H) * 2 + 1); ray.setFromCamera(ndc, camera);
