@@ -56,7 +56,7 @@
     prices: null,   // prices.json 로드 후 채워짐
     // 할머니에게 편지 — 구글 폼 주소. 새 창으로 열기만 하고 우리 앱은 아무것도 보내지 않는다.
     // 비워 두면 편지 버튼이 동작하지 않는다.
-    LETTER_FORM: '',
+    LETTER_FORM: 'https://forms.gle/3iB9pFV38ibDhf2s8',
   };
 
   // file:// 에서는 fetch가 막히므로 메인 프로세스를 거친다.
