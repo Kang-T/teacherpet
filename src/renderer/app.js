@@ -101,7 +101,7 @@
   const guideCfg = () => GR.GUIDE[(state.settings || {}).guide] || GR.GUIDE.often;
   // 초상 — npc/granny.png 이 있으면 그걸 쓰고, 없으면 임시 svg 로 떨어진다.
   // (CSP 가 통신을 막고 있어 파일 존재를 미리 확인할 수 없다. img 의 onerror 로 갈아탄다.)
-  const FACE = { normal: 'granny', smile: 'granny_smile', worry: 'granny_worry' };
+  const FACE = { normal: 'granny', smile: 'granny_smile', worry: 'granny_worry', proud: 'granny_proud', think: 'granny_think' };
   let curMood = 'normal';
   // 눈 깜빡임·입 움직임은 그림이 더 있어야 한다. 없으면 조용히 건너뛴다.
   const extra = {};
@@ -174,7 +174,7 @@
     grannySay(line, [{ label: '알겠어요', primary: true, fn: grannyHide }], adviceMood(line));
   }
   // 말의 내용에 따라 표정이 바뀐다
-  const adviceMood = (line) => (/별일 없|잘했|고맙/.test(line) ? 'smile' : /아파|다쳤|비었|심하/.test(line) ? 'worry' : 'normal');
+  const adviceMood = (line) => (/별일 없|잘했|고맙/.test(line) ? 'smile' : /아파|다쳤|비었|심하/.test(line) ? 'worry' : 'think');
   // 할머니가 먼저 말을 거는 건 '자주 여쭤볼래요'를 고른 아이에게만
   function nudge() {
     if (!guideCfg().nudge) return;
@@ -193,7 +193,7 @@
     if ((state.chapter || 0) >= n) return;
     state.chapter = n; markDirty();
     const c = GR.CHAPTERS[n];
-    if (c) later0(() => grannySay(c.say, [{ label: '네', primary: true, fn: grannyHide }], 'smile'), 1400);
+    if (c) later0(() => grannySay(c.say, [{ label: '네', primary: true, fn: grannyHide }], n >= 3 ? 'proud' : 'smile'), 1400);
   }
   const later0 = (fn, ms) => setTimeout(fn, ms);
 
@@ -239,7 +239,6 @@
       if (GR.GUIDE[k].detail) state.settings.detail = true;
       markDirty();
       $('#granny').classList.remove('choose');
-      $('#gKid').classList.add('hidden');      // 이제 플레이어가 그 아이다
       scene(['그래. 그럼 이 아이부터 보자꾸나.'], () => giveFirstChick(), 'smile');
     };
     $('#granny').classList.add('choose');
@@ -1175,7 +1174,7 @@
         // 첫 암탉 — 이제 둥지와 바구니가 필요해졌다
         state.settings.propHidden = Object.assign({}, state.settings.propHidden, { nest: false, basket: false });
         layoutHome(); markDirty();
-        later0(() => scene(['알을 낳기 시작할 테니 둥지가 있어야겠구나.', '둥지랑 달걀 바구니를 마당에 놓아 두었단다.'], grannyHide, 'smile'), 2600);
+        later0(() => scene(['알을 낳기 시작할 테니 둥지가 있어야겠구나.', '둥지랑 달걀 바구니를 마당에 놓아 두었단다.'], grannyHide, 'proud'), 2600);
       }
       chapter(4);
       toast(sex === 'f' ? `🐔 ${b.d.name}(이)가 암탉이 됐어요! 이제 알을 낳을 수 있어요` : `🐓 ${b.d.name}(이)가 수탉이 됐어요! 꼬끼오~`, true, 8000); chime();
@@ -1771,8 +1770,11 @@
     layoutHome();
     state.chapter = 1; state.onboarded = false; markDirty(); renderCoop(); closePanel();
     $('#gAsk').classList.remove('hidden');
+    const kid = $('#gKid');
+    kid.src = 'npc/kid_back_happy.png';        // 병아리를 받고 폴짝 뛴다
     scene([GR.CHAPTERS[1].say, `이름은 "${d.name}"라고 불러 두었단다. 마음에 안 들면 바꾸어도 좋아.`],
-      () => { $('#gAsk').classList.remove('hidden'); startSteps(); }, 'smile');
+      () => { kid.classList.add('hidden');     // 이제 플레이어가 그 아이다
+        $('#gAsk').classList.remove('hidden'); startSteps(); }, 'proud');
   }
   $$('[data-feed]').forEach((x) => x.addEventListener('click', () => {
     state.feedType = x.dataset.feed; for (const q of birds) q.d.wrongFeed = 0;
