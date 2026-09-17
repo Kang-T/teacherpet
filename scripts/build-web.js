@@ -26,7 +26,7 @@ function copyDir(from, to, skip = []) {
 }
 
 fs.rmSync(OUT, { recursive: true, force: true });
-copyDir(SRC, OUT, ['assets', 'README_안티그라비티_프롬프트.md']);   // 트레이 아이콘·작업 안내문은 웹에 싣지 않는다
+copyDir(SRC, OUT, ['assets', '안티그라비티_프롬프트.md']);   // 트레이 아이콘·작업 안내문은 웹에 싣지 않는다
 fs.copyFileSync(path.join(WEB, 'shim.js'), path.join(OUT, 'shim.js'));
 fs.copyFileSync(path.join(WEB, 'web.css'), path.join(OUT, 'web.css'));
 for (const f of ['privacy.html', 'school.html']) fs.copyFileSync(path.join(WEB, f), path.join(OUT, f));
