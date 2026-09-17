@@ -21,11 +21,11 @@
       freezes: C.RULE.careFreezePerTerm,
       settings: {
         size: 4, sound: true, classMin: 40, breakMin: 10, autoBreak: true,
-        homeSide: 'left', lifeEnd: 'retire', pauseWeekends: true, quiet: false,
+        homeSide: 'left', lifeEnd: 'retire', useCalendar: false, pauseWeekends: true, quiet: false,
         holidays: [], vacation: null, paused: false,
         propPos: {}, propHidden: {},
       },
-      names: '', pickUsed: [], todos: [], lastCrow: '', lastSeen: U.now(),
+      names: '', pickUsed: [], todos: [], lastCrow: '', lastSeen: U.now(), openedDays: [],
     };
   }
 
@@ -68,7 +68,7 @@
       s.equipment = { lamp: null, vacuum: false, autofeeder: false };
       s.lampPower = 1;
       s.freezes = C.RULE.careFreezePerTerm;
-      s.settings = Object.assign({ pauseWeekends: true, quiet: false, propPos: {}, propHidden: {}, holidays: [], vacation: null, paused: false }, s.settings || {});
+      s.settings = Object.assign({ pauseWeekends: true, quiet: false, propPos: {}, propHidden: {}, holidays: [], vacation: null, paused: false, useCalendar: false }, s.settings || {});
       s.away = [];
       delete s.lastAttend;                         // 쓰기만 하고 읽지 않던 필드
       s.version = 4;
@@ -91,6 +91,7 @@
     out.inventory = Object.assign(base.inventory, s.inventory || {});
     out.equipment = Object.assign(base.equipment, s.equipment || {});
     out.away = s.away || [];
+    out.openedDays = s.openedDays || [];
     out.flock = (out.flock || []).map(ensureBird);
     out.version = VERSION;
     return out;

@@ -22,7 +22,9 @@
   }
   // 등교일인가 = 시간이 흐르는 날인가
   function isSchoolDay(d, st) {
-    if (st && st.settings && st.settings.pauseWeekends === false) return true;
+    // 학사일정을 쓰지 않으면 모든 날이 흐른다
+    if (!st || !st.settings || !st.settings.useCalendar) return true;
+    if (st.settings.pauseWeekends === false) return true;
     if (U.isWeekend(key(d))) return false;
     if (isHoliday(d, st)) return false;
     if (inVacation(d, st)) return false;
@@ -50,12 +52,22 @@
     }
     return Math.min(C.RULE.offlineCapHours, ms / 3600000);
   }
-  // 돌보지 않고 흘려보낸 등교일 수 (프리즈로 덮은 날은 빼고)
+  // 방치한 날 = "앱을 켠 등교일인데도 끝내 돌보지 않은 날".
+  // 앱을 아예 안 켠 기간(방학·출장·주말)은 세지 않는다 — 돌아온 사람을 벌하지 않기 위해서.
   function neglectedDays(bird, st) {
     const cared = Object.keys(bird.care || {}).filter((day) => TP.state.isCared(bird, day)).sort();
     const last = cared.length ? cared[cared.length - 1] : (bird.stageSince || U.today());
-    const frozen = (bird.frozen || []);
-    return schoolDaysBetween(last, U.today(), st).filter((day) => !frozen.includes(day));
+    const frozen = bird.frozen || [];
+    const opened = st.openedDays || [];
+    return schoolDaysBetween(last, U.today(), st)
+      .filter((day) => !frozen.includes(day))
+      .filter((day) => opened.includes(day) && day !== U.today());   // 오늘은 아직 기회가 있다
+  }
+  // 오늘 앱을 켰다고 기록
+  function markOpened(st) {
+    const t = U.today();
+    st.openedDays = (st.openedDays || []).filter((d) => d >= new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10));
+    if (!st.openedDays.includes(t)) st.openedDays.push(t);
   }
   // 프리즈를 써서 빠진 날을 덮는다
   function useFreeze(bird, days, st) {
@@ -67,5 +79,5 @@
   }
   function termReset(st) { st.freezes = C.RULE.careFreezePerTerm; }
 
-  TP.school = { FIXED, isHoliday, inVacation, isSchoolDay, schoolDaysBetween, effectiveAwayHours, neglectedDays, useFreeze, termReset, key };
+  TP.school = { FIXED, markOpened, isHoliday, inVacation, isSchoolDay, schoolDaysBetween, effectiveAwayHours, neglectedDays, useFreeze, termReset, key };
 })(typeof window !== 'undefined' ? window : module.exports);

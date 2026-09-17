@@ -111,6 +111,7 @@
       if (a === 'sleep' || a === 'brood' || a === 'roost' || a === 'wail') st.yawTarget = face * 0.7;
       if (a === 'scratch') st.yawTarget = face * 0.85;
       if (a === 'peckat') st.yawTarget = face * 0.7;
+      if (a === 'cock') st.yawTarget = face * 0.6;
       if (a === 'alert' || a === 'guard' || a === 'crouch') st.yawTarget = face * 0.55;
       if (a === 'tidbit') st.yawTarget = face * 0.8;
       if (a === 'huddle') st.yawTarget = face * 0.45;
@@ -288,6 +289,8 @@
         neckDown = k * 0.9;
         targetRoll = Math.sin(st.t * 4) * 0.08;
       }
+      // 고개 갸웃 — 한쪽 눈으로 대상을 뜯어본다 (닭이 궁금할 때 하는 진짜 동작)
+      if (a === 'cock') { targetRoll = (Math.sin(st.t * 0.9) > 0 ? 1 : -1) * 1.05; targetPitch = 0.12; }
       if (a === 'huddle') { targetPitch = 0.12; targetRoll = Math.sin(st.t * 1.1) * 0.05; targetYaw = Math.sin(st.t * 0.7) * 0.15; }
       // 아픔: 고개를 몸쪽으로 파묻고 거의 움직이지 않는다
       if (a === 'sick') { targetPitch = 0.42 + Math.sin(st.t * 0.7) * 0.05; targetYaw = Math.sin(st.t * 0.35) * 0.1; targetRoll = 0; }
@@ -319,6 +322,7 @@
       if (a === 'preen') wing = 0.45 + Math.max(0, Math.sin(st.t * 0.9)) * 0.4;
       if (a === 'scratch') wing = 0.1;
       if (a === 'peckat') wing = 0.12;
+      if (a === 'cock') wing = 0.08;
       if (a === 'alert' || a === 'guard') wing = 0.05;
       if (a === 'crouch') wing = 0.0;
       if (a === 'huddle') wing = 0.08;
