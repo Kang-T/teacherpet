@@ -32,3 +32,14 @@ body.tp-hidden #stageHost, body.tp-hidden #bubbles { display: none; }
 #welcome h2 { margin: 0 0 8px; font-size: 21px; }
 #welcome p { margin: 6px 0; font-size: 14px; line-height: 1.65; color: #5A4A33; }
 #welcome button { margin-top: 12px; font-size: 15px; padding: 9px 20px; }
+
+/* 저장이 막힌 브라우저(시크릿 창 등) 경고 */
+#nosave {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  background: #7a2f1a; color: #ffe9e0; font-size: 13px;
+  padding: 9px 14px; text-align: center; line-height: 1.5;
+}
+#webbar button.danger { color: #8a2b16; }
+#webbar button.danger:hover { background: #ffe4dc; }
+#welcome .tiny { font-size: 12px; opacity: .75; line-height: 1.6; margin-top: 10px; }
+#welcome .tiny a { color: inherit; }

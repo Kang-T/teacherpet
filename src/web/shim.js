@@ -24,10 +24,8 @@
   window.teacherpet = {
     loadState: async () => loadState(),
     saveState: async (s) => saveState(s),
-    loadPrices: async () => {
-      try { const r = await fetch('prices.json', { cache: 'no-cache' }); return await r.json(); }
-      catch (e) { console.warn('단가 파일을 읽지 못했습니다', e); return null; }
-    },
+    // 단가는 빌드할 때 prices.data.js 로 구워 넣는다 — 네트워크 요청 0을 지키기 위해서다.
+    loadPrices: async () => window.__TP_PRICES || null,
     pricesPath: async () => '(웹 버전에서는 prices.json 파일을 고칠 수 없습니다)',
     savePrices: async () => false,
     workArea: async () => ({ x: 0, y: 0, width: innerWidth, height: innerHeight }),
