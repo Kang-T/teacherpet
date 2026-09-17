@@ -103,9 +103,10 @@
   // (CSP 가 통신을 막고 있어 파일 존재를 미리 확인할 수 없다. img 의 onerror 로 갈아탄다.)
   const FACE = { normal: 'granny', smile: 'granny_smile', worry: 'granny_worry', proud: 'granny_proud', think: 'granny_think' };
   let curMood = 'normal';
-  // 눈 깜빡임·입 움직임은 그림이 더 있어야 한다. 없으면 조용히 건너뛴다.
+  // 눈 깜빡임은 그림이 더 있어야 한다. 없으면 조용히 건너뛴다.
+  // (입 움직임도 만들어 봤으나 두 장을 번갈아 쓰는 방식이 어색해서 뺐다.)
   const extra = {};
-  for (const k of ['blink', 'talk']) {
+  for (const k of ['blink']) {
     const im = new Image();
     im.onload = () => { extra[k] = true; };
     im.src = 'npc/granny_' + k + '.png';
@@ -121,20 +122,23 @@
     img.onerror = () => { img.onerror = null; img.src = 'npc/granny.svg'; };
     img.src = src;
   }
-  // 이따금 눈을 깜빡인다 — 정지 그림 두 장이면 살아 있는 것처럼 보인다
+  // 이따금 눈을 깜빡인다 — 정지 그림 한 장 더면 살아 있는 것처럼 보인다.
+  // 말하는 중에도 깜빡인다. 사람도 그렇다.
+  let blinking = false;
   setInterval(() => {
     const card = $('#granny');
-    if (!card || card.classList.contains('hidden') || !extra.blink || talking) return;
+    if (!card || card.classList.contains('hidden') || !extra.blink || blinking) return;
     const img = $('#gImg');
+    blinking = true;
     img.src = frameSrc('blink');
-    setTimeout(() => { if (!talking) img.src = frameSrc(null); }, 130);
+    setTimeout(() => { blinking = false; img.src = frameSrc(null); }, 130);
   }, 4200);
 
-  let talking = false, typeTimer = null, mouthTimer = null;
+  let talking = false, typeTimer = null;
   function stopTyping(full) {
-    clearInterval(typeTimer); clearInterval(mouthTimer); talking = false;
+    clearInterval(typeTimer); talking = false;
     if (full !== undefined) $('#gSay').innerHTML = esc(full).replace(/\n/g, '<br>');
-    $('#gImg').src = frameSrc(null);
+    if (!blinking) $('#gImg').src = frameSrc(null);
   }
   function grannySay(text, btns, mood) {
     setFace(mood);
@@ -162,10 +166,6 @@
       say.innerHTML = esc(text.slice(0, i)).replace(/\n/g, '<br>');
       if (i >= text.length) finish();
     }, 28);
-    if (extra.talk) {
-      let on = false;
-      mouthTimer = setInterval(() => { on = !on; $('#gImg').src = frameSrc(on ? 'talk' : null); }, 170);
-    }
     card.onclick = () => { if (talking) finish(); };
   }
   function grannyHide() { $('#granny').classList.add('hidden'); }
