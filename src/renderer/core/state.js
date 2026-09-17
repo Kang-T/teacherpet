@@ -3,7 +3,7 @@
 (function (g) {
   const TP = (g.TP = g.TP || {});
   const U = TP.util, C = TP.config;
-  const VERSION = 4;
+  const VERSION = 5;
 
   function defaultState() {
     return {
@@ -20,12 +20,12 @@
       lampPower: 1,                     // 보온등 출력 0~1 (1주차 35℃로 시작해 자라면 낮춘다)
       freezes: C.RULE.careFreezePerTerm,
       settings: {
-        size: 4, sound: true, classMin: 40, breakMin: 10, autoBreak: true,
+        size: 4, sound: true,
         homeSide: 'left', lifeEnd: 'retire', useCalendar: false, pauseWeekends: true, quiet: false,
         holidays: [], vacation: null, paused: false,
         propPos: {}, propHidden: {},
       },
-      names: '', pickUsed: [], todos: [], lastCrow: '', lastSeen: U.now(), openedDays: [],
+      lastCrow: '', lastSeen: U.now(), openedDays: [],
     };
   }
 
@@ -72,6 +72,13 @@
       s.away = [];
       delete s.lastAttend;                         // 쓰기만 하고 읽지 않던 필드
       s.version = 4;
+      return s;
+    },
+    // v4 → v5 : 데스크톱 펫 시절의 죽은 필드 제거 (수업 타이머 · 뽑기 · 할 일)
+    4(s) {
+      delete s.names; delete s.pickUsed; delete s.todos;
+      if (s.settings) { delete s.settings.classMin; delete s.settings.breakMin; delete s.settings.autoBreak; }
+      s.version = 5;
       return s;
     },
   };

@@ -46,17 +46,7 @@ function createWindow() {
     y: wa.y,
     width: wa.width,
     height: wa.height,
-    transparent: true,
-    frame: false,
-    hasShadow: false,
-    alwaysOnTop: true,
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    skipTaskbar: true,
-    focusable: true,
+    resizable: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -67,10 +57,6 @@ function createWindow() {
   });
 
   win.setMenuBarVisibility(false);
-  win.setAlwaysOnTop(true, 'screen-saver');
-  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  // 기본은 클릭 통과. 렌더러가 펫/UI 위에 마우스가 있을 때만 끈다.
-  win.setIgnoreMouseEvents(true, { forward: true });
 
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.once('ready-to-show', () => win.show());
@@ -173,10 +159,6 @@ ipcMain.handle('prices:save', (_e, data) => {
 });
 ipcMain.handle('state:save', (_e, s) => saveState(s));
 ipcMain.handle('work-area', () => workArea());
-ipcMain.on('mouse:ignore', (_e, ignore) => {
-  if (!win) return;
-  win.setIgnoreMouseEvents(!!ignore, { forward: true });
-});
 ipcMain.on('app:quit', () => app.quit());
 ipcMain.on('app:open-external', (_e, url) => {
   if (typeof url === 'string' && /^https:\/\//.test(url)) shell.openExternal(url);

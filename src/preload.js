@@ -8,7 +8,6 @@ contextBridge.exposeInMainWorld('teacherpet', {
   saveState: (s) => ipcRenderer.invoke('state:save', s),
   workArea: () => ipcRenderer.invoke('work-area'),
   info: () => ipcRenderer.invoke('app:info'),
-  setIgnoreMouse: (ignore) => ipcRenderer.send('mouse:ignore', ignore),
   quit: () => ipcRenderer.send('app:quit'),
   openExternal: (url) => ipcRenderer.send('app:open-external', url),
   setAutostart: (on) => ipcRenderer.send('app:set-autostart', on),

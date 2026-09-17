@@ -32,7 +32,6 @@
     savePrices: async () => false,
     workArea: async () => ({ x: 0, y: 0, width: innerWidth, height: innerHeight }),
     info: async () => ({ version: window.__TP_VERSION || '웹', platform: 'web', openAtLogin: false }),
-    setIgnoreMouse: () => {},              // 웹에는 클릭 통과가 필요 없다
     quit: () => { document.body.classList.add('tp-hidden'); emit('pet:toggle-visible'); },
     openExternal: (url) => { if (/^https:\/\//.test(url)) window.open(url, '_blank', 'noopener'); },
     setAutostart: () => {},
