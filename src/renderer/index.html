@@ -10,6 +10,7 @@
 <div id="stageHost"></div>
 <div id="bubbles"></div>
 <div id="toasts"></div>
+<div id="editTip" class="hidden">🔨 꾸미기 중 — 소품을 끌어서 옮겨 보세요 <button id="editDone">다 했어요</button></div>
 
 
 <div id="panel" class="ui hidden">
@@ -21,18 +22,19 @@
 
   <section data-tab="coop" class="tab active">
     <div class="supply">
-      <div class="stat"><b>🌾 모이통</b><div class="bar"><i id="feedBar"></i></div><button class="small primary" id="btnFeed">채우기</button></div>
+      <div class="stat"><b>🌾 모이통</b><span class="say" id="feedSay"></span><button class="small primary" id="btnFeed">채우기</button></div>
       <div class="stat"><b>사료</b><div class="lampDial">
         <button data-feed="starter">스타터</button><button data-feed="grower">그로워</button><button data-feed="layer">레이어</button>
       </div><span id="feedHint"></span></div>
-      <div class="stat"><b>💧 물통</b><div class="bar water"><i id="waterBar"></i></div><button class="small primary" id="btnWater">채우기</button></div>
+      <div class="stat"><b>💧 물통</b><span class="say" id="waterSay"></span><button class="small primary" id="btnWater">채우기</button></div>
       <div class="stat"><b>🔥 보온등</b><div class="lampDial">
         <button data-lamp="0">끔</button><button data-lamp="0.35">약</button><button data-lamp="0.65">중</button><button data-lamp="1">강</button>
       </div><span id="lampHint"></span></div>
-      <div class="stat"><b>😷 공기</b><div class="bar amm"><i id="ammBar"></i></div><span id="ammLabel"></span></div>
-      <div class="stat"><b>🌾 깔짚</b><div class="bar bed"><i id="bedBar"></i></div><button class="small primary" id="btnBedding">갈기</button></div>
+      <div class="stat"><b>😷 공기</b><span class="say" id="ammLabel"></span></div>
+      <div class="stat"><b>🌾 깔짚</b><span class="say" id="bedSay"></span><button class="small primary" id="btnBedding">갈기</button></div>
       <div class="row tiny"><span>💩 <b id="poopCount">0</b>개</span><button class="small" id="btnFindPoop">🔦 남은 곳 보기</button><span>🧺 달걀 <b id="basketCount">0</b>개</span><span>🪙 <b id="coinCount">0</b></span><span>🪱 벌레 <b id="wormCount">0</b></span><button class="small" id="btnBuyWorm">🪱 1🪙</button><button class="small" id="btnBuyMed">💊 약 사기</button><button class="small" id="btnWhistle">🎵 휘파람</button><button class="small" id="btnAlbum">📖 앨범</button></div>
     </div>
+    <div class="row tiny"><label class="chk"><input type="checkbox" id="chkDetail"> 숫자로 자세히 보기</label></div>
     <div id="flockList"></div>
     <div id="starterBox" class="hidden">
       <p class="hint">아직 아무도 없어요. 첫 알 두 개를 받아 시작해요. 매일 모이와 물을 챙기면 3일 뒤 병아리가 태어나요.</p>
@@ -47,6 +49,7 @@
   <section data-tab="settings" class="tab">
     <div class="row"><span class="label">크기</span><button data-size="3">작게</button><button data-size="4">보통</button><button data-size="6">크게 (전자칠판)</button></div>
     <div class="row"><span class="label">닭장 위치</span><button data-home="left">왼쪽 아래</button><button data-home="right">오른쪽 아래</button><button id="btnResetProps">배치 초기화</button></div>
+    <div class="row"><span class="label">꾸미기</span><button id="btnEdit">소품 옮기기 켜기</button><span class="hint">평소에는 소품이 고정돼요</span></div>
     <div class="row"><span class="label">보이기</span>
       <label><input type="checkbox" data-prop="coop"> 닭장</label><label><input type="checkbox" data-prop="nest"> 둥지</label><label><input type="checkbox" data-prop="feeder"> 모이통</label>
       <label><input type="checkbox" data-prop="waterer"> 물통</label><label><input type="checkbox" data-prop="basket"> 바구니</label><label><input type="checkbox" data-prop="wormbucket"> 벌레통</label><label><input type="checkbox" data-prop="lamp"> 보온등</label><label><input type="checkbox" data-prop="dustpit"> 모래밭</label>

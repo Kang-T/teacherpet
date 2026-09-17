@@ -128,3 +128,22 @@ label { display: inline-flex; align-items: center; gap: 4px; }
 .modalCard h3 { margin: 0 0 10px; }
 .albumItem { border-bottom: 1px dashed #D9CFB8; padding: 8px 0; font-size: 13px; }
 .albumItem b { font-size: 15px; }
+
+/* 꾸미기 모드 안내 띠 */
+#editTip {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 55;
+  background: #FFF3D0; border: 2px solid #2B1B0E; border-radius: 999px;
+  padding: 8px 14px; font-size: 13px; display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 3px 0 rgba(43,27,14,.25);
+}
+#editTip.hidden { display: none; }
+#editTip button { font: inherit; font-size: 12px; border: 2px solid #2B1B0E; border-radius: 999px;
+  background: #FFE08A; padding: 3px 10px; cursor: pointer; }
+body.editing canvas { cursor: move; }
+
+/* 숫자 대신 말 */
+.say { flex: 1; font-size: 13px; color: #4A4034; }
+.say.smell { color: #9A7B1E; }
+.say.bad { color: #B23C25; font-weight: 700; }
+.nums { font-size: 11px; color: #8B8070; padding: 2px 0 0 2px; letter-spacing: -.2px; }
+.chk { font-size: 12px; color: #6B6153; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }

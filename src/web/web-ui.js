@@ -7,6 +7,7 @@
   for (const b of document.querySelectorAll('#webbar [data-size]')) {
     b.addEventListener('click', () => window.__tpEmit('pet:size', +b.dataset.size));
   }
+  $('#wbEdit').addEventListener('click', () => window.__tpEmit('ui:toggle-edit'));
   $('#wbExport').addEventListener('click', () => window.__tpExport());
   $('#wbImport').addEventListener('click', () => $('#wbFile').click());
   $('#wbFile').addEventListener('change', (e) => { if (e.target.files[0]) window.__tpImport(e.target.files[0]); });
@@ -52,12 +53,38 @@
     const c = document.createElement('div');
     c.className = 'cloud';
     const w = 60 + Math.random() * 130, h = w * (0.28 + Math.random() * 0.14);
-    c.style.cssText = `width:${w}px;height:${h}px;left:${Math.random() * 100}%;top:${2 + Math.random() * 22}%;opacity:${0.5 + Math.random() * 0.4}`;
+    // 구름은 하늘 띠 안에만 (--horizon 은 화면 비율에 따라 바뀐다)
+    const band = (0.06 + Math.random() * 0.62).toFixed(2);
+    c.style.cssText = `width:${w}px;height:${h}px;left:${Math.random() * 100}%;top:calc(var(--horizon, 33%) * ${band});opacity:${0.5 + Math.random() * 0.4}`;
     box.appendChild(c);
     const drift = 40 + Math.random() * 70, dur = 90 + Math.random() * 120;
     c.animate([{ transform: 'translateX(0)' }, { transform: `translateX(${drift}px)` }],
       { duration: dur * 1000, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' });
   }
+
+  // ---- 가만히 있으면 버튼이 사라진다 ----
+  // 화면에 남는 것은 마당과 닭뿐. 손을 대면 다시 나타난다.
+  // (참고한 햄스터 웹앱이 널리 퍼진 이유의 절반이 이 결정이었다.)
+  let idleTimer = null;
+  const HIDE_AFTER = 4000;
+  function busy() {   // 메뉴를 보는 중이거나 꾸미는 중이면 숨기지 않는다
+    return !!document.querySelector('#panel:not(.hidden)')
+      || document.body.classList.contains('editing')
+      || !!document.querySelector('#welcome');
+  }
+  function arm() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      // 아직 볼 일이 남았으면 숨기지 말고 '다시 재 본다' — 여기서 그냥 끝내면 영영 안 숨는다
+      if (busy()) { arm(); return; }
+      document.body.classList.add('uiIdle');
+    }, HIDE_AFTER);
+  }
+  function wake() { document.body.classList.remove('uiIdle'); arm(); }
+  for (const ev of ['mousemove', 'mousedown', 'touchstart', 'keydown', 'wheel']) {
+    addEventListener(ev, wake, { passive: true });
+  }
+  wake();
 
   // 모바일: 두 손가락 확대 방지
   document.addEventListener('gesturestart', (e) => e.preventDefault());

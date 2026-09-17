@@ -34,7 +34,14 @@
   let W = innerWidth, H = innerHeight;
   const XMARGIN = 1.2; // 화면 가장자리 여유(유닛)
   function resize() {
+    if (innerWidth < 2 || innerHeight < 2) return;   // 숨겨진 탭·회전 중에는 건드리지 않는다
     W = innerWidth; H = innerHeight;
+    // 마당을 화면의 얼마까지 쓸지 — 세로로 길수록 넓게 쓴다.
+    // 가로 데스크톱은 기존 0.35 근처, 세로 태블릿·휴대폰은 0.16까지 내려가
+    // 하늘만 가득하던 화면이 마당으로 채워진다.
+    world.roamTop = clamp(0.46 - 0.22 * (H / Math.max(1, W)), 0.16, 0.38);
+    // 하늘과 잔디의 경계(CSS)도 같은 값을 따라간다
+    document.documentElement.style.setProperty('--horizon', (world.roamTop * 100).toFixed(1) + '%');
     world.fit(W, H, PX_PER_UNIT[state.settings.size]);
     layoutHome();
     for (const b of birds) b.x = clamp(b.x, world.xMin + XMARGIN, world.xMax - XMARGIN);
@@ -43,13 +50,28 @@
   // 닭장 세트 배치 (월드 유닛). 왼쪽 가장자리 기준, 오른쪽이면 거울
   // 매 프레임 닭마다 불리므로 캐시한다. 배치가 바뀌는 곳은 layoutHome() 하나뿐이다.
   let homeCache = null;
+  const LAYOUT_SPAN = 25.5;   // 기본 배치가 필요로 하는 가로 폭(유닛)
   function home() {
     if (homeCache) return homeCache;
     const left = state.settings.homeSide === 'left';
-    const bx = (d) => (left ? world.xMin + d : world.xMax - d);
+    // 화면이 좁으면(세로 태블릿·휴대폰) 배치 전체를 같은 비율로 줄여 화면 안에 넣는다.
+    // 넓은 화면에서는 k = 1 이라 기존 배치 그대로다.
+    const avail = (world.xMax - world.xMin) - XMARGIN * 2;
+    const k = clamp(avail / LAYOUT_SPAN, 0.42, 1);
+    const bx = (d) => (left ? world.xMin + XMARGIN + d * k : world.xMax - XMARGIN - d * k);
+    // 앞뒤 위치는 '마당 깊이의 몇 %'로 정한다. 0 = 맨 뒤, 1 = 맨 앞.
+    // 고정 좌표를 쓰면 세로 화면에서 소품이 전부 화면 맨 아래에 몰린다.
+    const zNear = world.zMax - 0.8, zFar = world.zMin + 1.0;
+    const USE = 0.78;                       // 맨 뒤쪽은 빈 마당으로 남겨 둔다
+    const bz = (t) => zNear - (zNear - zFar) * USE * (1 - t);
+    // 관련된 것끼리 모은다 — 닭장·둥지·보온등은 뒤쪽 한 덩어리(잠자리),
+    // 모이통·물통은 가운데(매일 쓰는 것), 바구니·벌레통은 앞쪽(손이 자주 가는 것),
+    // 모래 목욕터는 구석. 아이가 "여기가 자는 곳, 여기가 먹는 곳"으로 읽을 수 있게.
     const def = {
-      coop: { x: bx(3.0), z: -2.4 }, nest: { x: bx(7.0), z: -0.9 }, feeder: { x: bx(9.8), z: 0.5 },
-      waterer: { x: bx(12.2), z: -0.5 }, basket: { x: bx(14.6), z: 0.7 }, wormbucket: { x: bx(16.8), z: 0.2 }, lamp: { x: bx(19.0), z: 0.3 }, dustpit: { x: bx(23.5), z: -0.6 },
+      coop: { x: bx(2.0), z: bz(0.06) }, nest: { x: bx(6.2), z: bz(0.20) }, lamp: { x: bx(4.0), z: bz(0.40) },
+      feeder: { x: bx(9.4), z: bz(0.62) }, waterer: { x: bx(12.6), z: bz(0.56) },
+      basket: { x: bx(16.0), z: bz(0.92) }, wormbucket: { x: bx(19.0), z: bz(0.86) },
+      dustpit: { x: bx(22.6), z: bz(0.30) },
     };
     const pos = state.settings.propPos || {}, hid = state.settings.propHidden || {};
     const out = { flip: !left };
@@ -61,6 +83,17 @@
     return (homeCache = out);
   }
   const propVisible = (k) => !(state.settings.propHidden || {})[k];
+  // 꾸미기 모드 — 평소에는 소품이 고정이다.
+  // 교실에서 "화면이 이상해졌어요"는 수업 흐름을 끊는 1순위 사고라, 옮기려면 모드를 켜야 한다.
+  let editMode = false;
+  function setEdit(on) {
+    editMode = !!on;
+    document.body.classList.toggle('editing', editMode);
+    const t = $('#editTip');
+    if (t) t.classList.toggle('hidden', !editMode);
+    const btn = $('#wbEdit');
+    if (btn) btn.classList.toggle('on', editMode);
+  }
   // 이 닭이 지금 자리에서 느끼는 온도 (병아리만 의미가 있다)
   function comfortOf(b) {
     const ws = warmSpot();
@@ -1264,7 +1297,8 @@
       if (pp) { sweep(pp); drag = { sweeping: true, sx: e.clientX, sy: e.clientY }; canvas.style.cursor = 'grabbing'; return; }
       const pr = propAt(e.clientX, e.clientY);
       if (pr === 'wormbucket') { if (spawnWorm(e.clientX, e.clientY)) { drag = { worm: true, sx: e.clientX, sy: e.clientY }; canvas.style.cursor = 'grabbing'; } }
-      else if (pr) { const gp = world.screenToGround(e.clientX, e.clientY), L = home()[pr]; drag = { prop: pr, sx: e.clientX, sy: e.clientY, offX: gp ? gp.x - L.x : 0, offZ: gp ? gp.z - L.z : 0, moved: false }; canvas.style.cursor = 'grabbing'; }
+      else if (pr && editMode) { const gp = world.screenToGround(e.clientX, e.clientY), L = home()[pr]; drag = { prop: pr, sx: e.clientX, sy: e.clientY, offX: gp ? gp.x - L.x : 0, offZ: gp ? gp.z - L.z : 0, moved: false }; canvas.style.cursor = 'grabbing'; }
+      else if (pr) { propClick(pr); }
       else closePanel();
       return;
     }
@@ -1383,15 +1417,39 @@
     panic: '새끼에게 달려가는 중', gohuddle: '친구에게 가는 중', goroof: '지붕에 오르는 중',
   };
   const doing = (b) => DOING[b.anim] || '';
+  // ── 숫자 대신 말 ──
+  // 게이지는 초등 저·중학년에게 읽히지 않는다. 물통이 비어 보이고 닭이 웅크린 것이 지표다.
+  // 여기 카드에서도 숫자 대신 말로 적고, 숫자는 '자세히 보기'를 켠 사람에게만 보인다.
+  const detailOn = () => !!(state.settings || {}).detail;
+  function levelSay(v, words) {           // words = [바닥, 적음, 보통, 넉넉]
+    const i = v < 12 ? 0 : v < 35 ? 1 : v < 70 ? 2 : 3;
+    return words[i] + (detailOn() ? ` (${Math.round(v)}%)` : '');
+  }
+  // 이 닭이 지금 무엇을 바라는가 — 급한 것부터
+  function needSay(d) {
+    const out = [];
+    if (d.sick) out.push('🤒 아파요');
+    if (d.hurt) out.push('🤕 다쳤어요');
+    if (d.hunger < 35) out.push('🌾 배가 고파요');
+    if (d.thirst < 35) out.push('💧 목이 말라요');
+    if ((d.clean ?? 85) < 40) out.push('🛁 꾀죄죄해요');
+    if (d.energy < 25) out.push('😴 졸려요');
+    if (d.stress > 50) out.push('😰 놀랐어요');
+    if (d.boredom > 70) out.push('🥱 심심해요');
+    if (!out.length) out.push(d.aff >= 70 ? '❤️ 기분이 좋아요' : '🙂 별일 없어요');
+    return out.slice(0, 3).join(' · ');
+  }
+  const affSay = (v) => (v >= 70 ? '❤️ 나를 좋아해요' : v < 30 ? '😒 아직 서먹해요' : '🙂 조금씩 친해지는 중');
+
   function renderCoop() {
     if (panel.classList.contains('hidden')) return;
-    $('#feedBar').style.width = state.feed + '%'; $('#waterBar').style.width = state.water + '%';
+    $('#feedSay').textContent = levelSay(state.feed, ['텅 비었어요', '거의 없어요', '조금 남았어요', '넉넉해요']);
+    $('#waterSay').textContent = levelSay(state.water, ['텅 비었어요', '거의 없어요', '조금 남았어요', '넉넉해요']);
     $('#basketCount').textContent = state.basket; $('#coinCount').textContent = state.coins; $('#wormCount').textContent = state.worms;
     const lv = HYG.level(state.ammonia), n = HYG.count();
     $('#poopCount').textContent = n;
-    const ammEl = $('#ammBar'); ammEl.style.width = Math.min(100, (state.ammonia || 0) / 40 * 100) + '%';
-    ammEl.parentElement.className = 'bar amm' + (lv === 'ok' ? '' : ' ' + lv);
-    $('#ammLabel').textContent = `${Math.round(state.ammonia || 0)}ppm — ${HYG.LABEL[lv]}`;
+    $('#ammLabel').textContent = HYG.LABEL[lv] + (detailOn() ? ` (${Math.round(state.ammonia || 0)}ppm)` : '');
+    $('#ammLabel').className = 'say ' + (lv === 'ok' ? '' : lv);
     const fd = C.FEED[state.feedType || 'starter'];
     $$('[data-feed]').forEach((x) => x.classList.toggle('primary', x.dataset.feed === (state.feedType || 'starter')));
     const wrong = birds.filter((q) => q.d.stage !== 'egg' && !fd.ok.includes(q.d.stage));
@@ -1401,7 +1459,7 @@
     const cold = chicks.filter((q) => q.comfort && q.comfort.state === 'cold').length;
     const hot = chicks.filter((q) => q.comfort && q.comfort.state === 'hot').length;
     $('#lampHint').textContent = !chicks.length ? '병아리가 없어요' : cold ? `🥶 추워하는 병아리 ${cold}마리` : hot ? `🥵 더워하는 병아리 ${hot}마리` : '✅ 병아리들이 편안해요';
-    $('#bedBar').style.width = (state.bedding ?? 100) + '%';
+    $('#bedSay').textContent = levelSay(state.bedding ?? 100, ['다 젖었어요', '축축해요', '조금 눅눅해요', '보송보송해요']);
     $('#btnBedding').textContent = (state.bedding ?? 100) > 70 ? '아직 깨끗' : '갈기';
     const fl = Math.max(0, RULE.refillCooldownMin * 60000 - (now() - state.lastFeedRefill)), wl = Math.max(0, RULE.refillCooldownMin * 60000 - (now() - state.lastWaterRefill));
     $('#btnFeed').textContent = fl ? `${Math.ceil(fl / 60000)}분 후` : '채우기'; $('#btnWater').textContent = wl ? `${Math.ceil(wl / 60000)}분 후` : '채우기';
@@ -1419,8 +1477,11 @@
           <span class="sex ${b.d.sex || ''}">${STAGE_KO[b.d.stage]}${b.d.sex ? (b.d.sex === 'f' ? ' ♀' : ' ♂') : ''}${b.d.old ? ' · 노년' : ''}</span>
           <span class="stage">${doing(b)}</span></div>
         <div class="head"><span class="stage">${days}일째 · ${b.d.trait}${b.d.stage === 'hen' ? ` · 알 ${b.d.eggsLaid}개` : ''}${b.d.brooding ? ' · 품는 중' : ''}</span></div>
-        ${need ? `<div class="stat"><b>${b.d.stage === 'egg' ? '부화' : '성장'}</b><div class="bar exp"><i style="width:${Math.min(100, n / need * 100)}%"></i></div><span>${n}/${need}일</span></div>` : ''}
-        ${b.d.stage !== 'egg' ? `<div class="stat"><b>배부름</b><div class="bar"><i style="width:${b.d.hunger}%"></i></div></div><div class="stat"><b>물</b><div class="bar water"><i style="width:${b.d.thirst}%"></i></div></div><div class="stat"><b>에너지</b><div class="bar exp"><i style="width:${b.d.energy}%"></i></div></div><div class="stat"><b>깨끗함</b><div class="bar clean"><i style="width:${b.d.clean ?? 85}%"></i></div><span>${(b.d.clean ?? 85) < 40 ? '🛁 모래 목욕이 필요해요' : ''}</span></div><div class="stat"><b>친밀도</b><div class="bar happy"><i style="width:${b.d.aff}%"></i></div><span>${b.d.aff >= 70 ? '❤️ 좋아함' : b.d.aff < 30 ? '😒 서먹함' : '🙂 보통'}</span></div><div class="hint">${b.d.trait} — ${TRAIT_DESC[b.d.trait] || ''}${b.d.momId ? ` · 엄마: ${(birds.find((h) => h.d.id === b.d.momId) || {}).d?.name || '떠남'}` : ''}${b.d.hurt ? ' · 🤕 다침' : ''}${b.d.stress > 50 ? ' · 😰 긴장' : ''}${b.d.boredom > 70 ? ' · 🥱 심심' : ''}</div>` : ''}
+        ${need ? `<div class="stat"><b>${b.d.stage === 'egg' ? '부화' : '성장'}</b><span class="say">${n >= need ? '곧 자라요!' : `${need - n}번 더 돌보면 자라요`}${detailOn() ? ` (${n}/${need}일)` : ''}</span></div>` : ''}
+        ${b.d.stage !== 'egg' ? `<div class="stat"><b>지금</b><span class="say">${needSay(b.d)}</span></div>
+        <div class="stat"><b>나와</b><span class="say">${affSay(b.d.aff)}${detailOn() ? ` (${Math.round(b.d.aff)}%)` : ''}</span></div>
+        ${detailOn() ? `<div class="nums">배부름 ${Math.round(b.d.hunger)} · 물 ${Math.round(b.d.thirst)} · 기운 ${Math.round(b.d.energy)} · 깨끗함 ${Math.round(b.d.clean ?? 85)} · 긴장 ${Math.round(b.d.stress || 0)}</div>` : ''}
+        <div class="hint">${b.d.trait} — ${TRAIT_DESC[b.d.trait] || ''}${b.d.momId ? ` · 엄마: ${(birds.find((h) => h.d.id === b.d.momId) || {}).d?.name || '떠남'}` : ''}</div>` : ''}
         <div class="actions">
           ${b.d.stage === 'egg' ? `<button class="small primary" data-act="brood" ${broodedToday ? 'disabled' : ''}>🤲 ${broodedToday ? '오늘 품었어요' : '품어주기'}</button>` : ''}
           <button class="small" data-act="rename">✏️ 이름</button><button class="small" data-act="find">📍 찾기</button><button class="small danger" data-act="release">농장으로 보내기</button>
@@ -1541,6 +1602,11 @@
   }, 1200);
   api.on('ui:toggle-menu', togglePanel);
   api.on('pet:size', (s) => { state.settings.size = s; markDirty(); resize(); });
+  api.on('ui:toggle-edit', () => setEdit(!editMode));
+  $('#btnEdit').addEventListener('click', () => { setEdit(!editMode); $('#btnEdit').textContent = editMode ? '소품 옮기기 끄기' : '소품 옮기기 켜기'; if (editMode) closePanel(); });
+  $('#chkDetail').checked = detailOn();
+  $('#chkDetail').addEventListener('change', (e) => { state.settings.detail = e.target.checked; markDirty(); renderCoop(); });
+  $('#editDone').addEventListener('click', () => { setEdit(false); $('#btnEdit').textContent = '소품 옮기기 켜기'; });
   api.on('pet:toggle-visible', () => { visible = !visible; canvas.style.display = visible ? '' : 'none'; overlay.style.display = visible ? '' : 'none'; });
   api.on('work-area', () => setTimeout(resize, 50));
 
@@ -1589,6 +1655,6 @@
     requestAnimationFrame(loop);
   }
   // 디버그 훅 (자동 캡처용)
-  window.__tp = { runNeglect: () => { checkNeglect(); return birds.length; }, frozen: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.frozen : null; }, freezes: () => state.freezes, away: () => state.away.map((a) => a.name + ':' + (a.progress || 0)), album: () => state.album.length, neglect: (name) => { const b = birds.find((q) => q.d.name === name); return b ? SCH.neglectedDays(b.d, state) : null; }, why: (n) => { const b = birds.find((q) => q.d.name === n); if (!b) return null; decide(b); return { choice: b.lastChoice, cands: b.lastCands }; }, lamp: (v) => { state.lampPower = v; return state.lampPower; }, comfort: () => birds.filter((q) => q.d.stage === 'chick').map((q) => ({ name: q.d.name, days: daysCared(q), st: q.comfort && q.comfort.state, need: q.comfort && +q.comfort.need.toFixed(1), act: q.comfort && +q.comfort.actual.toFixed(1) })), sickOf: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.sick : null; }, makeSick: (n, k) => { const b = birds.find((q) => q.d.name === n); if (b) { HLT.fallSick(b.d, k); return b.d.sick; } return null; }, poop: (n) => { for (let i = 0; i < (n || 1); i++) HYG.dropPoop(rand(world.xMin + 2, world.xMax - 2), rand(-1.5, 1.5), Math.random() < 0.15); markDirty(); return HYG.count(); }, poopCount: () => HYG.count(), amm: () => +(state.ammonia || 0).toFixed(1), setAmm: (v) => { state.ammonia = v; }, care: (name, what) => { const b = birds.find((q) => q.d.name === name); if (b) { careTick(b, what); return JSON.stringify(b.d.care); } return null; }, careOf: (name) => { const b = birds.find((q) => q.d.name === name); return b ? { care: b.d.care, days: daysCared(b), stage: b.d.stage } : null; }, at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const p = world.screenToPlaneZ(px, py, 1.2); if (p) { worm.x = p.x; worm.y = Math.max(0.15, p.y); } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(1) })), grow: (n, s) => { const b = birds.find((q) => q.d.name === n); if (b) advance(b, s); return !!b; }, gpu: () => ({ geo: world.renderer.info.memory.geometries, tex: world.renderer.info.memory.textures, calls: world.renderer.info.render.calls }) };
+  window.__tp = { runNeglect: () => { checkNeglect(); return birds.length; }, frozen: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.frozen : null; }, freezes: () => state.freezes, away: () => state.away.map((a) => a.name + ':' + (a.progress || 0)), album: () => state.album.length, neglect: (name) => { const b = birds.find((q) => q.d.name === name); return b ? SCH.neglectedDays(b.d, state) : null; }, why: (n) => { const b = birds.find((q) => q.d.name === n); if (!b) return null; decide(b); return { choice: b.lastChoice, cands: b.lastCands }; }, lamp: (v) => { state.lampPower = v; return state.lampPower; }, comfort: () => birds.filter((q) => q.d.stage === 'chick').map((q) => ({ name: q.d.name, days: daysCared(q), st: q.comfort && q.comfort.state, need: q.comfort && +q.comfort.need.toFixed(1), act: q.comfort && +q.comfort.actual.toFixed(1) })), sickOf: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.sick : null; }, makeSick: (n, k) => { const b = birds.find((q) => q.d.name === n); if (b) { HLT.fallSick(b.d, k); return b.d.sick; } return null; }, poop: (n) => { for (let i = 0; i < (n || 1); i++) HYG.dropPoop(rand(world.xMin + 2, world.xMax - 2), rand(-1.5, 1.5), Math.random() < 0.15); markDirty(); return HYG.count(); }, poopCount: () => HYG.count(), amm: () => +(state.ammonia || 0).toFixed(1), setAmm: (v) => { state.ammonia = v; }, care: (name, what) => { const b = birds.find((q) => q.d.name === name); if (b) { careTick(b, what); return JSON.stringify(b.d.care); } return null; }, careOf: (name) => { const b = birds.find((q) => q.d.name === name); return b ? { care: b.d.care, days: daysCared(b), stage: b.d.stage } : null; }, at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const p = world.screenToPlaneZ(px, py, 1.2); if (p) { worm.x = p.x; worm.y = Math.max(0.15, p.y); } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(1) })), grow: (n, s) => { const b = birds.find((q) => q.d.name === n); if (b) advance(b, s); return !!b; }, world: () => ({ xMin: +world.xMin.toFixed(2), xMax: +world.xMax.toFixed(2), zMin: +world.zMin.toFixed(2), zMax: +world.zMax.toFixed(2), roamTop: world.roamTop, px: world.pxPerUnit, W: world.W, H: world.H }), screenOf: (k) => { const p = world.props[k]; if (!p) return null; const s = world.project(p.position.x, 0.5, p.position.z); return { x: Math.round(s.x), y: Math.round(s.y), pctY: +(s.y / world.H * 100).toFixed(1) }; }, gpu: () => ({ geo: world.renderer.info.memory.geometries, tex: world.renderer.info.memory.textures, calls: world.renderer.info.render.calls }) };
   init();
 })();

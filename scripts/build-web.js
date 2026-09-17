@@ -1,6 +1,7 @@
 // 티처펫 웹 빌드 — 렌더러를 그대로 가져다 web/ 에 정적 사이트로 만든다.
 // 렌더러 코드는 손대지 않는다. Electron 자리에 web/shim.js 를 끼울 뿐이다.
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
@@ -69,6 +70,7 @@ html = must(html, '<div id="stageHost"></div>', `<div id="stageHost"></div>
   <button id="wbExport" title="이 반의 닭들을 파일로 내보내기">내보내기</button>
   <button id="wbImport" title="파일에서 불러오기">불러오기</button>
   <input type="file" id="wbFile" accept="application/json" hidden>
+  <button id="wbEdit" title="소품 옮기기">🔨 꾸미기</button>
   <span class="sep"></span>
   <button id="wbPrivacy" title="개인정보 처리방침" onclick="location.href='privacy.html'">개인정보</button>
   <button id="wbWipe" class="danger" title="이 기기에 저장된 것을 모두 지웁니다">모두 지우기</button>
@@ -98,7 +100,16 @@ fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify({
 }, null, 2));
 fs.copyFileSync(path.join(ROOT, 'build', 'icon.png'), path.join(OUT, 'icon.png'));
 
-fs.writeFileSync(path.join(OUT, 'sw-reg.js'), "if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));\n");
+fs.writeFileSync(path.join(OUT, 'sw-reg.js'), `// 새 배포가 올라오면 한 번만 새로고침해서 통째로 갈아 끼운다.
+// 이걸 안 하면 이미 방문한 기기가 옛 앱을 계속 쓴다 — 학교 기기에서는 치명적이다.
+if ('serviceWorker' in navigator) {
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return; refreshing = true; location.reload();
+  });
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+`);
 const files = [];
 (function walk(dir, base = '') {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -106,18 +117,27 @@ const files = [];
     if (e.isDirectory()) walk(path.join(dir, e.name), rel); else files.push('./' + rel);
   }
 })(OUT);
+// ⚠️ 캐시 이름은 버전이 아니라 '내용 해시'로 만든다.
+// 예전에는 teacherpet-<package.json 버전> 이라, 코드를 고쳐도 버전을 올리지 않으면
+// 이미 방문한 사람에게 옛 앱이 영원히 서빙됐다. 학교 기기에서는 치명적이다.
+const hash = crypto.createHash('sha1');
+for (const f of files.slice().sort()) hash.update(f).update(fs.readFileSync(path.join(OUT, f.replace('./', ''))));
+const BUILD = hash.digest('hex').slice(0, 10);
+
 fs.writeFileSync(path.join(OUT, 'sw.js'), `// 오프라인에서도 열리도록 캐시한다
-const CACHE = 'teacherpet-${pkg.version}';
+const CACHE = 'teacherpet-${pkg.version}-${BUILD}';
 const FILES = ${JSON.stringify(files.concat(['./']), null, 2)};
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  // 전부 캐시 우선 — 한 배포의 파일들이 항상 같은 세대로 묶여 있어야 한다.
+  // (페이지만 네트워크 우선으로 두면 새 HTML + 옛 JS 가 섞여 더 위험하다.)
+  // 새 배포는 내용 해시가 바뀌어 새 캐시가 만들어지고, skipWaiting + claim 으로
+  // 즉시 넘겨받은 뒤 sw-reg.js 가 한 번 새로고침해 통째로 갈린다.
   e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request)));
 });
 `);
-fs.writeFileSync(path.join(OUT, 'sw-reg.js'),
-  "if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));\n");
 html = fs.readFileSync(path.join(OUT, 'index.html'), 'utf8').replace('</body>', '<script src="sw-reg.js"></script>\n</body>');
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 fs.writeFileSync(path.join(OUT, '.nojekyll'), '');

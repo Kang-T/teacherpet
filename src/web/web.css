@@ -1,6 +1,9 @@
 /* 웹 전용 — 바탕화면 대신 하늘과 잔디를 그린다 */
 html, body {
-  background: linear-gradient(#8FC7F5 0%, #BFE0FA 22%, #DFF0FB 31%, #B7DE93 33%, #8FCB6B 62%, #7BBE5B 100%);
+  /* --horizon 은 app.js 의 resize() 가 화면 비율에 맞춰 정한다 (세로일수록 마당이 커진다) */
+  background: linear-gradient(#8FC7F5 0%, #BFE0FA calc(var(--horizon, 33%) * 0.66),
+    #DFF0FB calc(var(--horizon, 33%) - 2%), #B7DE93 var(--horizon, 33%),
+    #8FCB6B calc(var(--horizon, 33%) + 29%), #7BBE5B 100%);
   overscroll-behavior: none;
   -webkit-user-select: none; user-select: none;
 }
@@ -43,3 +46,8 @@ body.tp-hidden #stageHost, body.tp-hidden #bubbles { display: none; }
 #webbar button.danger:hover { background: #ffe4dc; }
 #welcome .tiny { font-size: 12px; opacity: .75; line-height: 1.6; margin-top: 10px; }
 #welcome .tiny a { color: inherit; }
+
+/* 가만히 두면 버튼이 조용히 사라진다 */
+#webbar { transition: opacity .55s ease, transform .55s ease; }
+body.uiIdle #webbar { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+#webbar button.on { background: #FFD873; }
