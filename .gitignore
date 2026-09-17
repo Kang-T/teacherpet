@@ -4,3 +4,4 @@ dist/
 *.log
 assets-src/
 build/frames/
+web/

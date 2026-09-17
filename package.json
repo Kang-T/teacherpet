@@ -16,7 +16,9 @@
     "icon": "node scripts/make-icon.js",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
-    "release": "electron-builder --publish always"
+    "release": "electron-builder --publish always",
+    "web": "node scripts/build-web.js",
+    "web:serve": "node scripts/build-web.js && cd web && python3 -m http.server 8777"
   },
   "devDependencies": {
     "electron": "^33.2.1",
