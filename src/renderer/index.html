@@ -11,16 +11,10 @@
 <div id="bubbles"></div>
 <div id="toasts"></div>
 
-<div id="timerPill" class="ui hidden" title="클릭하면 타이머 설정">
-  <span id="timerKind">수업</span> <span id="timerLeft">40:00</span>
-</div>
 
 <div id="panel" class="ui hidden">
   <div class="tabs">
     <button data-tab="coop" class="active">닭장</button>
-    <button data-tab="timer">타이머</button>
-    <button data-tab="pick">뽑기</button>
-    <button data-tab="todo">할 일</button>
     <button data-tab="settings">설정</button>
     <button id="closePanel" class="close" title="닫기">✕</button>
   </div>
@@ -47,37 +41,8 @@
     <p class="hint" id="coopHint"></p>
   </section>
 
-  <section data-tab="timer" class="tab">
-    <div class="timerBig" id="timerBig">--:--</div>
-    <div class="row">
-      <button id="btnClass" class="primary">▶ 수업 시작</button>
-      <button id="btnBreak">☕ 쉬는 시간</button>
-      <button id="btnStop">■ 정지</button>
-    </div>
-    <div class="row">
-      <label>수업 <input type="number" id="classMin" min="1" max="180"> 분</label>
-      <label>쉬는 시간 <input type="number" id="breakMin" min="1" max="60"> 분</label>
-    </div>
-    <div class="row"><label><input type="checkbox" id="autoBreak"> 수업이 끝나면 쉬는 시간 자동 시작</label></div>
-    <p class="hint">수업 중엔 닭들이 조용히 앉아 있고, 쉬는 시간이 되면 수탉이 울고 다들 뛰어놀아요.</p>
-  </section>
 
-  <section data-tab="pick" class="tab">
-    <div class="row"><textarea id="names" placeholder="이름을 한 줄에 하나씩 적어 주세요&#10;예)&#10;김하늘&#10;이바다"></textarea></div>
-    <div class="row">
-      <label><input type="number" id="pickCount" min="1" max="10" value="1"> 명 뽑기</label>
-      <label><input type="checkbox" id="pickExclude" checked> 뽑힌 사람은 제외</label>
-      <button id="btnPick" class="primary">🎲 뽑기</button>
-      <button id="btnPickReset">초기화</button>
-    </div>
-    <div id="pickResult" class="pickResult"></div>
-    <p class="hint" id="pickInfo"></p>
-  </section>
 
-  <section data-tab="todo" class="tab">
-    <div class="row"><input type="text" id="todoInput" placeholder="오늘 할 일을 적고 Enter"><button id="btnTodoAdd">추가</button></div>
-    <ul id="todoList"></ul>
-  </section>
 
   <section data-tab="settings" class="tab">
     <div class="row"><span class="label">크기</span><button data-size="3">작게</button><button data-size="4">보통</button><button data-size="6">크게 (전자칠판)</button></div>
@@ -87,17 +52,17 @@
       <label><input type="checkbox" data-prop="waterer"> 물통</label><label><input type="checkbox" data-prop="basket"> 바구니</label><label><input type="checkbox" data-prop="wormbucket"> 벌레통</label><label><input type="checkbox" data-prop="lamp"> 보온등</label><label><input type="checkbox" data-prop="dustpit"> 모래밭</label>
     </div>
     <p class="hint">소품은 마우스로 끌어서 자리를 옮길 수 있어요.</p>
-    <div class="row"><label><input type="checkbox" id="soundOn"> 소리 (타이머·수탉)</label><label><input type="checkbox" id="autostart"> 컴퓨터 켤 때 자동 실행</label></div>
+    <div class="row"><label><input type="checkbox" id="soundOn"> 소리 (수탉 울음·부화)</label><label><input type="checkbox" id="autostart"> 컴퓨터 켤 때 자동 실행</label></div>
     <div class="row"><span class="label">오래 못 돌보면</span>
       <button data-lifeend="retire">잠시 떠나요 (다시 오면 돌아옴)</button>
       <button data-lifeend="safe">안 떠나요 (안심 모드)</button>
       <button data-lifeend="natural">자연으로 (고학년)</button>
     </div>
-    <div class="row"><span class="label">학사일정</span>
-      <label><input type="checkbox" id="useCalendar"> <b>학사일정 쓰기</b></label>
-      <label><input type="checkbox" id="pauseWeekends"> 주말·공휴일엔 시간 멈춤</label>
-      <label><input type="checkbox" id="vacationOn"> 방학 설정</label>
-      <button id="btnAddHoliday">쉬는 날 추가</button>
+    <div class="row"><span class="label">쉬는 날</span>
+      <label><input type="checkbox" id="useCalendar"> <b>주말에는 쉴래요</b></label>
+      <label><input type="checkbox" id="pauseWeekends"> 공휴일도 쉬기</label>
+      <label><input type="checkbox" id="vacationOn"> 방학 동안 쉬기</label>
+      <button id="btnAddHoliday">쉬는 날 더하기</button>
     </div>
     <p class="hint" id="calInfo"></p>
     <div class="help">

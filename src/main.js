@@ -125,11 +125,7 @@ function rebuildTrayMenu() {
   if (!tray) return;
   const login = app.getLoginItemSettings();
   const menu = Menu.buildFromTemplate([
-    { label: '펫 메뉴 열기', click: () => send('ui:toggle-menu') },
-    { type: 'separator' },
-    { label: '수업 시작 (타이머)', click: () => send('timer:start', 'class') },
-    { label: '쉬는 시간 시작', click: () => send('timer:start', 'break') },
-    { label: '타이머 정지', click: () => send('timer:stop') },
+    { label: '닭장 열기', click: () => send('ui:toggle-menu') },
     { type: 'separator' },
     {
       label: '펫 크기',
@@ -139,7 +135,7 @@ function rebuildTrayMenu() {
         { label: '크게 (전자칠판)', click: () => send('pet:size', 6) },
       ],
     },
-    { label: '펫 숨기기/보이기', click: () => send('pet:toggle-visible') },
+    { label: '숨기기 / 보이기', click: () => send('pet:toggle-visible') },
     { type: 'separator' },
     {
       label: '컴퓨터 켤 때 자동 실행',

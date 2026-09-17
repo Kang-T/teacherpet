@@ -26,10 +26,10 @@
     sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 5; sun.shadow.bias = -0.0005;
     scene.add(sun); scene.add(sun.target);
     const rim = new THREE.DirectionalLight(0xDDEEFF, 0.8); rim.position.set(-8, 6, -6); scene.add(rim);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 60), new THREE.ShadowMaterial({ opacity: 0.22 }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 160), new THREE.ShadowMaterial({ opacity: 0.22 }));
     ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
-    const world = { renderer, scene, camera, birds: new Map(), props: {}, pxPerUnit: 50, xMin: -10, xMax: 10, W: 1, H: 1 };
+    const world = { renderer, scene, camera, birds: new Map(), props: {}, pxPerUnit: 50, elevDeg: 21, xMin: -10, xMax: 10, zMin: -6, zMax: 2, roamTop: 0.42, W: 1, H: 1 };
     const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2(); const tmp = new THREE.Vector3();
     const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
@@ -40,7 +40,7 @@
       renderer.domElement.style.width = W + 'px'; renderer.domElement.style.height = H + 'px';
       camera.aspect = W / H; camera.fov = 30;
       const D = H / (2 * pxPerUnit * Math.tan(THREE.MathUtils.degToRad(15)));
-      const elev = THREE.MathUtils.degToRad(11);
+      const elev = THREE.MathUtils.degToRad(world.elevDeg || 21);
       camera.position.set(0, D * Math.sin(elev), D * Math.cos(elev));
       // lookAt 높이를 이분 탐색: 바닥 원점이 화면 y = 96% 지점에 오도록
       let lo = -50, hi = 50;
@@ -52,6 +52,11 @@
       camera.lookAt(0, (lo + hi) / 2, 0); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
       const a = screenToGround(0, H * 0.99), b = screenToGround(W, H * 0.99);
       world.xMin = a ? a.x : -10; world.xMax = b ? b.x : 10;
+      // 닭들이 돌아다닐 수 있는 앞뒤(깊이) 범위 — 화면 위쪽 roamTop 지점까지
+      const nearP = screenToGround(W / 2, H * 0.995), farP = screenToGround(W / 2, H * (world.roamTop || 0.52));
+      world.zMax = nearP ? nearP.z : 2;          // 화면 아래쪽(카메라에 가까움)
+      world.zMin = farP ? farP.z : -6;           // 화면 위쪽(멀리)
+      if (!(world.zMin < world.zMax)) { world.zMin = -6; world.zMax = 2; }
       const span = Math.max(20, (world.xMax - world.xMin) * 0.8);
       sun.shadow.camera.left = -span; sun.shadow.camera.right = span; sun.shadow.camera.top = span * 0.6; sun.shadow.camera.bottom = -span * 0.6;
       sun.shadow.camera.near = 1; sun.shadow.camera.far = D * 3; sun.shadow.camera.updateProjectionMatrix();

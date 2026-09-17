@@ -1,6 +1,15 @@
 // 티처펫 — 3D 병아리 (three.js, 절차적 애니메이션)
 // createChick(THREE, opts) → { group, update(dt, ctl), setLookTarget(v3) }
 (function (global) {
+  // 쪼기 리듬: 탁(0.18s) → 멈칫 → 탁 → 천천히 복귀 → 쉼
+  function peckEnv(t) {
+    const p = t % 1.95;
+    if (p < 0.14) return Math.sin((p / 0.14) * Math.PI / 2);
+    if (p < 0.30) return 1 - ((p - 0.14) / 0.16) * 0.8;
+    if (p < 0.46) return 0.2 + Math.sin(((p - 0.30) / 0.16) * Math.PI / 2) * 0.8;
+    if (p < 0.78) return 0.2 * (1 - (p - 0.46) / 0.32);
+    return 0;
+  }
   function createChick(THREE, opts = {}) {
     const P = Object.assign({
       body: 0xFFE352, belly: 0xFFF5C4, beak: 0xFF9438, leg: 0xF7A23A, cheek: 0xFF9DB0, eye: 0x1E1410,
@@ -207,6 +216,7 @@
       const CY = 1.0;
       root.position.y = (ctl.jumpY || 0) + hop - st.squat * 0.5 + st.roll * (CY - Math.cos(lieAng) * CY) + st.roll * 0.12;
       root.rotation.z = lieAng * (ctl.dir > 0 ? 1 : -1);
+      if (a === 'shake') { const k = Math.min(1, st.actT / 0.9); root.rotation.z += Math.sin(st.t * 30) * 0.1 * (1 - k); bodyPivot.rotation.z += Math.sin(st.t * 30 + 1) * 0.16 * (1 - k); }
       if (st.roll > 0.5) for (const l of legs) l.visible = false;
       // 스트레칭: 같은 쪽 다리를 뒤로 뻗는다
       if (a === 'stretch') { const k = Math.sin(Math.min(1, st.actT / 1.2) * Math.PI); legs[1].rotation.x = -k * 1.1; }
@@ -238,6 +248,7 @@
       // 월드 → 몸 기준으로 회전
       const inv = new THREE.Quaternion(); bodyPivot.getWorldQuaternion(inv); inv.invert(); local.applyQuaternion(inv);
       let hy = Math.atan2(local.x, local.z), hp = -Math.atan2(local.y, Math.hypot(local.x, local.z));
+      const hyRaw = hy, hpRaw = hp;
       hy = Math.max(-1.0, Math.min(1.0, hy)); hp = Math.max(-0.5, Math.min(0.6, hp));
       let targetPitch = hp, targetYaw = hy, targetRoll = 0;
       if (a === 'peck') { const k = Math.max(0, Math.sin(st.t * 9)); targetPitch = 0.85 * k + 0.2; targetYaw = 0; bodyPivot.rotation.x = 0.68 * k + 0.1; neckDown = k; }
@@ -281,15 +292,21 @@
       // 먹이 부르기(tidbitting): 먹이를 집었다 떨어뜨리며 머리를 까딱까딱, 부리로 운다
       if (a === 'tidbit') { const k = Math.max(0, Math.sin(st.t * 7)); targetPitch = 0.8 * k - 0.1; targetYaw = 0; bodyPivot.rotation.x = 0.45 * k; neckDown = k * 0.8; }
       // 병아리들이 서로 붙어 뭉친다
-      // 눈앞의 커서를 쫀다 — 목표 지점(lookTarget)을 향해 부리를 내리찍는다
+      // 눈앞의 것을 쫀다 — 목표를 정확히 겨누고, 빠르게 찍고 멈칫했다가 천천히 돌아온다.
+      // (일정한 사인파로 흔들면 쪼는 게 아니라 인사하는 것처럼 보인다)
       if (a === 'peckat') {
-        const k = Math.max(0, Math.sin(st.t * 8));
-        targetPitch = Math.max(targetPitch, 0.15) + k * 0.75;
-        bodyPivot.rotation.x = 0.12 + k * 0.5;
-        neckDown = k * 0.9;
-        targetRoll = Math.sin(st.t * 4) * 0.08;
+        const strike = peckEnv(st.actT);
+        const aimP = Math.max(-0.5, Math.min(1.5, hpRaw));      // 클램프를 풀어 실제 지점을 겨눈다
+        targetPitch = aimP + strike * 0.5;
+        targetYaw = Math.max(-1.2, Math.min(1.2, hyRaw));
+        const lean = Math.max(0, aimP) * 0.4 + strike * 0.28;
+        bodyPivot.rotation.x = 0.08 + lean;
+        neckDown = Math.max(0, aimP) * 0.55 + strike * 0.45;
+        targetRoll = 0;
       }
       // 고개 갸웃 — 한쪽 눈으로 대상을 뜯어본다 (닭이 궁금할 때 하는 진짜 동작)
+      // 몸 털기 — 머리부터 꼬리까지 파도처럼 부르르 (닭이 수시로 한다)
+      if (a === 'shake') { const k = Math.min(1, st.actT / 0.9); targetRoll = Math.sin(st.t * 34) * 0.35 * (1 - k); targetPitch = -0.1; }
       if (a === 'cock') { targetRoll = (Math.sin(st.t * 0.9) > 0 ? 1 : -1) * 1.05; targetPitch = 0.12; }
       if (a === 'huddle') { targetPitch = 0.12; targetRoll = Math.sin(st.t * 1.1) * 0.05; targetYaw = Math.sin(st.t * 0.7) * 0.15; }
       // 아픔: 고개를 몸쪽으로 파묻고 거의 움직이지 않는다
@@ -323,6 +340,7 @@
       if (a === 'scratch') wing = 0.1;
       if (a === 'peckat') wing = 0.12;
       if (a === 'cock') wing = 0.08;
+      if (a === 'shake') { const k = Math.min(1, st.actT / 0.9); wing = 0.25 + Math.abs(Math.sin(st.t * 30)) * 0.5 * (1 - k); }
       if (a === 'alert' || a === 'guard') wing = 0.05;
       if (a === 'crouch') wing = 0.0;
       if (a === 'huddle') wing = 0.08;
@@ -381,11 +399,18 @@
         e.userData.tear.visible = sad > 0.6 && Math.sin(st.t * 2) > -0.3;
         const covered = Math.max(smile, droop, angry * 0.6) > 0.7 || a === 'sleep';
         e.userData.hl.visible = !covered; e.userData.hl2.visible = !covered;
+        // 집중: 눈을 조금 키우고 하이라이트를 줄여 동공이 커진 느낌을 낸다
+        const f = st.focus;
+        e.scale.x = 1 + f * 0.2; e.scale.z = 1 + f * 0.2;
+        e.userData.hl.scale.setScalar(1 - f * 0.45);
+        e.userData.hl2.scale.setScalar(1 - f * 0.55);
         e.userData.cheek.material.opacity = 0.12 + smile * 0.55;
       }
+      // 집중도 (커서를 노려볼 때)
+      st.focus = lerp(st.focus || 0, (a === 'peckat' || a === 'cock' || a === 'gopeckat' || ctl.focus) ? 1 : 0, 1 - Math.exp(-dt * 7));
       // 눈 깜빡임 / 감기
       st.blinkAt -= dt;
-      if (st.blinkAt < 0) { st.blink = 0.14; st.blinkAt = 2 + Math.random() * 4; }
+      if (st.blinkAt < 0) { st.blink = 0.14; st.blinkAt = (2 + Math.random() * 4) * (1 + st.focus * 1.8); }
       st.blink = Math.max(0, st.blink - dt);
       const closed = a === 'sleep' ? 0.08 : a === 'sick' ? 0.18 : (a === 'sunbathe' || a === 'dustbath') ? 0.4 : st.blink > 0 ? 0.1 : 1;
       for (const e of eyes) e.scale.y = lerp(e.scale.y, closed, 1 - Math.exp(-dt * 25));

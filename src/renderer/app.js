@@ -66,14 +66,15 @@
 
   // ---- 닭 ----
   let birds = [];      // 런타임 객체 (d = 저장 데이터)
-  let selectedId = null, hoverId = null, visible = true, mode = 'free';
+  let selectedId = null, hoverId = null, visible = true;
+  const mode = 'free';
 
   function newBird(stage, opts = {}) {
     return Object.assign({
       id: uid(), name: pick(NAMES), stage, sex: null, fertile: true, born: now(), stageSince: today(),
       care: {}, hunger: 70, thirst: 70, happy: 70, aff: 50, trait: pick(MIND.NAMES),
       energy: 80, boredom: 20, social: 20, stress: 0, health: 100, sick: null, momId: null, children: 0,
-      eggsLaid: 0, lastLaid: '', brooding: null, x: rand(0.3, 0.8), z: rand(-1.4, 1.4), old: false, pets: 0,
+      eggsLaid: 0, lastLaid: '', brooding: null, x: rand(0.3, 0.8), z: 0, old: false, pets: 0,
     }, opts);
   }
   function makeRuntime(d) {
@@ -112,6 +113,7 @@
   const isYoungling = (b) => b.d.stage === 'chick' || b.d.stage === 'young';
   const momOf = (b) => b.d.momId ? birds.find((h) => h.d.id === b.d.momId) || null : null;
   const kidsOf = (h) => birds.filter((k) => k.d.momId === h.d.id && isYoungling(k));
+  const clampZ = (z) => clamp(z, world.zMin + 0.4, world.zMax - 0.4);
   const near = (a, c, r) => Math.abs(a.x - c.x) < r && Math.abs(a.z - c.z) < r;
   // 무리의 중심 (알·닭장 안은 제외)
   function flockCenter(except) {
@@ -254,10 +256,12 @@
     add('sunbathe', (mode === 'class' ? 0 : 0.35) * T.tidy * (M.valence > -0.2 ? 1 : 0.2), () => setAnim(b, 'sunbathe', rand(5, 9)));
     // 편안함 행동
     add('stretch', 0.22 * (d.energy / 100), () => setAnim(b, 'stretch', rand(1.4, 2.2)));
+    add('shake', 0.3, () => setAnim(b, 'shake', 1.0));
     // 산책: 혼자 너무 멀어지면 무리 쪽으로 돌아간다 (닭은 몰려다닌다)
     const fc = flockCenter(b);
     const strayed = fc !== null ? Math.abs(b.x - fc) : 0;
     add('walk', 0.9 * T.curiosity * (d.energy / 100) * (mode === 'class' ? 0 : 1), () => {
+      b.walkZ = clampZ(b.z + rand(-1, 1) * rand(0.6, 3.5) * T.curiosity);
       let tx = b.x + rand(-1, 1) * rand(3, 10) * (d.old ? 0.6 : 1) * (T.curiosity > 1.4 ? 1.6 : 1);
       if (fc !== null) {
         const pull = clamp((strayed - 3) / 9, 0, 1) * T.sociable * 0.75;     // 멀수록 강하게 끌린다
@@ -443,7 +447,7 @@
     const dur = (vy + Math.sqrt(vy * vy + 2 * GRAV * h)) / GRAV;
     b.onRoof = false; b.y = Math.max(b.y, h);
     const side = b.x > c.x ? 1 : -1;
-    leapTo(b, clamp(c.x + side * rand(1.6, 2.4), world.xMin + XMARGIN, world.xMax - XMARGIN), clamp(c.z + rand(2.4, 3.0), -1.8, 1.8), vy, dur);
+    leapTo(b, clamp(c.x + side * rand(1.6, 2.4), world.xMin + XMARGIN, world.xMax - XMARGIN), clampZ(c.z + rand(2.4, 3.0)), vy, dur);
     setAnim(b, 'fall', 99); showIcon(b, '⬇️', 700);
   }
   // ── 경보 ──
@@ -503,7 +507,7 @@
         if (!still || d2 > 2.8) { setAnim(b, 'idle', 0.6); continue; }
         faceDir(b, dx > 0 ? 1 : -1);
         if (d2 > 0.5) b.x = clamp(b.x + Math.sign(dx) * spec(b).speed * 0.45 * dt, world.xMin + XMARGIN, world.xMax - XMARGIN);
-        if (dz > 0.4) b.z = clamp(b.z + Math.sign(cursorSpot.z - b.z) * 0.8 * dt, -2.6, 2.6);
+        if (dz > 0.4) b.z = clampZ(b.z + Math.sign(cursorSpot.z - b.z) * 0.8 * dt);
         continue;
       }
       // 다가가는 중이면 그대로 둔다
@@ -743,7 +747,7 @@
           const share = mine > theirs ? 0.35 : mine < theirs ? 1.5 : 1;
           const push = (minD - dist) * dt * 2.2 * share;
           b.x += (dx / dist) * push;
-          b.z = clamp(b.z + (dz / dist) * push * 0.6, -1.8, 1.8);
+          b.z = clampZ(b.z + (dz / dist) * push * 0.6);
         }
       }
       b.x = clamp(b.x, world.xMin + XMARGIN, world.xMax - XMARGIN);
@@ -799,8 +803,9 @@
       const speed = s.speed * (mode === 'break' ? 1.4 : 1) * (b.d.old ? 0.6 : 1) * (b.fleeing ? 2 : 1) * (b.d.hurt ? 0.45 : 1) * (b.d.sick ? 0.55 : 1);
       faceDir(b, b.targetX > b.x ? 1 : -1);
       b.x += b.dir * speed * dt;
+      if (b.walkZ !== undefined && Math.abs(b.walkZ - b.z) > 0.03) b.z += Math.sign(b.walkZ - b.z) * Math.min(Math.abs(b.walkZ - b.z), speed * 0.5 * dt);
       if (Math.abs(b.targetX - b.x) < 0.08) {
-        b.x = b.targetX; b.targetX = null;
+        b.x = b.targetX; b.targetX = null; b.walkZ = undefined;
         if (b.anim === 'gofeed') { b.goal = 'eat'; setAnim(b, 'eat', 3); }
         else if (b.anim === 'gowater') { b.goal = 'drink'; setAnim(b, 'drink', 2.5); }
         else if (b.anim === 'gocoop') { b.inCoop = true; setVisible(b, false); setAnim(b, 'sleep', rand(15, 30)); showIcon(b, '💤', 3000); }
@@ -811,14 +816,14 @@
             if (b.anim !== 'cock') return;
             const gap = Math.abs(lure.x - b.x);
             // 충분히 가까워졌으면 이제 부리로 쪼아 본다
-            if (gap < 2.0) { faceDir(b, lure.x > b.x ? 1 : -1); if (cursorSpot) b.z = clamp(cursorSpot.z, -2.6, 2.6); setAnim(b, 'peckat', rand(2.5, 5)); b.d.boredom = clamp(b.d.boredom - 12, 0, 100); return; }
+            if (gap < 2.0) { faceDir(b, lure.x > b.x ? 1 : -1); if (cursorSpot) b.z = clampZ(cursorSpot.z); setAnim(b, 'peckat', rand(2.5, 5)); b.d.boredom = clamp(b.d.boredom - 12, 0, 100); return; }
             if ((b.peekLeft || 0) > 0 && lure.active > 0.3 && now() - lure.at < 4000) peek(b);
             else { b.peekLeft = 0; decide(b); }
           });
         }
-        else if (b.anim === 'gowarm') { b.z = clamp((warmSpot() || { z: b.z }).z + rand(-0.6, 0.6), -2, 2); setAnim(b, 'huddle', rand(4, 8)); showIcon(b, '🥶', 2000); }
+        else if (b.anim === 'gowarm') { b.z = clampZ((warmSpot() || { z: b.z }).z + rand(-0.6, 0.6)); setAnim(b, 'huddle', rand(4, 8)); showIcon(b, '🥶', 2000); }
         else if (b.anim === 'gocool') { setAnim(b, 'pant', rand(3, 6)); showIcon(b, '🥵', 2000); }
-        else if (b.anim === 'gopeckat') { if (b.peckZ !== undefined) b.z = clamp(b.peckZ, -2.6, 2.6); setAnim(b, 'peckat', rand(2.5, 5)); }
+        else if (b.anim === 'gopeckat') { if (b.peckZ !== undefined) b.z = clampZ(b.peckZ); setAnim(b, 'peckat', rand(2.5, 5)); }
         else if (b.anim === 'gohuddle') { setAnim(b, 'huddle', rand(4, 9)); b.d.stress = clamp(b.d.stress - 12, 0, 100); b.d.social = clamp(b.d.social - 25, 0, 100); }
         else if (b.anim === 'godust') { b.z = clamp(home().dustpit.z + rand(-0.5, 0.5), -2.2, 2.2); startDustBath(b); }
         else if (b.anim === 'panic') { setAnim(b, 'flap', 1.2); }
@@ -861,7 +866,7 @@
         }
         b.goal = null;
       } else if (b.anim === 'drink' && b.goal === 'drink') {
-        if (state.water >= RULE.waterPerDrink) { state.water -= RULE.waterPerDrink; world.setSupplies(state.feed, state.water, state.basket); b.d.thirst = clamp(b.d.thirst + 40, 0, 100); b.lastDrink = now(); careTick(b, 'drank');
+        if (state.water >= RULE.waterPerDrink) { state.water -= RULE.waterPerDrink; world.setSupplies(state.feed, state.water, state.basket); b.d.thirst = clamp(b.d.thirst + 40, 0, 100); b.lastDrink = now(); careTick(b, 'drank'); later(b, 200, () => { if (b.anim === 'drink' || b.anim === 'idle') setAnim(b, 'shake', 1.0); });
           if (Math.random() < 0.45) HYG.poopAfterMeal(b, (ms, fn) => later(b, ms, () => { if (fn()) { showIcon(b, '💩', 1400); markDirty(); renderCoop(); } }));
           markDirty(); renderCoop(); }
         b.goal = null;
@@ -1056,7 +1061,7 @@
   function updateCursorSpot(dt) {
     if (mouse.x < 0 || !visible || now() - mouse.movedAt > 45000) { cursorSpot = null; cursorStill = 0; cursorSpeed = 0; return; }
     const gp = world.screenToGround(mouse.x, mouse.y);
-    cursorSpot = gp ? { x: gp.x, y: 0.3, z: clamp(gp.z, -3, 3) } : null;
+    cursorSpot = gp ? { x: gp.x, y: 0.3, z: clampZ(gp.z) } : null;
     // 커서가 얼마나 가만히 있는가 — 멈춰 있어야 닭이 다가와 쫀다
     const moved = Math.hypot(mouse.x - lastCursor.x, mouse.y - lastCursor.y);
     cursorSpeed = moved / Math.max(dt, 0.001);
@@ -1075,6 +1080,12 @@
       m.holder.position.set(b.x, 0, b.z);
       // 시선: 커서가 최근에 움직였으면 커서를, 아니면 이따금 다른 곳을
       const moving = ACT.isMoving(b.anim) ? 1 : 0;
+      // 쪼거나 갸웃할 때는 '화면 위의 커서 그 자체'를 겨눈다 (바닥 그림자가 아니라)
+      if ((b.anim === 'peckat' || b.anim === 'cock' || b.anim === 'gopeckat') && mouse.x >= 0) {
+        const pt = world.screenToPlaneZ(mouse.x, mouse.y, b.z);
+        if (pt) { b.look.set(pt.x, Math.max(0.05, pt.y), b.z); b.aimed = true; }
+      } else b.aimed = false;
+      if (b.aimed) { /* 위에서 이미 조준함 */ } else
       if (worm && (b.anim === 'chase' || b.anim === 'beg')) b.look.set(worm.x, worm.y + 0.3, worm.z);
       else if (moving) b.look.set(b.x + b.dir * 8, 1.4, b.z + 3);                  // 걸을 땐 앞을 본다
       else if (b.carrying && cursorSpot) b.look.set(cursorSpot.x, cursorSpot.y, cursorSpot.z);
@@ -1131,7 +1142,7 @@
   function loop(t) {
     const dt = Math.min(0.1, (t - last) / 1000); last = t; acc += dt;
     if (acc >= 1 / 32) { for (const b of birds) update(b, acc); draw(acc); acc = 0; }
-    tickTimer(); requestAnimationFrame(loop);
+   requestAnimationFrame(loop);
   }
 
   // ---- 마우스 ----
@@ -1337,39 +1348,9 @@
     if (crowChain(true)) { state.lastCrow = today(); markDirty(); }
   }
 
-  // ---- 타이머 / 집중 모드 ----
-  let timer = null; const pill = $('#timerPill');
-  function startTimer(kind) {
-    const min = kind === 'class' ? state.settings.classMin : state.settings.breakMin;
-    timer = { kind, endsAt: now() + min * 60000 }; mode = kind;
-    pill.classList.remove('hidden', 'class', 'break', 'ending'); pill.classList.add(kind);
-    $('#timerKind').textContent = kind === 'class' ? '수업' : '쉬는 시간';
-    for (const b of birds) { if (b.d.stage === 'egg') continue; b.inCoop = false; b.targetX = null; if (kind === 'class') setAnim(b, 'sit', rand(3, 6)); else if (!b.d.brooding) jump(b, 300); }
-    if (kind === 'break') crowChain(false);
-    toast(kind === 'class' ? '📚 수업 시작 — 닭들이 조용히 앉아요' : '☕ 쉬는 시간!', false, 4000);
-    renderTimerTab();
-  }
-  function stopTimer(silent) { timer = null; mode = 'free'; pill.classList.add('hidden'); if (!silent) for (const b of birds) if (b.d.stage !== 'egg') decide(b); renderTimerTab(); }
-  let lastTickSec = -1;
-  function tickTimer() {
-    if (!timer) return;
-    const left = timer.endsAt - now(), sec = Math.max(0, Math.ceil(left / 1000));
-    if (sec !== lastTickSec) { lastTickSec = sec; const txt = fmt(sec); $('#timerLeft').textContent = txt; $('#timerBig').textContent = txt; pill.classList.toggle('ending', sec <= 60 && sec > 0); }
-    if (left <= 0) {
-      const wasClass = timer.kind === 'class'; chime();
-      if (wasClass && state.settings.autoBreak) startTimer('break');
-      else { stopTimer(true); toast(wasClass ? '수업 끝! 잘하셨어요' : '쉬는 시간 끝, 자리로!', true, 6000); for (const b of birds) if (b.d.stage !== 'egg' && !b.d.brooding) jump(b, 300); }
-    }
-  }
-  const fmt = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
-  function renderTimerTab() {
-    $('#timerBig').textContent = timer ? fmt(Math.max(0, Math.ceil((timer.endsAt - now()) / 1000))) : fmt(state.settings.classMin * 60);
-    $('#classMin').value = state.settings.classMin; $('#breakMin').value = state.settings.breakMin; $('#autoBreak').checked = state.settings.autoBreak;
-  }
-
   // ---- 패널 ----
   const panel = $('#panel');
-  function openPanel(tab) { panel.classList.remove('hidden'); if (tab) showTab(tab); renderCoop(); renderTimerTab(); renderTodos(); renderSettings(); }
+  function openPanel(tab) { panel.classList.remove('hidden'); if (tab) showTab(tab); renderCoop(); renderSettings(); }
   function closePanel() { panel.classList.add('hidden'); }
   function togglePanel() { panel.classList.contains('hidden') ? openPanel() : closePanel(); }
   function showTab(name) { $$('.tabs button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name)); $$('section.tab').forEach((s) => s.classList.toggle('active', s.dataset.tab === name)); }
@@ -1496,55 +1477,6 @@
   $('#closeAlbum').addEventListener('click', () => $('#albumModal').classList.add('hidden'));
 
   // 타이머 탭
-  $('#btnClass').addEventListener('click', () => startTimer('class'));
-  $('#btnBreak').addEventListener('click', () => startTimer('break'));
-  $('#btnStop').addEventListener('click', () => stopTimer());
-  $('#classMin').addEventListener('change', (e) => { state.settings.classMin = clamp(+e.target.value || 40, 1, 180); markDirty(); renderTimerTab(); });
-  $('#breakMin').addEventListener('change', (e) => { state.settings.breakMin = clamp(+e.target.value || 10, 1, 60); markDirty(); renderTimerTab(); });
-  $('#autoBreak').addEventListener('change', (e) => { state.settings.autoBreak = e.target.checked; markDirty(); });
-  pill.addEventListener('click', () => openPanel('timer'));
-
-  // 뽑기 탭
-  const namesEl = $('#names');
-  namesEl.addEventListener('input', () => { state.names = namesEl.value; markDirty(); renderPickInfo(); });
-  const nameList = () => state.names.split('\n').map((s) => s.trim()).filter(Boolean);
-  function renderPickInfo() { const all = nameList(), left = all.filter((n) => !state.pickUsed.includes(n)); $('#pickInfo').textContent = all.length ? `전체 ${all.length}명 · 아직 안 뽑힌 ${left.length}명` : ''; }
-  let picking = false;
-  $('#btnPick').addEventListener('click', () => {
-    if (picking) return;
-    const all = nameList(), exclude = $('#pickExclude').checked;
-    let pool = exclude ? all.filter((n) => !state.pickUsed.includes(n)) : all.slice();
-    const n = clamp(+$('#pickCount').value || 1, 1, 10);
-    if (!all.length) { $('#pickResult').textContent = '이름을 먼저 적어 주세요'; return; }
-    if (pool.length < n) { if (exclude) { state.pickUsed = []; pool = all.slice(); } if (pool.length < n) { $('#pickResult').textContent = '사람이 부족해요'; return; } }
-    picking = true; const res = $('#pickResult'); let ticks = 0;
-    const iv = setInterval(() => {
-      res.textContent = pick(pool);
-      if (++ticks > 18) {
-        clearInterval(iv); const chosen = [], tmp = pool.slice();
-        for (let i = 0; i < n; i++) { const k = Math.floor(Math.random() * tmp.length); chosen.push(tmp.splice(k, 1)[0]); }
-        res.textContent = chosen.join(', '); if (exclude) state.pickUsed.push(...chosen);
-        markDirty(); renderPickInfo(); picking = false;
-        toast('🎲 ' + chosen.join(', '), true, 6000); for (const b of birds) if (b.d.stage !== 'egg' && !b.d.brooding) jump(b, 300);
-      }
-    }, 80);
-  });
-  $('#btnPickReset').addEventListener('click', () => { state.pickUsed = []; markDirty(); renderPickInfo(); $('#pickResult').textContent = ''; });
-
-  // 할 일 탭
-  function renderTodos() {
-    const ul = $('#todoList'); ul.innerHTML = '';
-    state.todos.forEach((t, i) => {
-      const li = document.createElement('li'); li.className = t.done ? 'done' : '';
-      li.innerHTML = `<input type="checkbox" ${t.done ? 'checked' : ''}><span>${esc(t.text)}</span><button class="small" data-del>삭제</button>`;
-      li.querySelector('input').addEventListener('change', (e) => { t.done = e.target.checked; markDirty(); renderTodos(); if (t.done) toast('✅ ' + t.text); });
-      li.querySelector('[data-del]').addEventListener('click', () => { state.todos.splice(i, 1); markDirty(); renderTodos(); });
-      ul.appendChild(li);
-    });
-  }
-  function addTodo() { const v = $('#todoInput').value.trim(); if (!v) return; state.todos.push({ text: v, done: false }); $('#todoInput').value = ''; markDirty(); renderTodos(); }
-  $('#btnTodoAdd').addEventListener('click', addTodo);
-  $('#todoInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') addTodo(); });
 
   // 설정 탭
   function renderSettings() {
@@ -1598,8 +1530,6 @@
     if (!panel.classList.contains('hidden')) renderCoop();
   }, 1200);
   api.on('ui:toggle-menu', togglePanel);
-  api.on('timer:start', (k) => startTimer(k));
-  api.on('timer:stop', () => stopTimer());
   api.on('pet:size', (s) => { state.settings.size = s; markDirty(); resize(); });
   api.on('pet:toggle-visible', () => { visible = !visible; canvas.style.display = visible ? '' : 'none'; overlay.style.display = visible ? '' : 'none'; });
   api.on('work-area', () => setTimeout(resize, 50));
@@ -1628,7 +1558,6 @@
     HYG.restore(state.poops);
     const info = await api.info();
     $('#version').textContent = 'v' + info.version; $('#autostart').checked = !!info.openAtLogin;
-    namesEl.value = state.names; renderPickInfo();
     if (!birds.length) openPanel('coop');
     if (state.lastAttend !== today()) { state.lastAttend = today(); markDirty(); }
     if (state.lastWormGift !== today()) { state.lastWormGift = today(); state.worms = Math.min(9, (state.worms || 0) + 3); world.setWormCount(state.worms); markDirty(); if (birds.length) setTimeout(() => toast('🪱 오늘의 벌레 3마리가 벌레통에 도착했어요'), 4000); }

@@ -67,6 +67,7 @@
     huddle:      { pose: 'huddle', priority: 2, stationary: 1 },   // 병아리 뭉치기
     peckat:      { pose: 'peckat', priority: 3, stationary: 1 },   // 커서를 쪼기
     cock:        { pose: 'cock',   priority: 2, stationary: 1 },   // 고개 갸웃
+    shake:       { pose: 'shake',  priority: 1, stationary: 1 },   // 몸 털기
     gopeckat:    { pose: 'walk',   moving: 1, goal: 1, priority: 3 },
     sick:        { pose: 'sick',   priority: 3, stationary: 1 },   // 아픔 — 깃털 부풀리고 웅크림
     pant:        { pose: 'pant',   priority: 2, stationary: 1 },   // 더위 — 헐떡임
