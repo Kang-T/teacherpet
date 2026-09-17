@@ -88,7 +88,17 @@
     </div>
     <p class="hint">소품은 마우스로 끌어서 자리를 옮길 수 있어요.</p>
     <div class="row"><label><input type="checkbox" id="soundOn"> 소리 (타이머·수탉)</label><label><input type="checkbox" id="autostart"> 컴퓨터 켤 때 자동 실행</label></div>
-    <div class="row"><span class="label">나이 든 닭은</span><button data-lifeend="retire">농장으로 떠나요</button><button data-lifeend="natural">자연으로 돌아가요</button></div>
+    <div class="row"><span class="label">오래 못 돌보면</span>
+      <button data-lifeend="retire">잠시 떠나요 (다시 오면 돌아옴)</button>
+      <button data-lifeend="safe">안 떠나요 (안심 모드)</button>
+      <button data-lifeend="natural">자연으로 (고학년)</button>
+    </div>
+    <div class="row"><span class="label">학사일정</span>
+      <label><input type="checkbox" id="pauseWeekends"> 주말·공휴일엔 시간 멈춤</label>
+      <label><input type="checkbox" id="vacationOn"> 방학 설정</label>
+      <button id="btnAddHoliday">쉬는 날 추가</button>
+    </div>
+    <p class="hint" id="calInfo"></p>
     <div class="help">
       <b>닭의 한살이</b>
       <ul>
@@ -115,6 +125,7 @@
 <script src="sim/actions.js"></script>
 <script src="sim/entities.js"></script>
 <script src="sim/mind.js"></script>
+<script src="sim/school.js"></script>
 <script src="sim/hygiene.js"></script>
 <script src="sim/health.js"></script>
 <script src="chick3d.js"></script>

@@ -8,7 +8,7 @@
   function defaultState() {
     return {
       version: VERSION,
-      flock: [], basket: 0, coins: 0, album: [],
+      flock: [], basket: 0, coins: 0, album: [], away: [],   // away = 떠났지만 돌아올 수 있는 닭
       feed: 60, water: 60, lastFeedRefill: 0, lastWaterRefill: 0,
       worms: 3, lastWormGift: '',
       bedding: 100,                     // 깔짚 신선도 0~100
@@ -22,6 +22,7 @@
       settings: {
         size: 4, sound: true, classMin: 40, breakMin: 10, autoBreak: true,
         homeSide: 'left', lifeEnd: 'retire', pauseWeekends: true, quiet: false,
+        holidays: [], vacation: null, paused: false,
         propPos: {}, propHidden: {},
       },
       names: '', pickUsed: [], todos: [], lastCrow: '', lastSeen: U.now(),
@@ -40,6 +41,7 @@
     if (d.clean === undefined) d.clean = 85;
     if (d.hurt === undefined) d.hurt = null;
     if (d.lastDust === undefined) d.lastDust = '';
+    if (d.frozen === undefined) d.frozen = [];
     if (d.sick === undefined) d.sick = null;
     if (d.children === undefined) d.children = 0;
     if (d.z === undefined) d.z = U.rand(-1.4, 1.4);
@@ -53,9 +55,12 @@
     // v3 → v4 : 돌본 기록을 저장 데이터로, 위생·장비·학사일정 필드 추가
     3(s) {
       s.flock = (s.flock || []).map((d) => {
-        const care = {};
-        for (const day of d.careDays || []) care[day] = { ate: true, drank: true, brooded: true };
-        d.care = care;
+        if (!d.care) {                       // 이미 care가 있으면 덮어쓰지 않는다
+          const care = {};
+          for (const day of d.careDays || []) care[day] = { ate: true, drank: true, brooded: true };
+          d.care = care;
+        }
+        delete d.careDays;
         return d;
       });
       s.bedding = 100; s.poops = []; s.ammonia = 0;
@@ -63,7 +68,8 @@
       s.equipment = { lamp: null, vacuum: false, autofeeder: false };
       s.lampPower = 1;
       s.freezes = C.RULE.careFreezePerTerm;
-      s.settings = Object.assign({ pauseWeekends: true, quiet: false, propPos: {}, propHidden: {} }, s.settings || {});
+      s.settings = Object.assign({ pauseWeekends: true, quiet: false, propPos: {}, propHidden: {}, holidays: [], vacation: null, paused: false }, s.settings || {});
+      s.away = [];
       delete s.lastAttend;                         // 쓰기만 하고 읽지 않던 필드
       s.version = 4;
       return s;
@@ -84,6 +90,7 @@
     out.settings = Object.assign(base.settings, s.settings || {});
     out.inventory = Object.assign(base.inventory, s.inventory || {});
     out.equipment = Object.assign(base.equipment, s.equipment || {});
+    out.away = s.away || [];
     out.flock = (out.flock || []).map(ensureBird);
     out.version = VERSION;
     return out;

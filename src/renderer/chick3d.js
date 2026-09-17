@@ -110,6 +110,7 @@
       if (a === 'beg') st.yawTarget = face * 0.5;
       if (a === 'sleep' || a === 'brood' || a === 'roost' || a === 'wail') st.yawTarget = face * 0.7;
       if (a === 'scratch') st.yawTarget = face * 0.85;
+      if (a === 'peckat') st.yawTarget = face * 0.7;
       if (a === 'alert' || a === 'guard' || a === 'crouch') st.yawTarget = face * 0.55;
       if (a === 'tidbit') st.yawTarget = face * 0.8;
       if (a === 'huddle') st.yawTarget = face * 0.45;
@@ -154,9 +155,9 @@
           scratchPitch = 0.4 - k * 0.2;
           bodyPivot.rotation.x = 0.14 * (1 - k);
           legs[0].rotation.x = Math.sin(k * Math.PI) * 0.35; legs[1].rotation.x = Math.sin(k * Math.PI) * 0.35;
-        } else {                              // ⑤ 고개를 기울여 한쪽 눈으로 확인
+        } else {                              // ⑤ 고개를 들어 주변을 살핀다 (이때는 커서를 쫓는다)
           scratchZ = -0.2;
-          scratchPitch = 0.55; scratchYaw = 0.35;
+          scratchPitch = null; scratchYaw = null;   // 시선 자유
         }
         root.position.z = scratchZ;
       } else if (root.position.z !== 0) root.position.z = lerp(root.position.z, 0, 1 - Math.exp(-dt * 8));
@@ -279,6 +280,14 @@
       // 먹이 부르기(tidbitting): 먹이를 집었다 떨어뜨리며 머리를 까딱까딱, 부리로 운다
       if (a === 'tidbit') { const k = Math.max(0, Math.sin(st.t * 7)); targetPitch = 0.8 * k - 0.1; targetYaw = 0; bodyPivot.rotation.x = 0.45 * k; neckDown = k * 0.8; }
       // 병아리들이 서로 붙어 뭉친다
+      // 눈앞의 커서를 쫀다 — 목표 지점(lookTarget)을 향해 부리를 내리찍는다
+      if (a === 'peckat') {
+        const k = Math.max(0, Math.sin(st.t * 8));
+        targetPitch = Math.max(targetPitch, 0.15) + k * 0.75;
+        bodyPivot.rotation.x = 0.12 + k * 0.5;
+        neckDown = k * 0.9;
+        targetRoll = Math.sin(st.t * 4) * 0.08;
+      }
       if (a === 'huddle') { targetPitch = 0.12; targetRoll = Math.sin(st.t * 1.1) * 0.05; targetYaw = Math.sin(st.t * 0.7) * 0.15; }
       // 아픔: 고개를 몸쪽으로 파묻고 거의 움직이지 않는다
       if (a === 'sick') { targetPitch = 0.42 + Math.sin(st.t * 0.7) * 0.05; targetYaw = Math.sin(st.t * 0.35) * 0.1; targetRoll = 0; }
@@ -309,6 +318,7 @@
       if (a === 'roost') wing = 0.12;
       if (a === 'preen') wing = 0.45 + Math.max(0, Math.sin(st.t * 0.9)) * 0.4;
       if (a === 'scratch') wing = 0.1;
+      if (a === 'peckat') wing = 0.12;
       if (a === 'alert' || a === 'guard') wing = 0.05;
       if (a === 'crouch') wing = 0.0;
       if (a === 'huddle') wing = 0.08;
@@ -377,6 +387,7 @@
       for (const e of eyes) e.scale.y = lerp(e.scale.y, closed, 1 - Math.exp(-dt * 25));
       // 부리 (울기·먹기)
       const open = a === 'pant' ? 0.35 + Math.sin(st.t * 9) * 0.12 : (a === 'crow' || a === 'eat') ? Math.max(0, Math.sin(st.t * (a === 'eat' ? 12 : 6))) * 0.5
+        : a === 'peckat' ? Math.max(0, Math.sin(st.t * 8)) * 0.35
         : a === 'tidbit' ? Math.max(0, Math.sin(st.t * 7)) * 0.4 : a === 'alert' ? Math.max(0, Math.sin(st.t * 5)) * 0.25 : 0;
       st.beakOpen = lerp(st.beakOpen, open, 1 - Math.exp(-dt * 20));
       beakBot.rotation.x = Math.PI / 2 + st.beakOpen; beakTop.rotation.x = Math.PI / 2 - st.beakOpen * 0.3;

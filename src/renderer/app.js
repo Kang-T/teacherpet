@@ -4,7 +4,7 @@
 (() => {
   const api = window.teacherpet;
   const THREE = window.THREE;
-  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, bus } = window.TP;
+  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, school: SCH, bus } = window.TP;
   const { $, $$, now, today, rand, pick, clamp, uid, esc } = U;
   const { RULE, PX_PER_UNIT, STAGE_KO, STAGE_ORDER, SPEED, NAMES, PROP_NAMES, PROP_KO } = C;
   const { trait, moodOf, rank, TRAIT_DESC } = MIND;
@@ -453,7 +453,7 @@
   // ── 경보 ──
   // 공중(aerial): 납작 웅크리고 하늘을 본다 / 지상(ground): 목을 빼고 꼿꼿이 경계한다
   // 한 마리가 놀라면 정서가 전염되어 무리 전체가 흩어진다.
-  let lastAlarm = 0;
+  let lastAlarm = 0, fastFrames = 0;
   function soundAlarm(kind, srcX, radius) {
     if (now() - lastAlarm < 2500) return 0;
     lastAlarm = now();
@@ -490,11 +490,39 @@
     lure.x = gp.x; lure.at = now();
     lure.active = Math.min(1, lure.active + 0.06);
   }
+  // 눈앞에 커서가 오면 쫀다. 닭은 눈에 띄는 건 일단 쪼아 본다.
+  let peckScan = 0;
+  function tickCursorPeck(dt) {
+    peckScan -= dt; if (peckScan > 0) return; peckScan = 0.35;
+    if (!cursorSpot || mode === 'class' || now() - mouse.movedAt > 2500) return;
+    for (const b of birds) {
+      if (!eligible(b) || b.d.hurt) continue;
+      const d2 = Math.abs(b.x - cursorSpot.x), dz = Math.abs(b.z - cursorSpot.z);
+      if (b.anim === 'peckat') {                                  // 쪼는 중이면 커서를 따라간다
+        if (d2 > 2.2) { setAnim(b, 'idle', 0.5); continue; }
+        faceDir(b, cursorSpot.x > b.x ? 1 : -1);
+        if (d2 > 0.7) b.x += Math.sign(cursorSpot.x - b.x) * sp(b).speed * 0.5 * dt;
+        continue;
+      }
+      if (d2 > 1.5 || dz > 2.2) continue;
+      if (!ACT.canInterrupt(b.anim, 'peckat')) continue;
+      if (b.d.stress > 55) continue;                              // 놀란 닭은 안 쫀다
+      const T = trait(b);
+      if (Math.random() > 0.55 * T.curiosity * (0.6 + b.d.aff / 150)) continue;
+      b.targetX = null; b.inCoop = false; setVisible(b, true);
+      faceDir(b, cursorSpot.x > b.x ? 1 : -1);
+      setAnim(b, 'peckat', rand(1.6, 3.4));
+      b.d.boredom = clamp(b.d.boredom - 10, 0, 100);
+      if (Math.random() < 0.3) showIcon(b, '👀', 1200);
+    }
+  }
   // 커서가 닭 근처에서 갑자기 빠르게 움직이면 놀란다
   function checkCursorScare(x, y, vx, vy) {
     if (mode === 'class' || !visible) return;
     const speed = Math.hypot(vx, vy);
-    if (speed < 2400) return;                                     // px/초
+    fastFrames = speed > 2200 ? fastFrames + 1 : 0;
+    if (fastFrames < 2) return;
+    fastFrames = 0;                                     // px/초
     const gp = world.screenToGround(x, y); if (!gp) return;
     if (!birds.some((b) => eligible(b) && Math.abs(b.x - gp.x) < 6)) return;
     soundAlarm(vy > Math.abs(vx) * 0.6 ? 'aerial' : 'ground', gp.x, 8);
@@ -772,6 +800,7 @@
         }
         else if (b.anim === 'gowarm') { b.z = clamp((warmSpot() || { z: b.z }).z + rand(-0.6, 0.6), -2, 2); setAnim(b, 'huddle', rand(4, 8)); showIcon(b, '🥶', 2000); }
         else if (b.anim === 'gocool') { setAnim(b, 'pant', rand(3, 6)); showIcon(b, '🥵', 2000); }
+        else if (b.anim === 'gopeckat') { setAnim(b, 'peckat', rand(1.6, 3)); }
         else if (b.anim === 'gohuddle') { setAnim(b, 'huddle', rand(4, 9)); b.d.stress = clamp(b.d.stress - 12, 0, 100); b.d.social = clamp(b.d.social - 25, 0, 100); }
         else if (b.anim === 'godust') { b.z = clamp(home().dustpit.z + rand(-0.5, 0.5), -2.2, 2.2); startDustBath(b); }
         else if (b.anim === 'panic') { setAnim(b, 'flap', 1.2); }
@@ -837,7 +866,7 @@
     if (!wasCared && ST.caredToday(b.d)) {
       if ((b.d.wrongFeed || 0) >= 2) { showIcon(b, '⚠️', 2500); }
       if (b.d.hurt) { b.d.hurt = null; b.d.health = clamp(b.d.health + 25, 0, 100); showIcon(b, '💚', 3000); toast(`💚 ${b.d.name}(이)의 다리가 다 나았어요`, false, 5000); }
-      growCheck(b); layCheck(b);
+      growCheck(b); layCheck(b); tryReturn();
     }
   }
   function broodTick(egg) {
@@ -893,13 +922,82 @@
     chime(); peepSound();
     markDirty(); renderCoop();
   }
-  function farewell(b) {
-    const natural = state.settings.lifeEnd === 'natural';
-    state.album.push({ name: b.d.name, stage: STAGE_KO[b.d.stage], born: new Date(b.d.born).toISOString().slice(0, 10), left: today(), eggs: b.d.eggsLaid, children: b.d.children || 0, natural });
-    disposeRuntime(b); birds = birds.filter((x) => x !== b); state.flock = state.flock.filter((x) => x.id !== b.d.id);
-    toast(natural ? `🌿 ${b.d.name}(이)가 자연으로 돌아갔어요. 앨범에서 만나요` : `🚜 ${b.d.name}(이)가 농장으로 떠났어요. 앨범에서 만나요`, true, 12000);
+  // ── 이별 ──
+  // 기본은 "완화된 이별": 오래 방치하면 편지를 남기고 떠나지만, 다시 잘 돌보면 돌아온다.
+  // 안심 모드에서는 아무도 떠나지 않는다.
+  const LEAVE_WARN = 3, LEAVE_DAYS = 5, RETURN_DAYS = 3;
+  function depart(b, reason) {
+    const safe = state.settings.lifeEnd === 'safe';
+    if (safe && reason === 'neglect') return false;
+    const rec = {
+      id: b.d.id, name: b.d.name, stage: STAGE_KO[b.d.stage], trait: b.d.trait,
+      born: new Date(b.d.born).toISOString().slice(0, 10), left: today(),
+      eggs: b.d.eggsLaid || 0, children: b.d.children || 0, reason,
+    };
+    if (reason === 'neglect') {
+      state.away.push(Object.assign({ data: b.d, progress: 0 }, rec));
+      toast(`✉️ ${b.d.name}(이)가 편지를 남기고 떠났어요 — "더 잘 돌봐줄 농장에 잠시 다녀올게요"`, true, 14000);
+      toast(`${RETURN_DAYS}일 연속으로 남은 친구들을 잘 돌보면 ${b.d.name}(이)가 돌아와요`, false, 12000);
+    } else {
+      state.album.push(rec);
+      toast(reason === 'natural' ? `🌿 ${b.d.name}(이)가 자연으로 돌아갔어요. 앨범에서 만나요`
+        : `🚜 ${b.d.name}(이)가 넓은 농장으로 은퇴했어요. 앨범에서 만나요`, true, 13000);
+    }
+    disposeRuntime(b);
+    birds = birds.filter((x) => x !== b);
+    state.flock = state.flock.filter((x) => x.id !== b.d.id);
+    markDirty(); renderCoop();
+    return true;
+  }
+  const farewell = (b) => depart(b, state.settings.lifeEnd === 'natural' ? 'natural' : 'retire');
+
+  // 떠난 닭이 돌아온다
+  function tryReturn() {
+    if (!state.away.length) return;
+    const caredToday = birds.length
+      ? birds.every((q) => q.d.stage === 'egg' || ST.caredToday(q.d))
+      : (state.feed > 40 && state.water > 40);
+    if (!caredToday) return;
+    for (const a of state.away.slice()) {
+      if (a.lastProgressDay === today()) continue;
+      a.lastProgressDay = today(); a.progress = (a.progress || 0) + 1;
+      if (a.progress >= RETURN_DAYS && birds.length < RULE.maxFlock) {
+        state.away = state.away.filter((x) => x !== a);
+        const d = a.data; d.aff = clamp((d.aff || 50) + 10, 0, 100); d.stress = 20;
+        state.flock.push(d);
+        const rt = makeRuntime(d); rt.x = (world.xMin + world.xMax) / 2; birds.push(rt);
+        jump(rt, 320); showIcon(rt, '❤️', 5000);
+        toast(`🎉 ${a.name}(이)가 돌아왔어요!`, true, 14000); chime();
+      } else {
+        toast(`✉️ ${a.name}(이)에게 소식이 갔어요 (${a.progress}/${RETURN_DAYS}일)`, false, 6000);
+      }
+    }
     markDirty(); renderCoop();
   }
+
+  // 방치를 확인한다 — 등교일만 센다. 주말·방학은 세지 않는다.
+  function checkNeglect() {
+    if (state.settings.lifeEnd === 'safe') return;
+    for (const b of birds.slice()) {
+      if (b.d.stage === 'egg') continue;
+      try {
+      let missed = SCH.neglectedDays(b.d, state);
+      if (missed.length >= LEAVE_DAYS && state.freezes > 0) {
+        const used = SCH.useFreeze(b.d, missed.slice(0, missed.length - (LEAVE_WARN - 1)), state);
+        if (used) { toast(`🧊 돌봄 프리즈 ${used}개를 써서 ${b.d.name}의 빠진 날을 덮었어요 (남은 프리즈 ${state.freezes}개)`, true, 10000); missed = SCH.neglectedDays(b.d, state); }
+      }
+      if (missed.length >= LEAVE_DAYS) { depart(b, 'neglect'); continue; }
+      if (missed.length >= LEAVE_WARN) {
+        b.d.stress = clamp(b.d.stress + 30, 0, 100);
+        b.d.aff = clamp(b.d.aff - 10, 0, 100);
+        showIcon(b, '🥺', 5000);
+        toast(`🥺 ${b.d.name}(이)가 ${missed.length}일째 혼자예요. ${LEAVE_DAYS - missed.length}일 더 지나면 떠나요`, true, 12000);
+      }
+      } catch (err) { console.error('checkNeglect', b.d.name, err); }
+    }
+    markDirty();
+  }
+
   // 암탉: 돌본 날 하루 1알
   // 품기를 시작한다 — 알을 둥지로 옮기고 그 위에 앉는다
   function startBrooding(hen, egg) {
@@ -935,8 +1033,20 @@
   // ---- 그리기 (3D) ----
   const overlay = $('#bubbles');
   let mouse = { x: -1, y: -1, movedAt: 0 };
+  // 커서가 실제로 가리키는 지점(바닥 위 살짝 띄운 곳). 닭들은 이 점을 본다.
+  let cursorSpot = null, cursorDwell = 0, cursorDwellAt = { x: 0, y: 0 };
+  function updateCursorSpot(dt) {
+    if (mouse.x < 0 || !visible || now() - mouse.movedAt > 6000) { cursorSpot = null; cursorDwell = 0; return; }
+    const gp = world.screenToGround(mouse.x, mouse.y);
+    cursorSpot = gp ? { x: gp.x, y: 0.35, z: clamp(gp.z, -3, 3) } : null;
+    // 한자리에서 꼬물거리면(빙글빙글 돌리면) 호기심이 커진다
+    const moved = Math.hypot(mouse.x - cursorDwellAt.x, mouse.y - cursorDwellAt.y);
+    if (moved < 190) cursorDwell = Math.min(6, cursorDwell + dt);
+    else { cursorDwell = 0; cursorDwellAt = { x: mouse.x, y: mouse.y }; }
+  }
   function draw(dt) {
     const t = performance.now() / 1000;
+    updateCursorSpot(dt);
     for (const b of birds) {
       const m = b.b3;
       m.holder.position.set(b.x, 0, b.z);
@@ -944,8 +1054,8 @@
       const moving = ACT.isMoving(b.anim) ? 1 : 0;
       if (worm && (b.anim === 'chase' || b.anim === 'beg')) b.look.set(worm.x, worm.y + 0.3, worm.z);
       else if (moving) b.look.set(b.x + b.dir * 8, 1.4, b.z + 3);                  // 걸을 땐 앞을 본다
-      else if (b.carrying) b.look.copy(world.pointAlongRay(mouse.x, mouse.y, 30));
-      else if (now() - mouse.movedAt < 4000 && mouse.x >= 0) b.look.copy(world.pointAlongRay(mouse.x, mouse.y, 30));
+      else if (b.carrying && cursorSpot) b.look.set(cursorSpot.x, cursorSpot.y, cursorSpot.z);
+      else if (cursorSpot && now() - mouse.movedAt < 5000) b.look.set(cursorSpot.x, cursorSpot.y, cursorSpot.z);
       else if (t > b.lookAt) {
         b.lookAt = t + rand(2, 5);
         const kids = kidsOf(b), mom = momOf(b);
@@ -996,13 +1106,19 @@
   // 커서가 바닥 근처에 잠시 머물면 가까운 닭 한 마리가 다가와 본다
   let curiousT = 0;
   function tickCuriosity(dt) {
-    curiousT -= dt; if (curiousT > 0 || mode === 'class' || worm) return; curiousT = 0.7;
-    const idle = now() - mouse.movedAt;
-    if (mouse.x < 0 || idle < 1200 || idle > 5000 || mouse.y < H * 0.55) return;
-    const gp = world.screenToGround(mouse.x, mouse.y); if (!gp) return;
-    let best = null, bd = 7;
-    for (const b of birds) { if (!eligible(b) || b.anim !== 'idle') continue; const d = Math.abs(b.x - gp.x); if (d > 1.8 && d < bd) { bd = d; best = b; } }
-    if (best) { goTo(best, gp.x - Math.sign(gp.x - best.x) * 1.5, 'walk'); best.curious = true; }
+    curiousT -= dt; if (curiousT > 0 || mode === 'class' || worm) return; curiousT = 0.8;
+    if (!cursorSpot) return;
+    // 커서가 한자리에서 꼬물거릴수록(빙글빙글) 더 멀리서도 보러 온다
+    const reach = 4 + cursorDwell * 2.6;
+    let best = null, bd = reach;
+    for (const b of birds) {
+      if (!eligible(b) || !['idle', 'scratch', 'walk', 'preen', 'peck'].includes(b.anim)) continue;
+      const T = trait(b);
+      if (Math.random() > 0.35 * T.curiosity * (cursorDwell > 1.5 ? 1.6 : 0.7)) continue;
+      const d = Math.abs(b.x - cursorSpot.x);
+      if (d > 2 && d < bd) { bd = d; best = b; }
+    }
+    if (best) { goTo(best, cursorSpot.x - Math.sign(cursorSpot.x - best.x) * 1.3, 'gopeckat'); best.curious = true; showIcon(best, '👀', 1400); }
   }
 
   let last = performance.now();
@@ -1318,7 +1434,7 @@
         if (act === 'brood') { broodTick(b); b.f = 1; b.wobbleUntil = performance.now() / 1000 + 1; setAnim(b, 'egg', 1.5); showIcon(b, '✨'); }
         else if (act === 'rename') { const nm = prompt('새 이름을 정해 주세요', b.d.name); if (nm && nm.trim()) { b.d.name = nm.trim().slice(0, 12); markDirty(); } }
         else if (act === 'find') { b.x = (world.xMin + world.xMax) / 2; b.d.x = 0.5; b.inCoop = false; setVisible(b, true); if (b.d.stage !== 'egg') jump(b, 300); hoverId = b.d.id; setTimeout(() => { if (hoverId === b.d.id) hoverId = null; }, 3000); }
-        else if (act === 'release') { if (e.target.dataset.confirm) farewell(b); else { e.target.dataset.confirm = '1'; e.target.textContent = '정말요? 한 번 더'; return; } }
+        else if (act === 'release') { if (e.target.dataset.confirm) depart(b, 'retire'); else { e.target.dataset.confirm = '1'; e.target.textContent = '정말요? 한 번 더'; return; } }
         renderCoop();
       });
       box.appendChild(card);
@@ -1428,6 +1544,10 @@
   // 설정 탭
   function renderSettings() {
     $('#soundOn').checked = state.settings.sound;
+    $('#pauseWeekends').checked = state.settings.pauseWeekends !== false;
+    $('#vacationOn').checked = !!state.settings.vacation;
+    const v = state.settings.vacation;
+    $('#calInfo').textContent = `🧊 돌봄 프리즈 ${state.freezes}개 남음` + (v ? ` · 🏖️ 방학 ${v.from}~${v.to}` : '') + ((state.settings.holidays || []).length ? ` · 🗓️ 쉬는 날 ${state.settings.holidays.length}일` : '');
     $$('[data-prop]').forEach((c) => { c.checked = propVisible(c.dataset.prop); });
     $$('[data-size]').forEach((b) => b.classList.toggle('primary', +b.dataset.size === state.settings.size));
     $$('[data-home]').forEach((b) => b.classList.toggle('primary', b.dataset.home === state.settings.homeSide));
@@ -1437,12 +1557,32 @@
   $$('[data-prop]').forEach((c) => c.addEventListener('change', () => { state.settings.propHidden = state.settings.propHidden || {}; state.settings.propHidden[c.dataset.prop] = !c.checked; markDirty(); layoutHome(); }));
   $('#btnResetProps').addEventListener('click', () => { state.settings.propPos = {}; markDirty(); layoutHome(); toast('소품 배치를 처음으로 되돌렸어요'); });
   $$('[data-home]').forEach((b) => b.addEventListener('click', () => { state.settings.homeSide = b.dataset.home; markDirty(); renderSettings(); layoutHome(); }));
-  $$('[data-lifeend]').forEach((b) => b.addEventListener('click', () => { state.settings.lifeEnd = b.dataset.lifeend; markDirty(); renderSettings(); }));
+  $$('[data-lifeend]').forEach((b) => b.addEventListener('click', () => { state.settings.lifeEnd = b.dataset.lifeend; markDirty(); renderSettings(); toast({ safe: '안심 모드 — 아무도 떠나지 않아요', retire: '오래 방치하면 잠시 떠나요 (다시 돌보면 돌아와요)', natural: '나이가 다 되면 자연으로 돌아가요 (고학년용)' }[b.dataset.lifeend], false, 7000); }));
+  $('#pauseWeekends').addEventListener('change', (e) => { state.settings.pauseWeekends = e.target.checked; markDirty(); });
+  $('#vacationOn').addEventListener('change', (e) => {
+    if (e.target.checked) {
+      const from = prompt('방학 시작일 (예: 2026-12-24)', today());
+      const to = from ? prompt('방학 끝나는 날 (예: 2027-02-28)', from) : null;
+      if (from && to) { state.settings.vacation = { from, to }; toast(`🏖️ ${from} ~ ${to} 은 시간이 멈춰요`, true, 8000); }
+      else e.target.checked = false;
+    } else state.settings.vacation = null;
+    markDirty(); renderSettings();
+  });
+  $('#btnAddHoliday').addEventListener('click', () => {
+    const d = prompt('쉬는 날을 추가해요 (예: 2026-10-05)', today());
+    if (!d) return;
+    state.settings.holidays = (state.settings.holidays || []).concat([d]);
+    markDirty(); renderSettings(); toast(`🗓️ ${d} 을(를) 쉬는 날로 저장했어요`, false, 6000);
+  });
   $('#soundOn').addEventListener('change', (e) => { state.settings.sound = e.target.checked; markDirty(); if (e.target.checked) chime(); });
   $('#autostart').addEventListener('change', (e) => api.setAutostart(e.target.checked));
   $('#btnQuit').addEventListener('click', async () => { await persist(); api.quit(); });
 
-  setInterval(() => { if (!panel.classList.contains('hidden')) renderCoop(); }, 1200);
+  let dayMark = today();
+  setInterval(() => {
+    if (today() !== dayMark) { dayMark = today(); checkNeglect(); tryReturn(); }
+    if (!panel.classList.contains('hidden')) renderCoop();
+  }, 1200);
   api.on('ui:toggle-menu', togglePanel);
   api.on('timer:start', (k) => startTimer(k));
   api.on('timer:stop', () => stopTimer());
@@ -1458,10 +1598,17 @@
     if (migrated) state = migrated;
     else if (saved) toast('저장 데이터를 읽지 못해 새로 시작합니다', true, 9000);
     // 자리 비운 시간만큼 배고픔·목마름 (시간당 4, 최대 40)
-    const loss = Math.min(40, Math.max(0, now() - (state.lastSeen || now())) / 3600000 * 4);
+    // 주말·방학은 시간이 흐르지 않는다. 그리고 한 번에 12시간을 넘겨 흐르지 않는다.
+    const awayH = SCH.effectiveAwayHours(state.lastSeen, now(), state);
+    const loss = Math.min(40, awayH * 4);
+    state.feed = clamp(state.feed - awayH * 4, 0, 100);
+    state.water = clamp(state.water - awayH * 5, 0, 100);
+    state.bedding = clamp(state.bedding - awayH * 1.2, 0, 100);
     for (const d of state.flock) { ST.ensureBird(d); d.hunger = clamp(d.hunger - loss, 15, 100); d.thirst = clamp(d.thirst - loss, 15, 100); d.energy = clamp(d.energy + loss * 1.5, 0, 100); d.stress = 0; }
     resize();
     birds = state.flock.map(makeRuntime);
+    checkNeglect();        // 지난 등교일을 먼저 정산한 뒤 오늘을 시작한다
+    tryReturn();
     world.setSupplies(state.feed, state.water, state.basket);
     HYG.restore(state.poops);
     const info = await api.info();
@@ -1471,11 +1618,23 @@
     if (state.lastAttend !== today()) { state.lastAttend = today(); markDirty(); }
     if (state.lastWormGift !== today()) { state.lastWormGift = today(); state.worms = Math.min(9, (state.worms || 0) + 3); world.setWormCount(state.worms); markDirty(); if (birds.length) setTimeout(() => toast('🪱 오늘의 벌레 3마리가 벌레통에 도착했어요'), 4000); }
     for (const b of birds) decide(b);
+
+    // 돌아온 걸 반기는 인사 — 벌점 화면이 아니라 선물로
+    if (birds.length && awayH > 0.5) {
+      const gained = state.basket;
+      later(birds[0], 1200, () => {
+        const parts = [];
+        if (gained) parts.push(`달걀 ${gained}개`);
+        if (state.worms) parts.push(`벌레 ${state.worms}마리`);
+        toast(`👋 다시 오셨네요! ${parts.length ? parts.join(' · ') + '가 기다리고 있어요' : '닭들이 기다렸어요'}`, true, 9000);
+      });
+    }
+
     setTimeout(morningCrow, 2500);
     setTimeout(() => { const fans = birds.filter((b) => eligible(b) && b.d.aff >= 70); if (fans.length) { const cx = (world.xMin + world.xMax) / 2; for (const b of fans) { b.callTarget = { x: cx + rand(-2, 2), z: rand(-0.5, 1) }; setAnim(b, 'chase', 30); } toast('❤️ 닭들이 선생님을 반기러 달려와요'); } }, 1800);
     requestAnimationFrame(loop);
   }
   // 디버그 훅 (자동 캡처용)
-  window.__tp = { why: (n) => { const b = birds.find((q) => q.d.name === n); if (!b) return null; decide(b); return { choice: b.lastChoice, cands: b.lastCands }; }, lamp: (v) => { state.lampPower = v; return state.lampPower; }, comfort: () => birds.filter((q) => q.d.stage === 'chick').map((q) => ({ name: q.d.name, days: daysCared(q), st: q.comfort && q.comfort.state, need: q.comfort && +q.comfort.need.toFixed(1), act: q.comfort && +q.comfort.actual.toFixed(1) })), sickOf: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.sick : null; }, makeSick: (n, k) => { const b = birds.find((q) => q.d.name === n); if (b) { HLT.fallSick(b.d, k); return b.d.sick; } return null; }, poop: (n) => { for (let i = 0; i < (n || 1); i++) HYG.dropPoop(rand(world.xMin + 2, world.xMax - 2), rand(-1.5, 1.5), Math.random() < 0.15); markDirty(); return HYG.count(); }, poopCount: () => HYG.count(), amm: () => +(state.ammonia || 0).toFixed(1), setAmm: (v) => { state.ammonia = v; }, care: (name, what) => { const b = birds.find((q) => q.d.name === name); if (b) { careTick(b, what); return JSON.stringify(b.d.care); } return null; }, careOf: (name) => { const b = birds.find((q) => q.d.name === name); return b ? { care: b.d.care, days: daysCared(b), stage: b.d.stage } : null; }, at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const p = world.screenToPlaneZ(px, py, 1.2); if (p) { worm.x = p.x; worm.y = Math.max(0.15, p.y); } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(1) })) };
+  window.__tp = { runNeglect: () => { checkNeglect(); return birds.length; }, frozen: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.frozen : null; }, freezes: () => state.freezes, away: () => state.away.map((a) => a.name + ':' + (a.progress || 0)), album: () => state.album.length, neglect: (name) => { const b = birds.find((q) => q.d.name === name); return b ? SCH.neglectedDays(b.d, state) : null; }, why: (n) => { const b = birds.find((q) => q.d.name === n); if (!b) return null; decide(b); return { choice: b.lastChoice, cands: b.lastCands }; }, lamp: (v) => { state.lampPower = v; return state.lampPower; }, comfort: () => birds.filter((q) => q.d.stage === 'chick').map((q) => ({ name: q.d.name, days: daysCared(q), st: q.comfort && q.comfort.state, need: q.comfort && +q.comfort.need.toFixed(1), act: q.comfort && +q.comfort.actual.toFixed(1) })), sickOf: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.sick : null; }, makeSick: (n, k) => { const b = birds.find((q) => q.d.name === n); if (b) { HLT.fallSick(b.d, k); return b.d.sick; } return null; }, poop: (n) => { for (let i = 0; i < (n || 1); i++) HYG.dropPoop(rand(world.xMin + 2, world.xMax - 2), rand(-1.5, 1.5), Math.random() < 0.15); markDirty(); return HYG.count(); }, poopCount: () => HYG.count(), amm: () => +(state.ammonia || 0).toFixed(1), setAmm: (v) => { state.ammonia = v; }, care: (name, what) => { const b = birds.find((q) => q.d.name === name); if (b) { careTick(b, what); return JSON.stringify(b.d.care); } return null; }, careOf: (name) => { const b = birds.find((q) => q.d.name === name); return b ? { care: b.d.care, days: daysCared(b), stage: b.d.stage } : null; }, at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const p = world.screenToPlaneZ(px, py, 1.2); if (p) { worm.x = p.x; worm.y = Math.max(0.15, p.y); } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(1) })) };
   init();
 })();
