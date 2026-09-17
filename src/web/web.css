@@ -1,0 +1,34 @@
+/* 웹 전용 — 바탕화면 대신 하늘과 잔디를 그린다 */
+html, body {
+  background: linear-gradient(#8FC7F5 0%, #BFE0FA 22%, #DFF0FB 31%, #B7DE93 33%, #8FCB6B 62%, #7BBE5B 100%);
+  overscroll-behavior: none;
+  -webkit-user-select: none; user-select: none;
+}
+body.tp-hidden #stageHost, body.tp-hidden #bubbles { display: none; }
+
+/* 구름 */
+.cloud { position: absolute; background: rgba(255,255,255,.85); border-radius: 50%; pointer-events: none; filter: blur(0.3px); }
+
+/* 트레이 메뉴를 대신하는 화면 버튼 */
+#webbar {
+  position: absolute; top: 12px; right: 14px; display: flex; gap: 6px; z-index: 30;
+  background: rgba(255,253,245,.9); border: 2px solid #2B1B0E; border-radius: 12px;
+  padding: 5px 7px; box-shadow: 2px 2px 0 #2B1B0E;
+}
+#webbar button {
+  font: inherit; font-size: 13px; border: 0; background: transparent; cursor: pointer;
+  padding: 4px 8px; border-radius: 8px; box-shadow: none; color: #2B1B0E;
+}
+#webbar button:hover { background: #FFE9A8; }
+#webbar button:active { transform: none; }
+#webbar .sep { width: 1px; background: #E0D6C0; margin: 2px 2px; }
+
+/* 처음 오는 사람을 위한 안내 */
+#welcome {
+  position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%);
+  background: rgba(255,253,245,.96); border: 3px solid #2B1B0E; border-radius: 18px;
+  padding: 22px 26px; max-width: 460px; box-shadow: 5px 5px 0 #2B1B0E; z-index: 40; text-align: center;
+}
+#welcome h2 { margin: 0 0 8px; font-size: 21px; }
+#welcome p { margin: 6px 0; font-size: 14px; line-height: 1.65; color: #5A4A33; }
+#welcome button { margin-top: 12px; font-size: 15px; padding: 9px 20px; }
