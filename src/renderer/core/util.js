@@ -7,6 +7,7 @@
     $$: (s) => Array.from(document.querySelectorAll(s)),
     now: () => Date.now(),
     today: () => new Date().toISOString().slice(0, 10),
+    addDays: (day, n) => { const d = new Date(day + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); },
     rand: (a, b) => a + Math.random() * (b - a),
     pick: (arr) => arr[Math.floor(Math.random() * arr.length)],
     clamp: (v, a, b) => Math.max(a, Math.min(b, v)),

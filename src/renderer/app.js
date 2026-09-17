@@ -4,7 +4,7 @@
 (() => {
   const api = window.teacherpet;
   const THREE = window.THREE;
-  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, school: SCH, bus } = window.TP;
+  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, school: SCH, granny: GR, bus } = window.TP;
   const { $, $$, now, today, rand, pick, clamp, uid, esc } = U;
   const { RULE, PX_PER_UNIT, STAGE_KO, STAGE_ORDER, SPEED, NAMES, PROP_NAMES, PROP_KO } = C;
   const { trait, moodOf, rank, TRAIT_DESC } = MIND;
@@ -94,6 +94,110 @@
     const btn = $('#wbEdit');
     if (btn) btn.classList.toggle('on', editMode);
   }
+  // ══════════ 할머니 ══════════
+  // 잔소리하지 않고, 실패를 나무라지 않는다. 물어보면 알려주고, 아니면 곁에 있을 뿐이다.
+  const guideCfg = () => GR.GUIDE[(state.settings || {}).guide] || GR.GUIDE.often;
+  function grannySay(text, btns) {
+    const card = $('#granny'), box = $('#gBtns');
+    $('#gSay').innerHTML = esc(text).replace(/\n/g, '<br>');
+    box.innerHTML = '';
+    for (const b of (btns || [])) {
+      const el = document.createElement('button');
+      if (b.primary) el.className = 'primary';
+      el.innerHTML = esc(b.label) + (b.sub ? `<small>${esc(b.sub)}</small>` : '');
+      el.addEventListener('click', b.fn);
+      box.appendChild(el);
+    }
+    card.classList.remove('hidden');
+  }
+  function grannyHide() { $('#granny').classList.add('hidden'); }
+  function askGranny() {
+    grannySay(GR.advise(state, birds, HYG, (d) => ST.caredToday(d)),
+      [{ label: '알겠어요', primary: true, fn: grannyHide }]);
+  }
+  // 할머니가 먼저 말을 거는 건 '자주 여쭤볼래요'를 고른 아이에게만
+  function nudge() {
+    if (!guideCfg().nudge) return;
+    if (!$('#granny').classList.contains('hidden')) return;
+    if (stepIdx >= 0) return;                       // 첫날 안내 중에는 끼어들지 않는다
+    if (now() - lastNudge < 90000) return;
+    const line = GR.advise(state, birds, HYG, (d) => ST.caredToday(d));
+    if (line === lastLine) return;                  // 같은 말을 두 번 하지 않는다
+    lastNudge = now(); lastLine = line;
+    grannySay(line, [{ label: '알겠어요', primary: true, fn: grannyHide }]);
+  }
+  let lastNudge = 0, lastLine = '';
+
+  // ── 장 ──
+  function chapter(n) {
+    if ((state.chapter || 0) >= n) return;
+    state.chapter = n; markDirty();
+    const c = GR.CHAPTERS[n];
+    if (c) later0(() => grannySay(c.say, [{ label: '네', primary: true, fn: grannyHide }]), 1400);
+  }
+  const later0 = (fn, ms) => setTimeout(fn, ms);
+
+  // ── 첫날 안내: 한 번에 하나씩 ──
+  let stepIdx = -1;
+  function startSteps() { stepIdx = 0; showStep(); }
+  function showStep() {
+    const s = GR.STEPS[stepIdx];
+    if (!s) { stepIdx = -1; grannyHide(); return; }
+    grannySay(s.say, s.last ? [{ label: '알겠어요', primary: true, fn: () => { stepIdx = -1; state.onboarded = true; markDirty(); grannyHide(); } }] : []);
+  }
+  function checkStep() {
+    if (stepIdx < 0) return;
+    const s = GR.STEPS[stepIdx];
+    if (s && s.done(state)) { stepIdx += 1; showStep(); }
+  }
+
+  // ── 처음 한 번: 안내 수준 고르기 ──
+  function askGuide() {
+    const pickGuide = (k) => {
+      state.settings.guide = k;
+      if (GR.GUIDE[k].detail) state.settings.detail = true;
+      markDirty();
+      grannySay(GR.INTRO.join('\n'), [{ label: '병아리를 받을게요', primary: true, fn: () => { grannyHide(); giveFirstChick(); } }]);
+    };
+    grannySay('할머니께 얼마나 여쭤볼까요?',
+      Object.keys(GR.GUIDE).map((k) => ({ label: GR.GUIDE[k].label, sub: GR.GUIDE[k].desc, primary: k === 'often', fn: () => pickGuide(k) })));
+  }
+
+  // ── 품앗이: 친구의 수탉을 잠시 빌린다 ──
+  // 성별이 무작위라 혼자서는 다음 세대가 없다. 친구에게 코드를 받아야 알이 생긴다.
+  function borrowedOk() {
+    const b = state.borrowed;
+    return !!(b && b.until && today() <= b.until);
+  }
+
+  // ── 씨알 코드 ──
+  // 친구의 수탉을 잠시 빌려 오는 표. 이름·기기 정보·어떤 식별자도 들어가지 않는다.
+  // 말로 불러 주거나 칠판에 적어도 되게 짧게 만든다. 네트워크를 전혀 타지 않는다.
+  const TRAITS = MIND.NAMES;
+  function hash36(s) {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(36).toUpperCase();
+  }
+  function makeSeedCode(name, trait, day) {
+    const ti = Math.max(0, TRAITS.indexOf(trait));
+    const head = ti.toString(36).toUpperCase();
+    return name + '-' + head + hash36(name + '|' + ti + '|' + day).slice(-3);
+  }
+  // 오늘·어제·그제 것까지 받아 준다 (쉬는 시간에 받아 집에서 넣는 경우)
+  function readSeedCode(code) {
+    const m = String(code || '').trim().replace(/\s+/g, '').match(/^(.+)-([0-9A-Za-z])([0-9A-Za-z]{3})$/);
+    if (!m) return null;
+    const name = m[1], head = m[2].toUpperCase(), tail = m[3].toUpperCase();
+    const ti = parseInt(head, 36);
+    if (!(ti >= 0 && ti < TRAITS.length)) return null;
+    for (let back = 0; back <= 2; back++) {
+      const day = U.addDays(today(), -back);
+      if (hash36(name + '|' + ti + '|' + day).slice(-3) === tail) return { name, trait: TRAITS[ti], day };
+    }
+    return null;
+  }
+
   // 이 닭이 지금 자리에서 느끼는 온도 (병아리만 의미가 있다)
   function comfortOf(b) {
     const ws = warmSpot();
@@ -111,7 +215,7 @@
 
   function newBird(stage, opts = {}) {
     return Object.assign({
-      id: uid(), name: pick(NAMES), stage, sex: null, fertile: true, born: now(), stageSince: today(),
+      id: uid(), name: pick(NAMES), stage, sex: Math.random() < 0.5 ? 'f' : 'm', fertile: true, born: now(), stageSince: today(),
       care: {}, hunger: 70, thirst: 70, happy: 70, aff: 50, trait: pick(MIND.NAMES),
       energy: 80, boredom: 20, social: 20, stress: 0, health: 100, sick: null, momId: null, children: 0,
       eggsLaid: 0, lastLaid: '', brooding: null, x: rand(0.3, 0.8), z: 0, old: false, pets: 0,
@@ -129,7 +233,10 @@
   const spec = (b) => ({ speed: SPEED[b.d.stage] || 1.5, special: SPECIAL[b.d.stage] || 'peck' });
   const height = (b) => world.heightOf(b.b3);
   const isAdult = (b) => b.d.stage === 'hen' || b.d.stage === 'rooster';
-  const hasRooster = () => birds.some((b) => b.d.stage === 'rooster');
+  const hasRooster = () => birds.some((b) => b.d.stage === 'rooster') || borrowedOk();
+  // 볏과 꽁지깃이 자라야 암수를 알 수 있다. 병아리 때는 사람도 구별하지 못한다.
+  const sexKnown = (d) => d.stage === 'young' || d.stage === 'hen' || d.stage === 'rooster';
+  const sexMark = (d) => (sexKnown(d) ? (d.sex === 'f' ? ' ♀' : ' ♂') : '');
 
   function setAnim(b, anim, dur) { b.anim = anim; b.animT = 0; b.animDur = dur; }
   // 방향은 0.5초에 한 번만 바꾼다 — 화면 끝이나 양쪽에 닭이 있을 때 매 프레임 뒤집히며 떨던 문제
@@ -931,6 +1038,7 @@
       if ((b.d.wrongFeed || 0) >= 2) { showIcon(b, '⚠️', 2500); }
       if (b.d.hurt) { b.d.hurt = null; b.d.health = clamp(b.d.health + 25, 0, 100); showIcon(b, '💚', 3000); toast(`💚 ${b.d.name}(이)의 다리가 다 나았어요`, false, 5000); }
       growCheck(b); layCheck(b); tryReturn();
+      if (daysCared(b) >= 3) chapter(2);
     }
   }
   function broodTick(egg) {
@@ -953,12 +1061,13 @@
     if (b.d.stage === 'egg' && n >= RULE.daysEgg) {
       if (b.hatching === undefined || b.hatching === null) startHatching(b);
     } else if (b.d.stage === 'chick' && n >= RULE.daysChick) {
-      advance(b, 'young'); jump(b, 280); toast(`${b.d.name}(이)가 어린닭이 됐어요. 볏이 보이기 시작해요`, true, 7000); chime();
+      advance(b, 'young'); jump(b, 280); chime();
+      toast(`${b.d.name}(이)가 어린닭이 됐어요. 볏이 자라서 ${b.d.sex === 'f' ? '암컷' : '수컷'}인 걸 알 수 있어요`, true, 8000);
+      chapter(3);
     } else if (b.d.stage === 'young' && n >= RULE.daysYoung) {
-      const adults = birds.filter(isAdult);
-      let sex = Math.random() < 0.5 ? 'f' : 'm';
-      if (adults.length === 0) sex = 'f'; else if (adults.length === 1) sex = adults[0].d.sex === 'f' ? 'm' : 'f';
+      const sex = b.d.sex || (Math.random() < 0.5 ? 'f' : 'm');
       b.d.sex = sex; advance(b, sex === 'f' ? 'hen' : 'rooster'); jump(b, 300);
+      chapter(4);
       toast(sex === 'f' ? `🐔 ${b.d.name}(이)가 암탉이 됐어요! 이제 알을 낳을 수 있어요` : `🐓 ${b.d.name}(이)가 수탉이 됐어요! 꼬끼오~`, true, 8000); chime();
       if (sex === 'm') crowSound();
     } else if (isAdult(b) && !b.d.old && n >= RULE.daysToOld) {
@@ -1155,7 +1264,7 @@
       if (showIconNow) { if (!b.iconEl) { b.iconEl = document.createElement('div'); b.iconEl.className = 'icon'; overlay.appendChild(b.iconEl); } b.iconEl.textContent = b.icon; b.iconEl.style.left = top.x + 'px'; b.iconEl.style.top = (top.y - 4 + Math.sin(t * 4) * 2) + 'px'; b.iconEl.style.display = ''; }
       else if (b.iconEl) b.iconEl.style.display = 'none';
       const showTag = m.holder.visible && (hoverId === b.d.id || (selectedId === b.d.id && !panel.classList.contains('hidden')));
-      if (showTag) { if (!b.tagEl) { b.tagEl = document.createElement('div'); b.tagEl.className = 'tag'; overlay.appendChild(b.tagEl); } b.tagEl.textContent = `${b.d.name} · ${STAGE_KO[b.d.stage]}${b.d.sex ? (b.d.sex === 'f' ? ' ♀' : ' ♂') : ''}`; b.tagEl.style.left = top.x + 'px'; b.tagEl.style.top = (top.y - (showIconNow ? 34 : 4)) + 'px'; b.tagEl.style.display = ''; }
+      if (showTag) { if (!b.tagEl) { b.tagEl = document.createElement('div'); b.tagEl.className = 'tag'; overlay.appendChild(b.tagEl); } b.tagEl.textContent = `${b.d.name} · ${STAGE_KO[b.d.stage]}${sexMark(b.d)}`; b.tagEl.style.left = top.x + 'px'; b.tagEl.style.top = (top.y - (showIconNow ? 34 : 4)) + 'px'; b.tagEl.style.display = ''; }
       else if (b.tagEl) b.tagEl.style.display = 'none';
     }
     if (worm) {
@@ -1289,6 +1398,7 @@
     canvas.style.cursor = b ? 'grab' : (hoverProp || hoverPoop) ? 'pointer' : 'default';
   });
   setInterval(() => { if (rub.id && now() - rub.lastT > 700) rubEnd(); }, 300);
+  setInterval(() => { if (birds.length && state.onboarded) nudge(); }, 20000);
   canvas.addEventListener('mousedown', (e) => {
     const b = birdAt(e.clientX, e.clientY);
     if (e.button === 2) return;
@@ -1474,7 +1584,7 @@
       const broodedToday = b.d.stage === 'egg' && ST.caredToday(b.d);
       card.innerHTML = `
         <div class="head"><span class="name">${esc(b.d.name)}</span>
-          <span class="sex ${b.d.sex || ''}">${STAGE_KO[b.d.stage]}${b.d.sex ? (b.d.sex === 'f' ? ' ♀' : ' ♂') : ''}${b.d.old ? ' · 노년' : ''}</span>
+          <span class="sex ${sexKnown(b.d) ? b.d.sex : ''}">${STAGE_KO[b.d.stage]}${sexMark(b.d)}${b.d.old ? ' · 노년' : ''}</span>
           <span class="stage">${doing(b)}</span></div>
         <div class="head"><span class="stage">${days}일째 · ${b.d.trait}${b.d.stage === 'hen' ? ` · 알 ${b.d.eggsLaid}개` : ''}${b.d.brooding ? ' · 품는 중' : ''}</span></div>
         ${need ? `<div class="stat"><b>${b.d.stage === 'egg' ? '부화' : '성장'}</b><span class="say">${n >= need ? '곧 자라요!' : `${need - n}번 더 돌보면 자라요`}${detailOn() ? ` (${n}/${need}일)` : ''}</span></div>` : ''}
@@ -1496,23 +1606,36 @@
       });
       box.appendChild(card);
     }
+    const bw = state.borrowed;
+    $('#seedHint').textContent = borrowedOk()
+      ? `친구네 ${bw.name}(이)가 와 있어요 (${bw.until}까지)`
+      : birds.some((b) => b.d.stage === 'rooster') ? '수탉이 있어요 — 친구에게 코드를 나눠 줄 수 있어요' : '';
     const hens = birds.filter((b) => b.d.stage === 'hen').length;
-    $('#coopHint').textContent = birds.length >= RULE.maxFlock ? '닭장이 꽉 찼어요 (6마리). 새 알은 바구니로 가요.' : hens && !hasRooster() ? '수탉이 없어서 지금 낳는 알은 부화하지 않아요.' : '';
+    $('#coopHint').textContent = birds.length >= RULE.maxFlock ? '닭장이 꽉 찼어요 (6마리). 새 알은 바구니로 가요.' : hens && !hasRooster() ? '수탉이 없어서 지금 낳는 알은 부화하지 않아요. 친구에게 씨알 코드를 받아 보세요.' : '';
   }
-  $('#btnFeed').addEventListener('click', () => { if (now() - state.lastFeedRefill < RULE.refillCooldownMin * 60000) return; state.feed = 100; state.lastFeedRefill = now(); markDirty(); renderCoop(); world.setSupplies(state.feed, state.water, state.basket); toast('🌾 모이통을 채웠어요'); for (const b of birds) if (b.d.stage !== 'egg' && b.d.hunger < 70 && !b.d.brooding) decide(b); });
-  $('#btnWater').addEventListener('click', () => { if (now() - state.lastWaterRefill < RULE.refillCooldownMin * 60000) return; state.water = 100; state.lastWaterRefill = now(); markDirty(); renderCoop(); world.setSupplies(state.feed, state.water, state.basket); toast('💧 물통을 채웠어요'); });
-  $('#btnStarter').addEventListener('click', () => {
+  $('#btnFeed').addEventListener('click', () => { if (now() - state.lastFeedRefill < RULE.refillCooldownMin * 60000) return; state.feed = 100; state.lastFeedRefill = now(); markDirty(); renderCoop(); checkStep(); world.setSupplies(state.feed, state.water, state.basket); toast('🌾 모이통을 채웠어요'); for (const b of birds) if (b.d.stage !== 'egg' && b.d.hunger < 70 && !b.d.brooding) decide(b); });
+  $('#btnWater').addEventListener('click', () => { if (now() - state.lastWaterRefill < RULE.refillCooldownMin * 60000) return; state.water = 100; state.lastWaterRefill = now(); markDirty(); renderCoop(); checkStep(); world.setSupplies(state.feed, state.water, state.basket); toast('💧 물통을 채웠어요'); });
+  $('#btnStarter').addEventListener('click', () => giveFirstChick());
+  // 첫 병아리는 할머니가 건넨다. 알이 아니라 병아리로 시작하는 이유는,
+  // 알로 시작하면 7일 동안 할 수 있는 일이 '품기' 버튼 하나뿐이기 때문이다.
+  function giveFirstChick() {
+    if (birds.length) return;
     const hm = home();
-    for (let i = 0; i < 2; i++) { const d = newBird('egg', { name: NAMES[i], x: toFrac(hm.nest.x + (i ? 0.45 : -0.35)), z: hm.nest.z + (i ? 0.3 : -0.2) }); state.flock.push(d); const rt = makeRuntime(d); rt.x = hm.nest.x + (i ? 0.45 : -0.35); birds.push(rt); }
-    toast('🥚 알 두 개가 둥지에 도착했어요. 매일 품어주면 3일 뒤 태어나요', true, 8000); markDirty(); renderCoop();
-  });
+    const d = newBird('chick', { x: toFrac(hm.coop.x + 1.6), z: hm.coop.z + 0.6 });
+    state.flock.push(d);
+    const rt = makeRuntime(d); rt.x = hm.coop.x + 1.6; rt.z = hm.coop.z + 0.6; birds.push(rt);
+    state.chapter = 1; state.onboarded = false; markDirty(); renderCoop(); closePanel();
+    $('#gAsk').classList.remove('hidden');
+    grannySay(GR.CHAPTERS[1].say + `\n\n이름은 "${d.name}"라고 불러 두었단다. 마음에 안 들면 바꾸어도 좋아.`,
+      [{ label: '고마워요 할머니', primary: true, fn: () => { grannyHide(); startSteps(); } }]);
+  }
   $$('[data-feed]').forEach((x) => x.addEventListener('click', () => {
     state.feedType = x.dataset.feed; for (const q of birds) q.d.wrongFeed = 0;
     markDirty(); renderCoop();
     const f = C.FEED[state.feedType];
     toast(`🌾 모이통에 ${f.name} 사료를 넣었어요 — ${f.desc}`, false, 4500);
   }));
-  $$('[data-lamp]').forEach((x) => x.addEventListener('click', () => {
+  $$('[data-lamp]').forEach((x) => x.addEventListener('click', () => { setTimeout(checkStep, 60);
     state.lampPower = +x.dataset.lamp; markDirty(); renderCoop();
     toast(`🔥 보온등 ${x.textContent}`, false, 2500);
   }));
@@ -1568,6 +1691,27 @@
   }
   $$('[data-size]').forEach((b) => b.addEventListener('click', () => { state.settings.size = +b.dataset.size; markDirty(); renderSettings(); resize(); }));
   $$('[data-prop]').forEach((c) => c.addEventListener('change', () => { state.settings.propHidden = state.settings.propHidden || {}; state.settings.propHidden[c.dataset.prop] = !c.checked; markDirty(); layoutHome(); }));
+  $('#btnSeedMake').addEventListener('click', () => {
+    const r = birds.find((b) => b.d.stage === 'rooster');
+    if (!r) { toast('아직 수탉이 없어요. 수탉이 자라면 친구에게 씨알 코드를 나눠 줄 수 있어요', false, 7000); return; }
+    const code = makeSeedCode(r.d.name, r.d.trait, today());
+    state.coins += 2; markDirty();                     // 나눠 주는 쪽도 이득이 있어야 품앗이가 된다
+    grannySay(`${r.d.name}(이)의 씨알 코드란다.\n\n        ${code}\n\n친구에게 불러 주렴. 오늘 것은 사흘까지 쓸 수 있단다.\n(이름 말고는 아무것도 들어 있지 않아. 인터넷으로도 가지 않는단다.)`,
+      [{ label: '복사하기', primary: true, fn: () => { try { navigator.clipboard.writeText(code); toast('📋 코드를 복사했어요'); } catch (e) { toast('코드를 손으로 적어 주세요'); } } },
+       { label: '닫기', fn: grannyHide }]);
+  });
+  $('#btnSeedUse').addEventListener('click', () => {
+    const inp = prompt('친구에게 받은 씨알 코드를 넣어 주세요 (예: 우렁-A3F7)', '');
+    if (!inp) return;
+    const s = readSeedCode(inp);
+    if (!s) { toast('코드가 조금 다른 것 같아요. 한 글자씩 다시 확인해 볼까요?', false, 7000); return; }
+    if (state.borrowed && state.borrowed.code === inp.trim() && borrowedOk()) { toast('이 코드는 이미 쓰고 있어요', false, 6000); return; }
+    state.borrowed = { name: s.name, trait: s.trait, until: U.addDays(today(), 2), code: inp.trim() };
+    markDirty(); renderCoop();
+    grannySay(`친구네 수탉 ${s.name}(이)가 놀러 왔구나. (${s.trait})\n사흘 동안은 우리 암탉이 낳는 알에서 병아리가 태어난단다.`,
+      [{ label: '고마워요', primary: true, fn: grannyHide }]);
+  });
+  $('#gAsk').addEventListener('click', () => { if ($('#granny').classList.contains('hidden')) askGranny(); else grannyHide(); });
   $('#btnResetProps').addEventListener('click', () => { state.settings.propPos = {}; markDirty(); layoutHome(); toast('소품 배치를 처음으로 되돌렸어요'); });
   $$('[data-home]').forEach((b) => b.addEventListener('click', () => { state.settings.homeSide = b.dataset.home; markDirty(); renderSettings(); layoutHome(); }));
   $$('[data-lifeend]').forEach((b) => b.addEventListener('click', () => { state.settings.lifeEnd = b.dataset.lifeend; markDirty(); renderSettings(); toast({ safe: '안심 모드 — 아무도 떠나지 않아요', retire: '오래 방치하면 잠시 떠나요 (다시 돌보면 돌아와요)', natural: '나이가 다 되면 자연으로 돌아가요 (고학년용)' }[b.dataset.lifeend], false, 7000); }));
@@ -1634,7 +1778,8 @@
     HYG.restore(state.poops);
     const info = await api.info();
     $('#version').textContent = 'v' + info.version; $('#autostart').checked = !!info.openAtLogin;
-    if (!birds.length) openPanel('coop');
+    if (!state.settings.guide) { later0(askGuide, 700); }
+    else { $('#gAsk').classList.remove('hidden'); if (!birds.length) openPanel('coop'); }
     if (state.lastAttend !== today()) { state.lastAttend = today(); markDirty(); }
     if (state.lastWormGift !== today()) { state.lastWormGift = today(); state.worms = Math.min(9, (state.worms || 0) + 3); world.setWormCount(state.worms); markDirty(); if (birds.length) setTimeout(() => toast('🪱 오늘의 벌레 3마리가 벌레통에 도착했어요'), 4000); }
     for (const b of birds) decide(b);

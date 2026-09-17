@@ -3,7 +3,7 @@
 (function (g) {
   const TP = (g.TP = g.TP || {});
   const U = TP.util, C = TP.config;
-  const VERSION = 5;
+  const VERSION = 6;
 
   function defaultState() {
     return {
@@ -25,6 +25,7 @@
         holidays: [], vacation: null, paused: false,
         propPos: {}, propHidden: {},
       },
+      chapter: 0, onboarded: false, borrowed: null,   // borrowed = 친구에게 빌린 수탉(씨알 코드)
       lastCrow: '', lastSeen: U.now(), openedDays: [],
     };
   }
@@ -36,6 +37,10 @@
     if (d.stress === undefined) d.stress = 0;
     if (d.aff === undefined) d.aff = 50;
     if (d.momId === undefined) d.momId = null;
+    // 성별은 태어날 때 정해진다. 다만 이미 어른이면 단계가 곧 성별이라 그쪽을 따른다.
+    if (d.stage === 'hen') d.sex = 'f';
+    else if (d.stage === 'rooster') d.sex = 'm';
+    else if (!d.sex) d.sex = Math.random() < 0.5 ? 'f' : 'm';
     if (d.care === undefined) d.care = {};        // { 날짜: {ate, drank, brooded} }  ← 저장된다
     if (d.health === undefined) d.health = 100;
     if (d.clean === undefined) d.clean = 85;
@@ -72,6 +77,25 @@
       s.away = [];
       delete s.lastAttend;                         // 쓰기만 하고 읽지 않던 필드
       s.version = 4;
+      return s;
+    },
+    // v5 → v6 : 성별을 태어날 때 정하도록 바꿨다.
+    // 예전에는 어른이 될 때 랜덤으로 뽑고, 첫 마리는 무조건 암탉으로 강제했다.
+    // 이제는 태어날 때 정해지고 어린닭이 되어야 드러난다 — 실제로도 전문 감별사가 있어야 구별한다.
+    5(s) {
+      s.flock = (s.flock || []).map((d) => {
+        // 이미 어른이면 단계가 곧 성별이다. 여기서 무작위로 덮으면 암탉이 수컷이 된다.
+        if (d.stage === 'hen') d.sex = 'f';
+        else if (d.stage === 'rooster') d.sex = 'm';
+        else if (!d.sex) d.sex = Math.random() < 0.5 ? 'f' : 'm';
+        return d;
+      });
+      s.chapter = s.flock && s.flock.length ? 4 : 0;   // 이미 키우던 사람은 안내를 다시 보지 않는다
+      s.onboarded = !!(s.flock && s.flock.length);
+      s.borrowed = null;
+      s.settings = s.settings || {};
+      if (!s.settings.guide && s.onboarded) s.settings.guide = 'sometimes';
+      s.version = 6;
       return s;
     },
     // v4 → v5 : 데스크톱 펫 시절의 죽은 필드 제거 (수업 타이머 · 뽑기 · 할 일)
