@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 240" width="220" height="240">
+  <!-- 임시 할머니. npc/granny.png 을 넣으면 자동으로 그쪽으로 바뀝니다. -->
+  <defs>
+    <linearGradient id="ap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#A8BE96"/><stop offset="1" stop-color="#8FA87C"/>
+    </linearGradient>
+  </defs>
+  <!-- 어깨 · 저고리 -->
+  <path d="M40 240 q0-52 70-52 t70 52 z" fill="#F4EBDA"/>
+  <path d="M63 240 q3-40 47-45 q44 5 47 45 z" fill="url(#ap)"/>
+  <path d="M110 195 l-13 45 h26 z" fill="#F4EBDA"/>
+  <!-- 목 -->
+  <path d="M96 168 h28 v26 q-14 8-28 0 z" fill="#E8C0A0"/>
+  <!-- 머리 -->
+  <ellipse cx="110" cy="112" rx="52" ry="58" fill="#F2CDAE"/>
+  <!-- 은발 · 쪽진 머리 -->
+  <path d="M58 106 q4-52 52-52 t52 52 q-10-26-52-26 t-52 26 z" fill="#D9D5CE"/>
+  <path d="M58 106 q-6 22 4 38 q-10-24-4-38z" fill="#D9D5CE"/>
+  <path d="M162 106 q6 22-4 38 q10-24 4-38z" fill="#D9D5CE"/>
+  <circle cx="110" cy="52" r="15" fill="#CFCAC2"/>
+  <!-- 머릿수건 -->
+  <path d="M60 96 q50-34 100 0 q-6-40-50-40 t-50 40 z" fill="#E7B7A8"/>
+  <circle cx="86" cy="72" r="3" fill="#F6DCD4"/><circle cx="110" cy="64" r="3" fill="#F6DCD4"/><circle cx="134" cy="72" r="3" fill="#F6DCD4"/>
+  <!-- 눈 -->
+  <path d="M82 116 q10-9 20 0" stroke="#4A3A2C" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M118 116 q10-9 20 0" stroke="#4A3A2C" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <!-- 주름(따뜻하게) -->
+  <path d="M74 110 l-7-5 M74 118 l-8 1" stroke="#D9AE90" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M146 110 l7-5 M146 118 l8 1" stroke="#D9AE90" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- 볼 -->
+  <ellipse cx="78" cy="132" rx="11" ry="7" fill="#EFA898" opacity=".55"/>
+  <ellipse cx="142" cy="132" rx="11" ry="7" fill="#EFA898" opacity=".55"/>
+  <!-- 코 · 입 -->
+  <path d="M110 122 q4 8 0 12" stroke="#D9AE90" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M97 146 q13 11 26 0" stroke="#9A5B4B" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+</svg>

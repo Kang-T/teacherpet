@@ -41,10 +41,14 @@
   const SEEN = 'teacherpet.welcomed';
   let seen = false;
   try { seen = !!localStorage.getItem(SEEN); } catch (e) { seen = false; }
-  if (seen) $('#welcome').remove();
+  // 환영 카드가 사라지는 순간 = 할머니 이야기가 시작되는 순간.
+  // 두 경로(이미 본 사람 / 지금 누른 사람) 모두에서 반드시 알려야 한다.
+  // (한쪽에서만 알리면, 이미 본 사람은 이야기가 영영 시작되지 않는다)
+  function begin() { $('#welcome') && $('#welcome').remove(); window.__tpEmit('ui:begin'); }
+  if (seen) begin();
   else $('#wbStart').addEventListener('click', () => {
     try { localStorage.setItem(SEEN, '1'); } catch (e) { /* 저장 불가 브라우저 */ }
-    $('#welcome').remove();
+    begin();
   });
 
   // ---- 구름 몇 조각 ----

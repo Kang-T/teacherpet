@@ -11,8 +11,13 @@
 <div id="bubbles"></div>
 <div id="toasts"></div>
 <div id="granny" class="hidden">
-  <div class="gFace">👵</div>
-  <div class="gBody"><p id="gSay"></p><div id="gBtns"></div></div>
+  <img id="gImg" alt="">
+  <div class="gBox">
+    <div class="gName">할머니</div>
+    <p id="gSay"></p>
+    <div id="gBtns"></div>
+  </div>
+  <img id="gKid" alt="" class="hidden">
 </div>
 <button id="gAsk" class="hidden" title="할머니께 여쭤보기">👵 여쭤보기</button>
 <div id="editTip" class="hidden">🔨 꾸미기 중 — 소품을 끌어서 옮겨 보세요 <button id="editDone">다 했어요</button></div>
@@ -28,19 +33,24 @@
   <section data-tab="coop" class="tab active">
     <div class="supply">
       <div class="stat"><b>🌾 모이통</b><span class="say" id="feedSay"></span><button class="small primary" id="btnFeed">채우기</button></div>
-      <div class="stat"><b>사료</b><div class="lampDial">
-        <button data-feed="starter">스타터</button><button data-feed="grower">그로워</button><button data-feed="layer">레이어</button>
-      </div><span id="feedHint"></span></div>
       <div class="stat"><b>💧 물통</b><span class="say" id="waterSay"></span><button class="small primary" id="btnWater">채우기</button></div>
       <div class="stat"><b>🔥 보온등</b><div class="lampDial">
         <button data-lamp="0">끔</button><button data-lamp="0.35">약</button><button data-lamp="0.65">중</button><button data-lamp="1">강</button>
       </div><span id="lampHint"></span></div>
-      <div class="stat"><b>😷 공기</b><span class="say" id="ammLabel"></span></div>
       <div class="stat"><b>🌾 깔짚</b><span class="say" id="bedSay"></span><button class="small primary" id="btnBedding">갈기</button></div>
-      <div class="row tiny"><span>💩 <b id="poopCount">0</b>개</span><button class="small" id="btnFindPoop">🔦 남은 곳 보기</button><span>🧺 달걀 <b id="basketCount">0</b>개</span><span>🪙 <b id="coinCount">0</b></span><span>🪱 벌레 <b id="wormCount">0</b></span><button class="small" id="btnBuyWorm">🪱 1🪙</button><button class="small" id="btnBuyMed">💊 약 사기</button><button class="small" id="btnWhistle">🎵 휘파람</button><button class="small" id="btnAlbum">📖 앨범</button></div>
-      <div class="row tiny"><span class="label">🤝 품앗이</span><button class="small" id="btnSeedMake">씨알 코드 만들기</button><button class="small" id="btnSeedUse">친구 코드 넣기</button><span id="seedHint" class="hint"></span></div>
+      <div class="row tiny"><span>💩 <b id="poopCount">0</b>개</span><button class="small" id="btnFindPoop">🔦 남은 곳 보기</button><span>🧺 달걀 <b id="basketCount">0</b>개</span><span>🪙 <b id="coinCount">0</b></span><button class="small" id="btnWhistle">🎵 휘파람</button></div>
+      <div class="row tiny"><button class="small" id="btnMore">⋯ 더 보기</button></div>
+      <div id="moreBox" class="hidden">
+        <div class="stat"><b>사료</b><div class="lampDial">
+          <button data-feed="starter">스타터</button><button data-feed="grower">그로워</button><button data-feed="layer">레이어</button>
+        </div><span id="feedHint"></span></div>
+        <div class="stat"><b>😷 공기</b><span class="say" id="ammLabel"></span></div>
+        <div class="row tiny"><span>🪱 벌레 <b id="wormCount">0</b></span><button class="small" id="btnBuyWorm">🪱 1🪙</button><button class="small" id="btnBuyMed">💊 약 사기</button><button class="small" id="btnAlbum">📖 앨범</button></div>
+        <div class="row tiny"><span class="label">🤝 품앗이</span><button class="small" id="btnSeedMake">씨알 코드 만들기</button><button class="small" id="btnSeedUse">친구 코드 넣기</button><span id="seedHint" class="hint"></span></div>
+        <div class="row tiny"><span class="label">✉️ 편지</span><button class="small" id="btnLetter">할머니께 편지 쓰기</button><span class="hint">고치고 싶은 것을 알려 주세요</span></div>
+        <div class="row tiny"><label class="chk"><input type="checkbox" id="chkDetail"> 숫자로 자세히 보기</label></div>
+      </div>
     </div>
-    <div class="row tiny"><label class="chk"><input type="checkbox" id="chkDetail"> 숫자로 자세히 보기</label></div>
     <div id="flockList"></div>
     <div id="starterBox" class="hidden">
       <p class="hint">아직 아무도 없어요. 할머니께 병아리를 받아 시작해요.</p>
@@ -53,7 +63,7 @@
 
 
   <section data-tab="settings" class="tab">
-    <div class="row"><span class="label">크기</span><button data-size="3">작게</button><button data-size="4">보통</button><button data-size="6">크게 (전자칠판)</button></div>
+    <div class="row"><span class="label">화면</span><span class="hint">마우스 휠로 확대·축소, 오른쪽 버튼을 누른 채 위아래로 움직이면 보는 각도가 바뀌어요</span><button id="btnViewReset">처음 시점으로</button></div>
     <div class="row"><span class="label">닭장 위치</span><button data-home="left">왼쪽 아래</button><button data-home="right">오른쪽 아래</button><button id="btnResetProps">배치 초기화</button></div>
     <div class="row"><span class="label">꾸미기</span><button id="btnEdit">소품 옮기기 켜기</button><span class="hint">평소에는 소품이 고정돼요</span></div>
     <div class="row"><span class="label">보이기</span>

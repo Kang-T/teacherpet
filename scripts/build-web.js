@@ -26,7 +26,7 @@ function copyDir(from, to, skip = []) {
 }
 
 fs.rmSync(OUT, { recursive: true, force: true });
-copyDir(SRC, OUT, ['assets']);                      // 2D 잔재 이미지는 웹에 싣지 않는다
+copyDir(SRC, OUT, ['assets', 'README_안티그라비티_프롬프트.md']);   // 트레이 아이콘·작업 안내문은 웹에 싣지 않는다
 fs.copyFileSync(path.join(WEB, 'shim.js'), path.join(OUT, 'shim.js'));
 fs.copyFileSync(path.join(WEB, 'web.css'), path.join(OUT, 'web.css'));
 for (const f of ['privacy.html', 'school.html']) fs.copyFileSync(path.join(WEB, f), path.join(OUT, f));
@@ -62,10 +62,6 @@ html = must(html, '<div id="stageHost"></div>', `<div id="stageHost"></div>
 <div id="clouds"></div>
 <div id="webbar">
   <button id="wbMenu" title="닭장 열기">🐔 닭장</button>
-  <span class="sep"></span>
-  <button data-size="3" title="작게">작게</button>
-  <button data-size="4" title="보통">보통</button>
-  <button data-size="6" title="크게">크게</button>
   <span class="sep"></span>
   <button id="wbExport" title="이 반의 닭들을 파일로 내보내기">내보내기</button>
   <button id="wbImport" title="파일에서 불러오기">불러오기</button>

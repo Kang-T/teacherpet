@@ -20,8 +20,11 @@
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    // 직교 카메라 — 어디에 있든 닭 크기가 같다. (원근이면 뒤로 갈수록 작아져 이상하다)
-    const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 600);
+    // 약한 원근 — 화면 전체가 마당이 되면서 공간감이 필요해졌다.
+    // 화각(FOV)을 좁게 잡고 카메라를 멀리 두면, 깊이는 느껴지되 크기 차이가 과하지 않다.
+    // (바탕화면 펫 시절에는 화면 하단 띠만 썼기 때문에 원근이 오히려 어색했다.)
+    const FOV = 22;
+    const camera = new THREE.PerspectiveCamera(FOV, 1, 1, 900);
     scene.add(new THREE.HemisphereLight(0xFFFFFF, 0xC9D6EA, 1.6));
     const sun = new THREE.DirectionalLight(0xFFF6E8, 2.2); sun.position.set(6, 14, 12); sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 5; sun.shadow.bias = -0.0005;
@@ -39,27 +42,33 @@
       world.W = W; world.H = H; world.pxPerUnit = pxPerUnit;
       renderer.setSize(W, H, false);
       renderer.domElement.style.width = W + 'px'; renderer.domElement.style.height = H + 'px';
-      // 1 유닛 = pxPerUnit 픽셀 (거리와 무관하게 항상 같은 크기)
-      const halfW = W / (2 * pxPerUnit), halfH = H / (2 * pxPerUnit);
-      camera.left = -halfW; camera.right = halfW; camera.top = halfH; camera.bottom = -halfH;
-      camera.near = 0.1; camera.far = 800;
+      camera.aspect = W / H; camera.fov = FOV;
+      const halfH = H / (2 * pxPerUnit);
+      // 기준면(z≈0)에서 1 유닛이 pxPerUnit 픽셀이 되도록 카메라 거리를 정한다.
+      // 이러면 앞쪽 닭 크기는 예전(직교)과 똑같고, 뒤로 갈수록만 조금씩 작아진다.
+      const D = halfH / Math.tan(THREE.MathUtils.degToRad(FOV / 2));
       const elev = THREE.MathUtils.degToRad(world.elevDeg || 24);
-      const D = 200;
       camera.position.set(0, D * Math.sin(elev), D * Math.cos(elev));
       camera.up.set(0, 1, 0);
       camera.lookAt(0, 0, 0);
+      camera.near = Math.max(1, D * 0.15); camera.far = D * 6;
       camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-      // 바닥 원점이 화면 아래쪽(99%)에 오도록 카메라를 화면 위 방향으로 민다
+      // 바닥 원점이 화면 아래쪽(97%)에 오도록 카메라를 화면 위 방향으로 민다
       const viewUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
       camera.position.addScaledVector(viewUp, halfH * 0.97);
       camera.updateMatrixWorld();
 
       const a = screenToGround(0, H * 0.99), b = screenToGround(W, H * 0.99);
+      const halfW = halfH * camera.aspect;
       world.xMin = a ? a.x : -halfW; world.xMax = b ? b.x : halfW;
       const nearP = screenToGround(W / 2, H * 0.995), farP = screenToGround(W / 2, H * (world.roamTop || 0.35));
       world.zMax = nearP ? nearP.z : 2;
       world.zMin = farP ? farP.z : -20;
+      // 원근에서는 위로 갈수록 광선이 눕는다. 각도가 낮으면 먼 끝이 수십~수백 유닛까지
+      // 달아나 버리므로 마당 깊이를 제한한다. (직교에는 없던 문제)
+      const MAX_DEPTH = 46;
       if (!(world.zMin < world.zMax)) { world.zMin = -20; world.zMax = 2; }
+      if (world.zMax - world.zMin > MAX_DEPTH) world.zMin = world.zMax - MAX_DEPTH;
 
       const span = Math.max(30, (world.xMax - world.xMin) * 0.8);
       const zSpan = Math.max(30, (world.zMax - world.zMin) * 0.8);

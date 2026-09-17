@@ -33,6 +33,7 @@
   const canvas = world.renderer.domElement;
   let W = innerWidth, H = innerHeight;
   const XMARGIN = 1.2; // 화면 가장자리 여유(유닛)
+  const BASE_PX = 33;  // 기준 배율. 확대/축소는 마우스 휠, 시점은 우클릭 드래그.
   function resize() {
     if (innerWidth < 2 || innerHeight < 2) return;   // 숨겨진 탭·회전 중에는 건드리지 않는다
     W = innerWidth; H = innerHeight;
@@ -40,9 +41,10 @@
     // 가로 데스크톱은 기존 0.35 근처, 세로 태블릿·휴대폰은 0.16까지 내려가
     // 하늘만 가득하던 화면이 마당으로 채워진다.
     world.roamTop = clamp(0.46 - 0.22 * (H / Math.max(1, W)), 0.16, 0.38);
+    world.elevDeg = clamp(state.settings.elev ?? 24, 16, 55);
     // 하늘과 잔디의 경계(CSS)도 같은 값을 따라간다
     document.documentElement.style.setProperty('--horizon', (world.roamTop * 100).toFixed(1) + '%');
-    world.fit(W, H, PX_PER_UNIT[state.settings.size]);
+    world.fit(W, H, BASE_PX * clamp(state.settings.zoom ?? 1, 0.55, 2.2));
     layoutHome();
     for (const b of birds) b.x = clamp(b.x, world.xMin + XMARGIN, world.xMax - XMARGIN);
   }
@@ -97,7 +99,18 @@
   // ══════════ 할머니 ══════════
   // 잔소리하지 않고, 실패를 나무라지 않는다. 물어보면 알려주고, 아니면 곁에 있을 뿐이다.
   const guideCfg = () => GR.GUIDE[(state.settings || {}).guide] || GR.GUIDE.often;
-  function grannySay(text, btns) {
+  // 초상 — npc/granny.png 이 있으면 그걸 쓰고, 없으면 임시 svg 로 떨어진다.
+  // (CSP 가 통신을 막고 있어 파일 존재를 미리 확인할 수 없다. img 의 onerror 로 갈아탄다.)
+  const FACE = { normal: 'granny', smile: 'granny_smile', worry: 'granny_worry' };
+  function setFace(mood) {
+    const img = $('#gImg'), base = 'npc/' + (FACE[mood] || FACE.normal);
+    if (img.dataset.base === base) return;
+    img.dataset.base = base;
+    img.onerror = () => { img.onerror = null; img.src = 'npc/granny.svg'; };
+    img.src = base + '.png';
+  }
+  function grannySay(text, btns, mood) {
+    setFace(mood);
     const card = $('#granny'), box = $('#gBtns');
     $('#gSay').innerHTML = esc(text).replace(/\n/g, '<br>');
     box.innerHTML = '';
@@ -112,9 +125,11 @@
   }
   function grannyHide() { $('#granny').classList.add('hidden'); }
   function askGranny() {
-    grannySay(GR.advise(state, birds, HYG, (d) => ST.caredToday(d)),
-      [{ label: '알겠어요', primary: true, fn: grannyHide }]);
+    const line = GR.advise(state, birds, HYG, (d) => ST.caredToday(d));
+    grannySay(line, [{ label: '알겠어요', primary: true, fn: grannyHide }], adviceMood(line));
   }
+  // 말의 내용에 따라 표정이 바뀐다
+  const adviceMood = (line) => (/별일 없|잘했|고맙/.test(line) ? 'smile' : /아파|다쳤|비었|심하/.test(line) ? 'worry' : 'normal');
   // 할머니가 먼저 말을 거는 건 '자주 여쭤볼래요'를 고른 아이에게만
   function nudge() {
     if (!guideCfg().nudge) return;
@@ -124,7 +139,7 @@
     const line = GR.advise(state, birds, HYG, (d) => ST.caredToday(d));
     if (line === lastLine) return;                  // 같은 말을 두 번 하지 않는다
     lastNudge = now(); lastLine = line;
-    grannySay(line, [{ label: '알겠어요', primary: true, fn: grannyHide }]);
+    grannySay(line, [{ label: '알겠어요', primary: true, fn: grannyHide }], adviceMood(line));
   }
   let lastNudge = 0, lastLine = '';
 
@@ -133,7 +148,7 @@
     if ((state.chapter || 0) >= n) return;
     state.chapter = n; markDirty();
     const c = GR.CHAPTERS[n];
-    if (c) later0(() => grannySay(c.say, [{ label: '네', primary: true, fn: grannyHide }]), 1400);
+    if (c) later0(() => grannySay(c.say, [{ label: '네', primary: true, fn: grannyHide }], 'smile'), 1400);
   }
   const later0 = (fn, ms) => setTimeout(fn, ms);
 
@@ -151,15 +166,39 @@
     if (s && s.done(state)) { stepIdx += 1; showStep(); }
   }
 
+  // ── 대사 장면 — 한 줄씩 넘긴다 (게임 NPC 대화처럼) ──
+  function scene(lines, then, mood) {
+    let i = 0;
+    const step = () => {
+      if (i >= lines.length) { then(); return; }
+      const line = lines[i++];
+      grannySay(line, [{ label: i >= lines.length ? '네' : '계속', primary: true, fn: step }], mood);
+    };
+    step();
+  }
+  function startIntro() {
+    $('#granny').classList.remove('choose');
+    const kid = $('#gKid');
+    kid.src = 'npc/kid_back.png'; kid.classList.remove('hidden');   // 아이가 할머니를 마주 본다
+    scene([
+      '어서 오너라. 먼 길 왔구나.',
+      '여기가 우리 농장이란다. 닭들이랑 나랑, 둘이 오래 살았지.',
+      '오늘부터 이 마당은 네가 돌보는 거야.',
+    ], askGuide);
+  }
+
   // ── 처음 한 번: 안내 수준 고르기 ──
   function askGuide() {
     const pickGuide = (k) => {
       state.settings.guide = k;
       if (GR.GUIDE[k].detail) state.settings.detail = true;
       markDirty();
-      grannySay(GR.INTRO.join('\n'), [{ label: '병아리를 받을게요', primary: true, fn: () => { grannyHide(); giveFirstChick(); } }]);
+      $('#granny').classList.remove('choose');
+      $('#gKid').classList.add('hidden');      // 이제 플레이어가 그 아이다
+      scene(['그래. 그럼 이 아이부터 보자꾸나.'], () => giveFirstChick(), 'smile');
     };
-    grannySay('할머니께 얼마나 여쭤볼까요?',
+    $('#granny').classList.add('choose');
+    grannySay('그런데 말이다 — 내가 옆에서 얼마나 거들어 줄까?',
       Object.keys(GR.GUIDE).map((k) => ({ label: GR.GUIDE[k].label, sub: GR.GUIDE[k].desc, primary: k === 'often', fn: () => pickGuide(k) })));
   }
 
@@ -168,6 +207,26 @@
   function borrowedOk() {
     const b = state.borrowed;
     return !!(b && b.until && today() <= b.until);
+  }
+
+  // 보온등을 켜고 끌 때 눈에 보이게 — 숫자가 아니라 빛으로 알 수 있어야 한다
+  function lampEffect(power) {
+    const hm = home();
+    if (!propVisible('lamp')) return;
+    const p = world.props.lamp;
+    if (p) {
+      const t0 = performance.now(), from = p.scale.x;
+      const pop = () => {
+        const k = Math.min(1, (performance.now() - t0) / 260);
+        const s = from * (1 + Math.sin(k * Math.PI) * 0.12);
+        p.scale.setScalar(s);
+        if (k < 1) requestAnimationFrame(pop); else p.scale.setScalar(1);
+      };
+      requestAnimationFrame(pop);
+    }
+    if (power > 0.05) { world.sparkle(hm.lamp.x + 1.2, hm.lamp.z, 1.2); world.puff(hm.lamp.x + 1.2, hm.lamp.z, 5, 0.7, 0xFFD9A0); }
+    else world.puff(hm.lamp.x + 1.2, hm.lamp.z, 6, 0.8, 0xBFC7D0);
+    for (const b of birds) if (b.d.stage === 'chick') showIcon(b, power > 0.05 ? '☀️' : '❄️', 1600);
   }
 
   // ── 씨알 코드 ──
@@ -1067,6 +1126,12 @@
     } else if (b.d.stage === 'young' && n >= RULE.daysYoung) {
       const sex = b.d.sex || (Math.random() < 0.5 ? 'f' : 'm');
       b.d.sex = sex; advance(b, sex === 'f' ? 'hen' : 'rooster'); jump(b, 300);
+      if (sex === 'f' && (state.settings.propHidden || {}).nest) {
+        // 첫 암탉 — 이제 둥지와 바구니가 필요해졌다
+        state.settings.propHidden = Object.assign({}, state.settings.propHidden, { nest: false, basket: false });
+        layoutHome(); markDirty();
+        later0(() => scene(['알을 낳기 시작할 테니 둥지가 있어야겠구나.', '둥지랑 달걀 바구니를 마당에 놓아 두었단다.'], grannyHide, 'smile'), 2600);
+      }
       chapter(4);
       toast(sex === 'f' ? `🐔 ${b.d.name}(이)가 암탉이 됐어요! 이제 알을 낳을 수 있어요` : `🐓 ${b.d.name}(이)가 수탉이 됐어요! 꼬끼오~`, true, 8000); chime();
       if (sex === 'm') crowSound();
@@ -1431,6 +1496,38 @@
     else touch(b);
     drag = null; canvas.style.cursor = 'grab';
   });
+  // 확대·축소 — 작게/보통/크게 버튼 대신 휠. 아이들이 쓰던 방식 그대로다.
+  // 땅을 두 번 누르면 닭들이 저를 부르는 줄 알고 달려온다
+  canvas.addEventListener('dblclick', (e) => {
+    if (editMode) return;
+    if (birdAt(e.clientX, e.clientY) || propAt(e.clientX, e.clientY)) return;
+    const gp = world.screenToGround(e.clientX, e.clientY);
+    if (!gp) return;
+    const x = clamp(gp.x, world.xMin + XMARGIN, world.xMax - XMARGIN);
+    const z = clampZ(gp.z);
+    world.puff(x, z, 6, 0.5, 0xFFF3C4);
+    const n = callFlock(x, z, null);
+    if (n) chime();
+  });
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const z = clamp((state.settings.zoom ?? 1) * (e.deltaY > 0 ? 0.92 : 1.087), 0.55, 2.2);
+    if (Math.abs(z - (state.settings.zoom ?? 1)) < 0.001) return;
+    state.settings.zoom = z; markDirty(); resize();
+  }, { passive: false });
+
+  // 시점 — 우클릭을 누른 채 위아래로 움직이면 내려다보는 각도가 바뀐다 (지도 앱과 같은 조작)
+  let tilt = null;
+  canvas.addEventListener('mousedown', (e) => { if (e.button === 2) { tilt = { y: e.clientY, from: state.settings.elev ?? 24 }; e.preventDefault(); } });
+  addEventListener('mousemove', (e) => {
+    if (!tilt) return;
+    const v = clamp(tilt.from + (e.clientY - tilt.y) * 0.16, 16, 55);
+    if (Math.abs(v - (state.settings.elev ?? 24)) < 0.15) return;
+    state.settings.elev = v; resize();
+  });
+  addEventListener('mouseup', () => { if (tilt) { tilt = null; markDirty(); } });
+
   canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     const b = birdAt(e.clientX, e.clientY); if (!b || b.d.stage === 'egg') return;
@@ -1624,10 +1721,13 @@
     const d = newBird('chick', { x: toFrac(hm.coop.x + 1.6), z: hm.coop.z + 0.6 });
     state.flock.push(d);
     const rt = makeRuntime(d); rt.x = hm.coop.x + 1.6; rt.z = hm.coop.z + 0.6; birds.push(rt);
+    // 알을 받을 자리는 아직 필요 없다. 첫 암탉이 나오면 할머니가 가져다 주신다.
+    state.settings.propHidden = Object.assign({}, state.settings.propHidden, { nest: true, basket: true });
+    layoutHome();
     state.chapter = 1; state.onboarded = false; markDirty(); renderCoop(); closePanel();
     $('#gAsk').classList.remove('hidden');
-    grannySay(GR.CHAPTERS[1].say + `\n\n이름은 "${d.name}"라고 불러 두었단다. 마음에 안 들면 바꾸어도 좋아.`,
-      [{ label: '고마워요 할머니', primary: true, fn: () => { grannyHide(); startSteps(); } }]);
+    scene([GR.CHAPTERS[1].say, `이름은 "${d.name}"라고 불러 두었단다. 마음에 안 들면 바꾸어도 좋아.`],
+      () => { $('#gAsk').classList.remove('hidden'); startSteps(); }, 'smile');
   }
   $$('[data-feed]').forEach((x) => x.addEventListener('click', () => {
     state.feedType = x.dataset.feed; for (const q of birds) q.d.wrongFeed = 0;
@@ -1635,7 +1735,7 @@
     const f = C.FEED[state.feedType];
     toast(`🌾 모이통에 ${f.name} 사료를 넣었어요 — ${f.desc}`, false, 4500);
   }));
-  $$('[data-lamp]').forEach((x) => x.addEventListener('click', () => { setTimeout(checkStep, 60);
+  $$('[data-lamp]').forEach((x) => x.addEventListener('click', () => { setTimeout(checkStep, 60); lampEffect(+x.dataset.lamp);
     state.lampPower = +x.dataset.lamp; markDirty(); renderCoop();
     toast(`🔥 보온등 ${x.textContent}`, false, 2500);
   }));
@@ -1689,8 +1789,19 @@
     $$('[data-home]').forEach((b) => b.classList.toggle('primary', b.dataset.home === state.settings.homeSide));
     $$('[data-lifeend]').forEach((b) => b.classList.toggle('primary', b.dataset.lifeend === state.settings.lifeEnd));
   }
-  $$('[data-size]').forEach((b) => b.addEventListener('click', () => { state.settings.size = +b.dataset.size; markDirty(); renderSettings(); resize(); }));
+  $('#btnViewReset').addEventListener('click', () => { state.settings.zoom = 1; state.settings.elev = 24; markDirty(); resize(); toast('화면을 처음 시점으로 되돌렸어요'); });
   $$('[data-prop]').forEach((c) => c.addEventListener('change', () => { state.settings.propHidden = state.settings.propHidden || {}; state.settings.propHidden[c.dataset.prop] = !c.checked; markDirty(); layoutHome(); }));
+  $('#btnMore').addEventListener('click', () => {
+    const hidden = $('#moreBox').classList.toggle('hidden');
+    $('#btnMore').textContent = hidden ? '⋯ 더 보기' : '⋯ 접기';
+  });
+  $('#btnLetter').addEventListener('click', () => {
+    const url = C.LETTER_FORM;
+    if (!url) { toast('편지함이 아직 준비되지 않았어요', false, 6000); return; }
+    grannySay('고치고 싶은 것이나 하고 싶은 말이 있으면 적어 보렴.\n\n새 창이 열린단다. 거기 쓴 것은 할머니(만든 사람)에게 가니까,\n이름이나 학교는 적지 않아도 된단다.',
+      [{ label: '편지 쓰러 가기', primary: true, fn: () => { grannyHide(); if (api.openExternal) api.openExternal(url); else window.open(url, '_blank', 'noopener'); } },
+       { label: '다음에요', fn: grannyHide }], 'smile');
+  });
   $('#btnSeedMake').addEventListener('click', () => {
     const r = birds.find((b) => b.d.stage === 'rooster');
     if (!r) { toast('아직 수탉이 없어요. 수탉이 자라면 친구에게 씨알 코드를 나눠 줄 수 있어요', false, 7000); return; }
@@ -1745,7 +1856,7 @@
     if (!panel.classList.contains('hidden')) renderCoop();
   }, 1200);
   api.on('ui:toggle-menu', togglePanel);
-  api.on('pet:size', (s) => { state.settings.size = s; markDirty(); resize(); });
+  api.on('pet:size', (s) => { state.settings.zoom = clamp(s / 4, 0.55, 2.2); markDirty(); resize(); });
   api.on('ui:toggle-edit', () => setEdit(!editMode));
   $('#btnEdit').addEventListener('click', () => { setEdit(!editMode); $('#btnEdit').textContent = editMode ? '소품 옮기기 끄기' : '소품 옮기기 켜기'; if (editMode) closePanel(); });
   $('#chkDetail').checked = detailOn();
@@ -1778,8 +1889,13 @@
     HYG.restore(state.poops);
     const info = await api.info();
     $('#version').textContent = 'v' + info.version; $('#autostart').checked = !!info.openAtLogin;
-    if (!state.settings.guide) { later0(askGuide, 700); }
-    else { $('#gAsk').classList.remove('hidden'); if (!birds.length) openPanel('coop'); }
+    if (!state.settings.guide) {
+      // 웹은 환영 카드가 사라진 뒤(ui:begin), 데스크톱은 바로 시작한다.
+      let began = false;
+      const begin = () => { if (began) return; began = true; later0(startIntro, 250); };
+      api.on('ui:begin', begin);
+      if (!document.querySelector('#welcome')) later0(begin, 700);
+    } else { $('#gAsk').classList.remove('hidden'); if (!birds.length) openPanel('coop'); }
     if (state.lastAttend !== today()) { state.lastAttend = today(); markDirty(); }
     if (state.lastWormGift !== today()) { state.lastWormGift = today(); state.worms = Math.min(9, (state.worms || 0) + 3); world.setWormCount(state.worms); markDirty(); if (birds.length) setTimeout(() => toast('🪱 오늘의 벌레 3마리가 벌레통에 도착했어요'), 4000); }
     for (const b of birds) decide(b);

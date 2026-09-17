@@ -38,8 +38,9 @@ html, body {
 
 /* 메뉴 패널 */
 #panel {
-  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
-  width: 420px; max-height: 70vh; display: flex; flex-direction: column;
+  /* 화면 가운데. 아이들이 쓰는 화면이라 구석에 붙어 있으면 잘 못 찾는다. */
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(440px, calc(100vw - 28px)); max-height: 78vh; display: flex; flex-direction: column;
   background: #FFFDF5; border: 3px solid #2B1B0E; border-radius: 16px;
   box-shadow: 4px 4px 0 #2B1B0E; overflow: hidden;
 }
@@ -148,27 +149,45 @@ body.editing canvas { cursor: move; }
 .nums { font-size: 11px; color: #8B8070; padding: 2px 0 0 2px; letter-spacing: -.2px; }
 .chk { font-size: 12px; color: #6B6153; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 
-/* 할머니 — 이 게임의 유일한 화자 */
+/* 할머니 — 게임 NPC 대화창. 초상은 왼쪽 아래, 대사는 오른쪽. */
 #granny {
-  position: fixed; left: 50%; transform: translateX(-50%); bottom: 20px; z-index: 58;
-  width: min(440px, calc(100vw - 32px)); display: flex; gap: 12px; align-items: flex-start;
-  background: rgba(255,253,245,.97); border: 3px solid #2B1B0E; border-radius: 18px;
-  padding: 14px 16px; box-shadow: 0 5px 0 rgba(43,27,14,.22);
-  animation: gIn .35s cubic-bezier(.2,1.3,.5,1);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 58;
+  display: flex; align-items: flex-end; gap: 0;
+  padding: 0 clamp(10px, 4vw, 52px) clamp(10px, 2.5vh, 26px);
+  pointer-events: none;                       /* 마당은 계속 보인다 */
+  animation: gIn .3s cubic-bezier(.2,1.2,.5,1);
 }
-@keyframes gIn { from { opacity: 0; transform: translateX(-50%) translateY(14px); } }
+@keyframes gIn { from { opacity: 0; transform: translateY(18px); } }
 #granny.hidden, #gAsk.hidden { display: none; }
-#granny .gFace { font-size: 34px; line-height: 1; flex: none; }
-#granny .gBody { flex: 1; min-width: 0; }
-#granny p { margin: 2px 0 0; font-size: 15px; line-height: 1.65; color: #2B2620; }
-#gBtns { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+#gImg {
+  width: auto; height: clamp(130px, 22vh, 210px);   /* 예시 화면의 절반 정도 */
+  margin: 0 -14px -6px 0; flex: none; pointer-events: none;
+  filter: drop-shadow(0 6px 10px rgba(43,27,14,.28));
+}
+#granny .gBox {
+  flex: 1; min-width: 0; pointer-events: auto;
+  background: rgba(255,253,245,.97); border: 3px solid #2B1B0E; border-radius: 16px;
+  padding: 13px 18px 15px; box-shadow: 0 5px 0 rgba(43,27,14,.22);
+}
+#granny .gName {
+  font-size: 12px; font-weight: 700; color: #8A6B3A; letter-spacing: .5px;
+  margin-bottom: 3px;
+}
+#granny p { margin: 0; font-size: clamp(14px, 1.5vw, 16px); line-height: 1.7; color: #2B2620; }
+#gBtns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 #gBtns button {
-  font: inherit; font-size: 13px; border: 2px solid #2B1B0E; border-radius: 999px;
-  background: #FFF; padding: 6px 13px; cursor: pointer; text-align: left;
+  font: inherit; font-size: 14px; border: 2px solid #2B1B0E; border-radius: 12px;
+  background: #FFF; padding: 9px 16px; cursor: pointer; text-align: left; line-height: 1.35;
 }
 #gBtns button:hover { background: #FFE9A8; }
 #gBtns button.primary { background: #FFD873; font-weight: 700; }
-#gBtns button small { display: block; font-size: 11px; opacity: .65; font-weight: 400; }
+#gBtns button small { display: block; font-size: 11px; opacity: .6; font-weight: 400; margin-top: 2px; }
+/* 큰 선택지 — 고르는 순간에는 버튼이 크고 시원해야 한다 */
+#granny.choose .gBox { padding: 20px 22px 22px; }
+#granny.choose p { font-size: clamp(16px, 1.9vw, 20px); font-weight: 700; }
+#granny.choose #gBtns { gap: 10px; }
+#granny.choose #gBtns button { flex: 1 1 150px; padding: 14px 16px; font-size: 15px; text-align: center; }
+#granny.choose #gBtns button small { text-align: center; }
 #gAsk {
   position: fixed; left: 14px; bottom: 16px; z-index: 56;
   font: inherit; font-size: 13px; border: 2px solid #2B1B0E; border-radius: 999px;
@@ -177,3 +196,17 @@ body.editing canvas { cursor: move; }
 }
 #gAsk:hover { background: #FFE9A8; }
 body.uiIdle #gAsk { opacity: 0; pointer-events: none; transition: opacity .55s; }
+@media (max-width: 640px) { #gImg { height: 110px; margin-right: -10px; } }
+
+#panel:not(.hidden)::before { content: ''; position: fixed; inset: 0; z-index: -1; background: rgba(30,24,16,.22); }
+#moreBox.hidden { display: none; }
+
+/* 첫 장면에서만 보이는 아이 뒷모습 — 할머니를 마주 보고 선다 */
+#gKid {
+  width: auto; height: clamp(110px, 18vh, 170px); flex: none;
+  margin: 0 0 -6px -14px; pointer-events: none;
+  filter: drop-shadow(0 6px 10px rgba(43,27,14,.24));
+  animation: gIn .45s cubic-bezier(.2,1.2,.5,1);
+}
+#gKid.hidden { display: none; }
+@media (max-width: 640px) { #gKid { display: none; } }
