@@ -89,14 +89,25 @@
       setStage(b, stage);
       world.birds.set(id, b); return b;
     }
+    // 모델을 버릴 때는 GPU 자원까지 놓아준다 — 안 하면 자랄 때마다 샌다.
+    // chick3d 와 makeEgg 는 개체마다 지오메트리·머티리얼을 새로 만들므로 공유 걱정이 없다.
+    function disposeGroup(g) {
+      if (!g) return;
+      g.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        const m = o.material;
+        if (Array.isArray(m)) m.forEach((x) => x && x.dispose());
+        else if (m) m.dispose();
+      });
+    }
     function setStage(b, stage) {
-      if (b.model) { b.holder.remove(b.model.group); }
+      if (b.model) { b.holder.remove(b.model.group); disposeGroup(b.model.group); }
       if (stage === 'egg') { b.model = makeEgg(); }
       else b.model = C.createChick(THREE, STAGE_PRESET[stage]);
       b.stage = stage; b.holder.add(b.model.group);
       b.meshes = []; b.model.group.traverse((o) => { if (o.isMesh) { o.userData.birdId = b.id; b.meshes.push(o); } });
     }
-    function removeBird(id) { const b = world.birds.get(id); if (b) { scene.remove(b.holder); world.birds.delete(id); } }
+    function removeBird(id) { const b = world.birds.get(id); if (b) { scene.remove(b.holder); disposeGroup(b.holder); world.birds.delete(id); } }
     function heightOf(b) { // 모델 높이(월드 유닛)
       if (b.stage === 'egg') return 1.3;
       return { chick: 1.7, young: 2.2, hen: 2.85, rooster: 3.3 }[b.stage] || 2;

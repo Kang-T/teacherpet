@@ -93,10 +93,15 @@
     }
     if (s.version > VERSION) { console.warn('저장 데이터가 이 앱보다 새 버전입니다 (v' + s.version + ')'); return null; }
     const base = defaultState();
+    // ⚠️ 중첩 객체의 기본값은 평면 병합 '전에' 붙들어 둔다.
+    //    Object.assign(base, s) 가 base.settings 를 s.settings 로 통째로 바꿔치기 하므로,
+    //    그 뒤에 base.settings 를 병합하면 자기 자신에 자기 자신을 병합하는 꼴이 되어
+    //    저장 데이터에 없는 기본값(homeSide, pauseWeekends 등)이 전부 사라진다.
+    const dSettings = base.settings, dInventory = base.inventory, dEquipment = base.equipment;
     const out = Object.assign(base, s);
-    out.settings = Object.assign(base.settings, s.settings || {});
-    out.inventory = Object.assign(base.inventory, s.inventory || {});
-    out.equipment = Object.assign(base.equipment, s.equipment || {});
+    out.settings = Object.assign(dSettings, s.settings || {});
+    out.inventory = Object.assign(dInventory, s.inventory || {});
+    out.equipment = Object.assign(dEquipment, s.equipment || {});
     out.away = s.away || [];
     out.openedDays = s.openedDays || [];
     out.flock = (out.flock || []).map(ensureBird);
