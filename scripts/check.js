@@ -27,7 +27,11 @@ const env = Object.assign({}, process.env, {
   ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
 });
 
-const child = spawn('npx', ['electron', '.'], { cwd: ROOT, env });
+// CI(리눅스)에서는 Chromium 샌드박스 도우미가 root 소유가 아니라 실행이 막힌다.
+// 우리 코드를 우리 기계에서 돌리는 검사이므로 거기서만 끈다.
+const args = ['electron', '.'];
+if (process.env.CI) args.splice(2, 0, '--no-sandbox');
+const child = spawn('npx', args, { cwd: ROOT, env });
 let buf = '';
 const timer = setTimeout(() => { console.error('시간 초과 — Electron 을 종료합니다'); child.kill(); }, 120000);
 
