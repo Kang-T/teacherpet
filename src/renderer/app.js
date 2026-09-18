@@ -58,6 +58,11 @@
     if (window.__tpClouds) window.__tpClouds(wx.clouds, wx.key);
     const line = $('#wxLine');
     if (line) line.textContent = `${wx.icon} ${wx.name}${state.classCode ? ' · ' + state.classCode + '반' : ''}`;
+    // 왼쪽 위 배지 — 아이가 오늘 무슨 날인지 언제든 볼 수 있어야 한다
+    $('#wxIcon').textContent = wx.icon;
+    $('#wxName').textContent = wx.name;
+    $('#wxClass').textContent = state.classCode ? state.classCode + '반' : '';
+    $('#wxBadge').classList.remove('hidden');
     for (const b of birds) decide(b);
   }
 
@@ -625,7 +630,11 @@
       const ex = hm.coop.x + (hm.flip ? -1 : 1) * 1.5, ez = hm.coop.z + 1.1;
       const far = gapTo(b, ex, ez) > 2.4;
       add('shelter', wx.indoor * (far ? 2.6 : 0.9) * (d.stage === 'chick' ? 1.3 : 1),
-        () => { if (far) goTo(b, ex + rand(-1.1, 1.1), 'gocoop', ez + rand(-0.5, 0.5)); else setAnim(b, 'huddle', rand(4, 8)); });
+        () => {
+          if (far) goTo(b, ex + rand(-1.1, 1.1), 'gocoop', ez + rand(-0.5, 0.5));
+          else if (d.stage === 'chick') setAnim(b, 'huddle', rand(4, 8));   // 뭉치기는 병아리 자세다
+          else setAnim(b, 'preen', rand(3, 6));                             // 어른은 처마 밑에서 깃털을 다듬는다
+        });
     }
     // "저게 뭐지?" — 멀리서 커서가 얼쩡거리면 겁내면서도 조금씩 다가가 목을 빼고 본다
     if (d.stage === 'chick' && warmSpot()) { const ws = warmSpot(); add('warm', (gapTo(b, ws.x, ws.z) > 1.6 ? 0.55 : 0.1) * (1 + M.sleepy), () => goTo(b, ws.x + rand(-0.9, 0.9), 'golamp', ws.z + rand(-0.6, 0.6))); }
@@ -1602,6 +1611,19 @@
   addEventListener('mousemove', (e) => {
     if (drag) {
       if (drag.sweeping) { sweep(poopAt(e.clientX, e.clientY)); return; }
+      if (drag.pan) {
+        // 누른 자리의 땅이 손끝에 붙어 따라오게 한다 (휠 확대가 쓰는 방법과 같다).
+        // 카메라가 움직인 뒤 다시 재므로, 몇 프레임이면 정확히 맞춰진다.
+        if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 3) {
+          drag.moved = true; follow = null;
+          const cur = world.screenToGround(e.clientX, e.clientY);
+          if (cur && drag.gx !== undefined) {
+            world.view.tx += drag.gx - cur.x; world.view.tz += drag.gz - cur.z;
+            panClamp(); world.fit(W, H);
+          } else if (cur) { drag.gx = cur.x; drag.gz = cur.z; }
+        }
+        return;
+      }
       if (drag.worm) { if (worm) { const sp = wormSpot(e.clientX, e.clientY); if (sp) { worm.x = sp.x; worm.z = sp.z; worm.y = HOLD_Y; } } return; }
       if (drag.prop) { // 소품 옮기기
         const gp = world.screenToGround(e.clientX, e.clientY);
@@ -1662,7 +1684,13 @@
         if (spawnWorm(e.clientX, e.clientY)) { drag = { worm: true, sx: e.clientX, sy: e.clientY }; canvas.style.cursor = 'grabbing'; }
       }
       else if (pr) { const gp = world.screenToGround(e.clientX, e.clientY), L = home()[pr]; drag = { prop: pr, sx: e.clientX, sy: e.clientY, offX: gp ? gp.x - L.x : 0, offZ: gp ? gp.z - L.z : 0, moved: false }; canvas.style.cursor = 'grabbing'; }
-      else closePanel();
+      else {
+        // 빈 땅을 끌면 화면이 따라온다 — 확대했을 때만. 다 보이는 상태에서 밀면 오히려 헷갈린다.
+        // 누르기만 하고 놓으면 예전처럼 메뉴가 닫힌다 (mouseup 에서 moved 를 본다).
+        const gp = world.view.zoom > 1.05 ? world.screenToGround(e.clientX, e.clientY) : null;
+        if (gp) { drag = { pan: true, sx: e.clientX, sy: e.clientY, gx: gp.x, gz: gp.z, moved: false }; canvas.style.cursor = 'grabbing'; }
+        else closePanel();
+      }
       return;
     }
     const p = world.screenToPlaneZ(e.clientX, e.clientY, b.z);
@@ -1673,6 +1701,7 @@
   addEventListener('mouseup', (e) => {
     if (!drag) return;
     if (drag.sweeping) { drag = null; canvas.style.cursor = 'default'; return; }
+    if (drag.pan) { if (!drag.moved) closePanel(); else markDirty(); drag = null; canvas.style.cursor = 'default'; return; }
     if (drag.worm) { if (worm) worm.held = false; drag = null; canvas.style.cursor = 'default'; return; }
     if (drag.prop) {
       // 벌레통은 눌렀다 떼면 벌레가 나오고, 끌면 통이 움직인다

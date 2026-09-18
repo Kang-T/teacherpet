@@ -164,6 +164,21 @@ label { display: inline-flex; align-items: center; gap: 4px; }
   margin-bottom: 3px;
 }
 #granny p { margin: 0; font-size: clamp(14px, 1.5vw, 16px); line-height: 1.7; color: #2B2620; }
+/* 오늘의 날씨 — 왼쪽 위. 늘 보이지만 작고, 마당을 가리지 않는다 */
+#wxBadge {
+  position: fixed; top: 12px; left: 14px; z-index: 30;
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,253,245,.9); border: 2px solid #2B1B0E; border-radius: 12px;
+  padding: 5px 10px 5px 8px; box-shadow: 2px 2px 0 #2B1B0E;
+  font-size: clamp(12px, 1.3vw, 14px); color: #2B2620; pointer-events: none;
+  transition: opacity .35s ease;
+}
+#wxBadge #wxIcon { font-size: 1.25em; line-height: 1; }
+#wxBadge b { font-weight: 700; color: #7A5A20; }
+#wxBadge b:empty { display: none; }
+#wxBadge.hidden { display: none; }
+body.uiIdle #wxBadge { opacity: .4; }
+
 /* QR — 휴대폰 사진기로 비추는 그림. 흰 테두리를 잘라내면 안 읽힌다 */
 #granny .gQr { margin: 8px 0 0; text-align: center; }
 #granny .gQr svg { border-radius: 8px; box-shadow: 0 2px 8px rgba(43,27,14,.18); vertical-align: top; }
