@@ -1,0 +1,25 @@
+# 닭이 제대로 움직이는지 자동으로 확인한다.
+# 배포(pages.yml)를 막지는 않는다 — 화면 검사는 이따금 불안정할 수 있어서,
+# 실패하면 알려만 주고 사이트는 계속 나간다.
+name: check
+
+on:
+  push:
+    branches: [main]
+    paths: ['src/**', 'scripts/**', 'package.json', '.github/workflows/check.yml']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  behaviour:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Electron 준비
+        run: npm install --no-save electron@33 three@0.170.0
+      - name: 화면 없는 리눅스용 도구
+        run: sudo apt-get update && sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64
+      - name: 행동 검사
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" node scripts/check.js
