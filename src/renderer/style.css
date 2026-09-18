@@ -124,7 +124,7 @@ label { display: inline-flex; align-items: center; gap: 4px; }
 @keyframes toastIn { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* 앨범 */
-#albumModal { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.25); }
+#journalModal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.25); }
 .modalCard { background: #FFFDF5; border: 3px solid #2B1B0E; border-radius: 16px; padding: 18px; width: 420px; max-height: 70vh; overflow: auto; box-shadow: 4px 4px 0 #2B1B0E; }
 .modalCard h3 { margin: 0 0 10px; }
 .albumItem { border-bottom: 1px dashed #D9CFB8; padding: 8px 0; font-size: 13px; }
@@ -210,3 +210,38 @@ body.uiIdle #gAsk { opacity: 0; pointer-events: none; transition: opacity .55s; 
 }
 #gKid.hidden { display: none; }
 @media (max-width: 640px) { #gKid { display: none; } }
+
+/* 관찰일지 */
+.jCard { width: min(560px, calc(100vw - 28px)); max-height: 82vh; display: flex; flex-direction: column; }
+.jHead { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.jHead h3 { margin: 0; flex: 1; }
+.jActs { display: flex; gap: 6px; }
+#journalList { overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.jItem {
+  display: flex; gap: 11px; align-items: flex-start;
+  background: #FFFDF5; border: 2px solid #E2DCCD; border-radius: 12px; padding: 9px;
+}
+.jShot { width: 100px; height: 65px; border-radius: 8px; object-fit: cover; flex: none; border: 2px solid #2B1B0E; }
+.jShot.noshot {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; background: #EFEADC; border-style: dashed; border-color: #CFC7B2;
+}
+.jBody { flex: 1; min-width: 0; }
+.jTop { display: flex; align-items: baseline; gap: 8px; }
+.jTop b { font-size: 14px; }
+.jDay { font-size: 11px; color: #8B8070; margin-left: auto; }
+.jBody p { margin: 4px 0 0; font-size: 13px; line-height: 1.6; color: #4A4034; }
+
+/* 인쇄하면 일지만 나온다 — 그대로 관찰 기록장이 된다 */
+@media print {
+  body > * { display: none !important; }
+  #journalModal, #journalModal * { display: revert !important; }
+  #journalModal { position: static !important; background: none !important; }
+  #journalModal .jCard {
+    width: auto !important; max-height: none !important; border: 0 !important;
+    box-shadow: none !important; padding: 0 !important;
+  }
+  .jActs { display: none !important; }
+  #journalList { overflow: visible !important; }
+  .jItem { break-inside: avoid; border-color: #BBB; }
+}

@@ -4,7 +4,7 @@
 (() => {
   const api = window.teacherpet;
   const THREE = window.THREE;
-  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, school: SCH, granny: GR, bus } = window.TP;
+  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, school: SCH, granny: GR, journal: JR, bus } = window.TP;
   const { $, $$, now, today, rand, pick, clamp, uid, esc } = U;
   const { RULE, PX_PER_UNIT, STAGE_KO, STAGE_ORDER, SPEED, NAMES, PROP_NAMES, PROP_KO } = C;
   const { trait, moodOf, rank, TRAIT_DESC } = MIND;
@@ -96,6 +96,26 @@
     const btn = $('#wbEdit');
     if (btn) btn.classList.toggle('on', editMode);
   }
+  // ── 관찰일지 ──
+  // 아이가 따로 적지 않아도 한살이의 '순간'이 스스로 쌓인다.
+  async function note(kind, b, once) {
+    if (!b || !b.d) return;
+    if (once && JR.has(state, kind, b.d.id)) return;
+    let photo = null;
+    try {
+      const pt = world.project(b.x, height(b) * 0.55, b.z);
+      const inside = pt && pt.x > 30 && pt.x < world.W - 30 && pt.y > 30 && pt.y < world.H - 30;
+      const cx = inside ? pt.x : world.W / 2, cy = inside ? pt.y : world.H * 0.6;
+      // 사진은 '그리기 직후'에만 찍을 수 있는데, 탭이 숨겨져 있으면 그리기가 멈춘다.
+      // 그때 기다리기만 하면 기록이 통째로 날아간다. 사진은 포기하되 기록은 반드시 남긴다.
+      photo = await Promise.race([
+        world.capture(cx, cy, 200, 130),
+        new Promise((r) => setTimeout(() => r(null), 1500)),
+      ]);
+    } catch (e) { /* 사진은 없어도 기록은 남는다 */ }
+    if (JR.record(state, kind, b, photo)) markDirty();
+  }
+
   // ══════════ 할머니 ══════════
   // 잔소리하지 않고, 실패를 나무라지 않는다. 물어보면 알려주고, 아니면 곁에 있을 뿐이다.
   const guideCfg = () => GR.GUIDE[(state.settings || {}).guide] || GR.GUIDE.often;
@@ -606,7 +626,7 @@
       });
     }
     if (d.stage === 'rooster') add('crow', 0.12 * T.noisy * (1 + rank(b) * 0.2), () => {
-      setAnim(b, 'crow', 2.2); crowSound(); startleKids(b);
+      setAnim(b, 'crow', 2.2); crowSound(); startleKids(b); note('firstCrow', b, true);
       // 아래 서열 수탉들이 이어 운다
       const lower = birds.filter((q) => q !== b && q.d.stage === 'rooster' && eligible(q) && rank(q) < rank(b)).sort((x, y) => rank(y) - rank(x));
       lower.forEach((r, i) => later(r, (i + 1) * 1500, () => { if (eligible(r) && ACT.canInterrupt(r.anim, 'crow')) { setAnim(r, 'crow', 2.2); crowSound(); showIcon(r, '🎵', 1800); } }));
@@ -632,6 +652,7 @@
   // 모래 목욕: 5단계를 12초에 (실제 평균 27분). 옆의 닭에게 전염된다.
   const DUST_SEC = 12;
   function startDustBath(b) {
+    note('firstDust', b, true);
     b.targetX = null; b.inCoop = false; setVisible(b, true);
     b.dustPhase = 0; b.dustT = 0;
     setAnim(b, 'dustbath', DUST_SEC + 1);
@@ -1139,7 +1160,7 @@
     markDirty();
     if (!wasCared && ST.caredToday(b.d)) {
       if ((b.d.wrongFeed || 0) >= 2) { showIcon(b, '⚠️', 2500); }
-      if (b.d.hurt) { b.d.hurt = null; b.d.health = clamp(b.d.health + 25, 0, 100); showIcon(b, '💚', 3000); toast(`💚 ${b.d.name}(이)의 다리가 다 나았어요`, false, 5000); }
+      if (b.d.hurt) { b.d.hurt = null; b.d.health = clamp(b.d.health + 25, 0, 100); showIcon(b, '💚', 3000); toast(`💚 ${b.d.name}(이)의 다리가 다 나았어요`, false, 5000); note('healed', b); }
       growCheck(b); layCheck(b); tryReturn();
       if (daysCared(b) >= 3) chapter(2);
     }
@@ -1164,12 +1185,12 @@
     if (b.d.stage === 'egg' && n >= RULE.daysEgg) {
       if (b.hatching === undefined || b.hatching === null) startHatching(b);
     } else if (b.d.stage === 'chick' && n >= RULE.daysChick) {
-      advance(b, 'young'); jump(b, 280); chime();
+      advance(b, 'young'); jump(b, 280); chime(); later0(() => note('young', b), 700);
       toast(`${b.d.name}(이)가 어린닭이 됐어요. 볏이 자라서 ${b.d.sex === 'f' ? '암컷' : '수컷'}인 걸 알 수 있어요`, true, 8000);
       chapter(3);
     } else if (b.d.stage === 'young' && n >= RULE.daysYoung) {
       const sex = b.d.sex || (Math.random() < 0.5 ? 'f' : 'm');
-      b.d.sex = sex; advance(b, sex === 'f' ? 'hen' : 'rooster'); jump(b, 300);
+      b.d.sex = sex; advance(b, sex === 'f' ? 'hen' : 'rooster'); jump(b, 300); later0(() => note('adult', b), 700);
       if (sex === 'f' && (state.settings.propHidden || {}).nest) {
         // 첫 암탉 — 이제 둥지와 바구니가 필요해졌다
         state.settings.propHidden = Object.assign({}, state.settings.propHidden, { nest: false, basket: false });
@@ -1303,6 +1324,7 @@
     if (hen.d.stage !== 'hen' || hen.d.old || hen.d.lastLaid === today()) return;
     if (HYG.level(state.ammonia) === 'bad') { showIcon(hen, '🚫', 2200); return; }  // 암모니아가 심하면 알을 낳지 않는다
     hen.d.lastLaid = today(); hen.d.eggsLaid += 1; showIcon(hen, '🥚', 4000);
+    if (hen.d.eggsLaid === 1) later0(() => note('firstEgg', hen), 600);
     const fertile = hasRooster();
     const room = birds.length < RULE.maxFlock;
     if (fertile && room && !hen.d.brooding) {
@@ -1591,7 +1613,7 @@
     const b = birdAt(e.clientX, e.clientY);
     if (b) { selectedId = b.d.id; if (b.d.stage === 'egg') { openPanel('coop'); return; } showIcon(b, '📣', 2000); const n = callFlock(b.x, b.z, b); toast(n ? `📣 ${b.d.name}(이)가 친구들을 불렀어요` : `📣 ${b.d.name}: 올 친구가 없네요`); }
   });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePanel(); $('#albumModal').classList.add('hidden'); } });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePanel(); $('#journalModal').classList.add('hidden'); grannyHide(); } });
   function treat(b) {
     const k = b.d.sick && b.d.sick.type;
     if (k === 'pasty') { HLT.cure(b.d); showIcon(b, '✨', 3000); toast(`💧 ${b.d.name}(이)의 엉덩이를 닦아 줬어요. 다 나았어요`, true, 7000); markDirty(); renderCoop(); return true; }
@@ -1761,15 +1783,19 @@
   // 알로 시작하면 7일 동안 할 수 있는 일이 '품기' 버튼 하나뿐이기 때문이다.
   function giveFirstChick() {
     if (birds.length) return;
-    const hm = home();
-    const d = newBird('chick', { x: toFrac(hm.coop.x + 1.6), z: hm.coop.z + 0.6 });
+    // 아이가 처음 받는 병아리다. 반드시 눈에 잘 띄는 곳에 둔다.
+    // (닭장 옆에 두었더니 마당 뒤쪽 구석이라 화면 밖으로 밀렸다)
+    const cx = (world.xMin + world.xMax) / 2;
+    const cz = world.zMax - (world.zMax - world.zMin) * 0.22;
+    const d = newBird('chick', { x: toFrac(cx), z: cz });
     state.flock.push(d);
-    const rt = makeRuntime(d); rt.x = hm.coop.x + 1.6; rt.z = hm.coop.z + 0.6; birds.push(rt);
+    const rt = makeRuntime(d); rt.x = cx; rt.z = cz; birds.push(rt);
     // 알을 받을 자리는 아직 필요 없다. 첫 암탉이 나오면 할머니가 가져다 주신다.
     state.settings.propHidden = Object.assign({}, state.settings.propHidden, { nest: true, basket: true });
     layoutHome();
     state.chapter = 1; state.onboarded = false; markDirty(); renderCoop(); closePanel();
     $('#gAsk').classList.remove('hidden');
+    later0(() => note('start', rt), 900);
     const kid = $('#gKid');
     kid.src = 'npc/kid_back_happy.png';        // 병아리를 받고 폴짝 뛴다
     scene([GR.CHAPTERS[1].say, `이름은 "${d.name}"라고 불러 두었단다. 마음에 안 들면 바꾸어도 좋아.`],
@@ -1810,12 +1836,40 @@
   });
   $('#btnBuyWorm').addEventListener('click', () => { if (state.coins < 1) { toast('🪙 코인이 부족해요. 암탉이 낳은 달걀이 코인이 돼요'); return; } state.coins -= 1; state.worms += 1; markDirty(); world.setWormCount(state.worms); renderCoop(); toast('🪱 벌레 한 마리를 샀어요'); });
   $('#btnWhistle').addEventListener('click', () => { const gp = mouse.x >= 0 ? world.screenToGround(mouse.x, mouse.y) : null; const x = gp ? clamp(gp.x, world.xMin + 2, world.xMax - 2) : (world.xMin + world.xMax) / 2; const n = callFlock(x, 0.5, null); toast(n ? '🎵 휘익~ 닭들이 달려와요' : '🎵 부를 닭이 없어요'); closePanel(); });
-  $('#btnAlbum').addEventListener('click', () => {
-    const list = $('#albumList'); list.innerHTML = state.album.length ? '' : '<p class="hint">아직 기록이 없어요.</p>';
-    for (const a of state.album.slice().reverse()) { const el = document.createElement('div'); el.className = 'albumItem'; el.innerHTML = `<b>${esc(a.name)}</b> (${a.stage}) · ${a.born} ~ ${a.left}<br>낳은 알 ${a.eggs}개 · 자손 ${a.children}마리 · ${a.natural ? '자연으로' : '농장으로'}`; list.appendChild(el); }
-    $('#albumModal').classList.remove('hidden');
+  $('#btnAlbum').addEventListener('click', () => { renderJournal(); $('#journalModal').classList.remove('hidden'); closePanel(); });
+  function journalLines() {
+    const out = [];
+    for (const e of (state.journal || [])) out.push(`${e.day}  ${JR.KINDS[e.kind] ? JR.KINDS[e.kind].icon : '·'} ${e.text}`);
+    for (const a of (state.album || [])) out.push(`${a.left}  🌾 ${a.name}(${a.stage}) — ${a.born} 부터 함께. 낳은 알 ${a.eggs}개, 자손 ${a.children}마리`);
+    return out;
+  }
+  function renderJournal() {
+    const box = $('#journalList'); box.innerHTML = '';
+    const js = (state.journal || []);
+    if (!js.length && !(state.album || []).length) { box.innerHTML = '<p class="hint">아직 기록이 없어요. 닭이 자라면 그때그때 이곳에 쌓입니다.</p>'; return; }
+    for (const e of js) {                       // 오래된 것부터 — 자라온 이야기가 된다
+      const k = JR.KINDS[e.kind] || { icon: '·', title: '' };
+      const el = document.createElement('div'); el.className = 'jItem';
+      el.innerHTML = `${e.photo ? `<img class="jShot" src="${e.photo}" alt="">` : '<div class="jShot noshot">' + k.icon + '</div>'}
+        <div class="jBody"><div class="jTop"><b>${k.icon} ${esc(k.title)}</b><span class="jDay">${e.day}</span></div>
+        <p>${esc(e.text)}</p></div>`;
+      box.appendChild(el);
+    }
+    for (const a of (state.album || [])) {
+      const el = document.createElement('div'); el.className = 'jItem';
+      el.innerHTML = `<div class="jShot noshot">🌾</div><div class="jBody">
+        <div class="jTop"><b>🌾 ${esc(a.name)}</b><span class="jDay">${a.left}</span></div>
+        <p>${a.born} 부터 함께 지냈어요. 낳은 알 ${a.eggs}개 · 자손 ${a.children}마리</p></div>`;
+      box.appendChild(el);
+    }
+  }
+  $('#btnJPrint').addEventListener('click', () => window.print());
+  $('#btnJCopy').addEventListener('click', () => {
+    const txt = ['📔 우리 닭 관찰일지', ''].concat(journalLines()).join('\n');
+    try { navigator.clipboard.writeText(txt); toast('📋 복사했어요. 패들렛이나 문서에 붙여 넣으세요', false, 6000); }
+    catch (e) { toast('복사가 안 되는 브라우저예요. 인쇄를 써 보세요', false, 6000); }
   });
-  $('#closeAlbum').addEventListener('click', () => $('#albumModal').classList.add('hidden'));
+  $('#closeJournal').addEventListener('click', () => $('#journalModal').classList.add('hidden'));
 
   // 타이머 탭
 
@@ -1963,6 +2017,6 @@
     requestAnimationFrame(loop);
   }
   // 디버그 훅 (자동 캡처용)
-  window.__tp = { runNeglect: () => { checkNeglect(); return birds.length; }, frozen: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.frozen : null; }, freezes: () => state.freezes, away: () => state.away.map((a) => a.name + ':' + (a.progress || 0)), album: () => state.album.length, neglect: (name) => { const b = birds.find((q) => q.d.name === name); return b ? SCH.neglectedDays(b.d, state) : null; }, why: (n) => { const b = birds.find((q) => q.d.name === n); if (!b) return null; decide(b); return { choice: b.lastChoice, cands: b.lastCands }; }, lamp: (v) => { state.lampPower = v; return state.lampPower; }, comfort: () => birds.filter((q) => q.d.stage === 'chick').map((q) => ({ name: q.d.name, days: daysCared(q), st: q.comfort && q.comfort.state, need: q.comfort && +q.comfort.need.toFixed(1), act: q.comfort && +q.comfort.actual.toFixed(1) })), sickOf: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.sick : null; }, makeSick: (n, k) => { const b = birds.find((q) => q.d.name === n); if (b) { HLT.fallSick(b.d, k); return b.d.sick; } return null; }, poop: (n) => { for (let i = 0; i < (n || 1); i++) HYG.dropPoop(rand(world.xMin + 2, world.xMax - 2), rand(-1.5, 1.5), Math.random() < 0.15); markDirty(); return HYG.count(); }, poopCount: () => HYG.count(), amm: () => +(state.ammonia || 0).toFixed(1), setAmm: (v) => { state.ammonia = v; }, care: (name, what) => { const b = birds.find((q) => q.d.name === name); if (b) { careTick(b, what); return JSON.stringify(b.d.care); } return null; }, careOf: (name) => { const b = birds.find((q) => q.d.name === name); return b ? { care: b.d.care, days: daysCared(b), stage: b.d.stage } : null; }, at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const p = world.screenToPlaneZ(px, py, 1.2); if (p) { worm.x = p.x; worm.y = Math.max(0.15, p.y); } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(1) })), grow: (n, s) => { const b = birds.find((q) => q.d.name === n); if (b) advance(b, s); return !!b; }, world: () => ({ xMin: +world.xMin.toFixed(2), xMax: +world.xMax.toFixed(2), zMin: +world.zMin.toFixed(2), zMax: +world.zMax.toFixed(2), roamTop: world.roamTop, px: world.pxPerUnit, W: world.W, H: world.H }), screenOf: (k) => { const p = world.props[k]; if (!p) return null; const s = world.project(p.position.x, 0.5, p.position.z); return { x: Math.round(s.x), y: Math.round(s.y), pctY: +(s.y / world.H * 100).toFixed(1) }; }, gpu: () => ({ geo: world.renderer.info.memory.geometries, tex: world.renderer.info.memory.textures, calls: world.renderer.info.render.calls }) };
+  window.__tp = { runNeglect: () => { checkNeglect(); return birds.length; }, frozen: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.frozen : null; }, freezes: () => state.freezes, away: () => state.away.map((a) => a.name + ':' + (a.progress || 0)), album: () => state.album.length, journal: () => (state.journal || []).map((e) => e.kind + ':' + e.text + (e.photo ? ' [사진]' : '')), neglect: (name) => { const b = birds.find((q) => q.d.name === name); return b ? SCH.neglectedDays(b.d, state) : null; }, why: (n) => { const b = birds.find((q) => q.d.name === n); if (!b) return null; decide(b); return { choice: b.lastChoice, cands: b.lastCands }; }, lamp: (v) => { state.lampPower = v; return state.lampPower; }, comfort: () => birds.filter((q) => q.d.stage === 'chick').map((q) => ({ name: q.d.name, days: daysCared(q), st: q.comfort && q.comfort.state, need: q.comfort && +q.comfort.need.toFixed(1), act: q.comfort && +q.comfort.actual.toFixed(1) })), sickOf: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.sick : null; }, makeSick: (n, k) => { const b = birds.find((q) => q.d.name === n); if (b) { HLT.fallSick(b.d, k); return b.d.sick; } return null; }, poop: (n) => { for (let i = 0; i < (n || 1); i++) HYG.dropPoop(rand(world.xMin + 2, world.xMax - 2), rand(-1.5, 1.5), Math.random() < 0.15); markDirty(); return HYG.count(); }, poopCount: () => HYG.count(), amm: () => +(state.ammonia || 0).toFixed(1), setAmm: (v) => { state.ammonia = v; }, care: (name, what) => { const b = birds.find((q) => q.d.name === name); if (b) { careTick(b, what); return JSON.stringify(b.d.care); } return null; }, careOf: (name) => { const b = birds.find((q) => q.d.name === name); return b ? { care: b.d.care, days: daysCared(b), stage: b.d.stage } : null; }, at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const p = world.screenToPlaneZ(px, py, 1.2); if (p) { worm.x = p.x; worm.y = Math.max(0.15, p.y); } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(1) })), grow: (n, s) => { const b = birds.find((q) => q.d.name === n); if (b) advance(b, s); return !!b; }, world: () => ({ xMin: +world.xMin.toFixed(2), xMax: +world.xMax.toFixed(2), zMin: +world.zMin.toFixed(2), zMax: +world.zMax.toFixed(2), roamTop: world.roamTop, px: world.pxPerUnit, W: world.W, H: world.H }), screenOf: (k) => { const p = world.props[k]; if (!p) return null; const s = world.project(p.position.x, 0.5, p.position.z); return { x: Math.round(s.x), y: Math.round(s.y), pctY: +(s.y / world.H * 100).toFixed(1) }; }, gpu: () => ({ geo: world.renderer.info.memory.geometries, tex: world.renderer.info.memory.textures, calls: world.renderer.info.render.calls }) };
   init();
 })();

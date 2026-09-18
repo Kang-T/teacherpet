@@ -451,9 +451,38 @@
       return cands.length ? cands[0].v : null;
     }
     let lastRender = performance.now();
-    function render() { const t = performance.now(); const d = Math.min(0.1, (t - lastRender) / 1000); tickPuffs(d); tickSparks(d); lastRender = t; tickShells(); renderer.render(scene, camera); }
+    function render() { const t = performance.now(); const d = Math.min(0.1, (t - lastRender) / 1000); tickPuffs(d); tickSparks(d); lastRender = t; tickShells(); renderer.render(scene, camera); if (pendingShot) takeShot(); }
 
     Object.assign(world, { makeWorm, setWormCount, addShells, puff, sparkle, makePoop, addPickable, removePickable, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
+    // 관찰일지용 사진 — 화면에서 한 곳을 잘라 작은 JPEG 로 돌려준다.
+    // WebGL 캔버스는 '그린 직후'에만 읽을 수 있다(preserveDrawingBuffer 가 꺼져 있어서).
+    // 그래서 여기서 바로 찍지 않고 예약해 두었다가 render() 안에서 찍는다.
+    let pendingShot = null;
+    function capture(cx, cy, outW, outH) {
+      return new Promise((res) => {
+        if (pendingShot) pendingShot.res(null);          // 밀린 예약은 버린다
+        pendingShot = { cx, cy, outW, outH, res };
+      });
+    }
+    function takeShot() {
+      const s = pendingShot; pendingShot = null;
+      try {
+        const src = renderer.domElement;
+        const dpr = src.width / Math.max(1, world.W);
+        const cw = s.outW * 1.5, ch = s.outH * 1.5;   // 주인공이 화면을 채우도록 바짝
+        let sx = (s.cx - cw / 2) * dpr, sy = (s.cy - ch / 2) * dpr;
+        sx = Math.max(0, Math.min(sx, src.width - cw * dpr));
+        sy = Math.max(0, Math.min(sy, src.height - ch * dpr));
+        const c = document.createElement('canvas');
+        c.width = s.outW; c.height = s.outH;
+        const g2 = c.getContext('2d');
+        g2.fillStyle = '#9CCB6B'; g2.fillRect(0, 0, s.outW, s.outH);   // 캔버스가 투명하므로 잔디색을 깔고
+        g2.drawImage(src, sx, sy, cw * dpr, ch * dpr, 0, 0, s.outW, s.outH);
+        s.res(c.toDataURL('image/jpeg', 0.62));
+      } catch (e) { s.res(null); }
+    }
+    Object.assign(world, { capture });
+
     return world;
   }
   global.TP_WORLD = { create, STAGE_PRESET, COOP_ROOF_Y: 3.35 };

@@ -45,7 +45,7 @@
           <button data-feed="starter">스타터</button><button data-feed="grower">그로워</button><button data-feed="layer">레이어</button>
         </div><span id="feedHint"></span></div>
         <div class="stat"><b>😷 공기</b><span class="say" id="ammLabel"></span></div>
-        <div class="row tiny"><span>🪱 벌레 <b id="wormCount">0</b></span><button class="small" id="btnBuyWorm">🪱 1🪙</button><button class="small" id="btnBuyMed">💊 약 사기</button><button class="small" id="btnAlbum">📖 앨범</button></div>
+        <div class="row tiny"><span>🪱 벌레 <b id="wormCount">0</b></span><button class="small" id="btnBuyWorm">🪱 1🪙</button><button class="small" id="btnBuyMed">💊 약 사기</button><button class="small" id="btnAlbum">📔 관찰일지</button></div>
         <div class="row tiny"><span class="label">🤝 품앗이</span><button class="small" id="btnSeedMake">씨알 코드 만들기</button><button class="small" id="btnSeedUse">친구 코드 넣기</button><span id="seedHint" class="hint"></span></div>
         <div class="row tiny"><span class="label">✉️ 편지</span><button class="small" id="btnLetter">할머니께 편지 쓰기</button><span class="hint">고치고 싶은 것을 알려 주세요</span></div>
         <div class="row tiny"><label class="chk"><input type="checkbox" id="chkDetail"> 숫자로 자세히 보기</label></div>
@@ -101,7 +101,17 @@
   </section>
 </div>
 
-<div id="albumModal" class="ui hidden"><div class="modalCard"><h3>📖 우리 반 닭 앨범</h3><div id="albumList"></div><button id="closeAlbum">닫기</button></div></div>
+<div id="journalModal" class="ui hidden"><div class="modalCard jCard">
+  <div class="jHead">
+    <h3>📔 관찰일지</h3>
+    <div class="jActs">
+      <button class="small" id="btnJPrint">🖨️ 인쇄</button>
+      <button class="small" id="btnJCopy">📋 글로 복사</button>
+      <button class="small" id="closeJournal">닫기</button>
+    </div>
+  </div>
+  <div id="journalList"></div>
+</div></div>
 
 <script src="vendor/three.global.js"></script>
 <script src="core/util.js"></script>
@@ -111,6 +121,7 @@
 <script src="sim/entities.js"></script>
 <script src="sim/mind.js"></script>
 <script src="sim/granny.js"></script>
+<script src="sim/journal.js"></script>
 <script src="sim/school.js"></script>
 <script src="sim/hygiene.js"></script>
 <script src="sim/health.js"></script>
