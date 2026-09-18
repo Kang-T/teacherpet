@@ -255,8 +255,13 @@
     const midMs = frames.length ? frames[Math.floor(frames.length / 2)] : 999;
     const p95 = frames.length ? frames[Math.floor(frames.length * 0.95)] : 999;
     const calls = D.gpu().calls;
-    ok('배경을 올려도 프레임이 버틴다', frames.length > 30 && midMs < 24,
-      `중간 ${midMs.toFixed(1)}ms (${(1000 / midMs).toFixed(0)}fps) · 최악5% ${p95.toFixed(1)}ms · ${frames.length}프레임`);
+    const gpuName = T.gpuName ? T.gpuName() : '';
+    const soft = /llvmpipe|swiftshader|softwarerasterizer|software/i.test(gpuName);
+    const fpsLine = `중간 ${midMs.toFixed(1)}ms (${(1000 / midMs).toFixed(0)}fps) · 최악5% ${p95.toFixed(1)}ms · ${frames.length}프레임`;
+    // CI(xvfb)는 그래픽카드 없이 소프트웨어로 그린다. 거기서 잰 프레임 수는
+    // 학교 크롬북 성능과 아무 상관이 없어서, 알리기만 하고 떨어뜨리지는 않는다.
+    ok('배경을 올려도 프레임이 버틴다', soft || (frames.length > 30 && midMs < 24),
+      soft ? `${fpsLine} — 소프트웨어 렌더링(${gpuName})이라 판정하지 않음` : fpsLine);
     ok('드로우콜이 예산 안에 있다', calls < 480, `${calls}개 (기준 480)`);
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
