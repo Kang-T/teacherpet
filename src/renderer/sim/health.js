@@ -6,7 +6,11 @@
   const TP = (g.TP = g.TP || {});
   const U = TP.util, C = TP.config;
 
-  const ROOM_C = 21, LAMP_MAX_C = 15;
+  // 마당 기본 온도. 날씨가 이 값을 올리고 내린다 (추운 날엔 마당 전체가 춥다).
+  const BASE_ROOM_C = 21, LAMP_MAX_C = 15;
+  let ROOM_C = BASE_ROOM_C;
+  const setRoom = (shift) => { ROOM_C = BASE_ROOM_C + (Number(shift) || 0); };
+  const roomC = () => ROOM_C;
 
   // 병아리가 필요로 하는 온도 (돌본 날 = 주령)
   function needC(bird, caredDays) {
@@ -80,5 +84,5 @@
     d.stress = Math.min(100, (d.stress || 0) + dt * (4 / 3600));
   }
 
-  TP.health = { ROOM_C, needC, tempAt, comfort, DISEASE, info, fallSick, cure, riskTick, sickTick };
+  TP.health = { roomC, setRoom, needC, tempAt, comfort, DISEASE, info, fallSick, cure, riskTick, sickTick };
 })(typeof window !== 'undefined' ? window : module.exports);

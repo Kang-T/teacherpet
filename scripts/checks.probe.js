@@ -1,7 +1,7 @@
 // 자동 검증 — 렌더러 안에서 돈다. scripts/check.js 가 Electron 에 넣어 실행한다.
 // 그동안 실제로 났던 버그를 하나씩 되짚는다. 새 버그를 만나면 여기에 항목을 더한다.
 (async () => {
-  const T = window.__tpTest, D = window.__tp;
+  const T = window.__tpTest, D = window.__tp, TPU = window.TP.util;
   const out = [];
   const ok = (name, pass, detail) => out.push({ name, pass: !!pass, detail: detail === undefined ? '' : String(detail) });
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -154,6 +154,47 @@
     if (m0 && m3) { for (let r = 0; r < m0.n && sameMask; r++) for (let c = 0; c < m0.n; c++) if (m0.rows[r][c] !== m3.rows[r][c]) { sameMask = false; break; } }
     ok('QR 마스크가 실제로 다르게 나온다', m0 && m3 && !sameMask, '');
     ok('새로 시작이 저장을 먼저 멈춘다', T.wipeReady(), '__tpWipe 가 없으면 지운 농장이 되살아난다');
+
+    // ── 11. 날씨 (날짜 시드) ──
+    // 서버가 없으니, '같은 날 같은 반이면 같은 날씨'가 유일한 약속이다. 그게 깨지면 기능 자체가 무의미해진다.
+    const D1 = '2026-09-19', D2 = '2026-09-20';
+    const a1 = T.weatherOn(D1, '5-3'), a2 = T.weatherOn(D1, '5-3');
+    ok('같은 날 같은 반이면 늘 같은 날씨', a1 === a2, `${a1} = ${a2}`);
+    let differs = 0;
+    for (const c of ['5-3', '5-4', '6-1', '3-2', '1-1', '2-7']) if (T.weatherOn(D1, c) !== a1) differs++;
+    ok('반이 다르면 날씨가 갈린다', differs >= 2, `6개 반 중 ${differs}개가 5-3과 다름`);
+    let kinds = {};
+    let day = D1;
+    for (let i = 0; i < 120; i++) { kinds[T.weatherOn(day, '5-3')] = 1; day = TPU.addDays(day, 1); }
+    ok('넉 달이면 6가지 날씨가 다 나온다', Object.keys(kinds).length === 6, Object.keys(kinds).join(','));
+    let changes = 0, lastWx = null; day = D1;
+    for (let i = 0; i < 30; i++) { const k = T.weatherOn(day, '5-3'); if (lastWx && k !== lastWx) changes++; lastWx = k; day = TPU.addDays(day, 1); }
+    ok('날씨가 날마다 굳지 않고 바뀐다', changes >= 10, `30일 중 ${changes}번 바뀜`);
+    let run = 1, worst = 1; lastWx = null; day = D1;
+    for (let i = 0; i < 365; i++) { const k = T.weatherOn(day, '5-3'); run = k === lastWx ? run + 1 : 1; worst = Math.max(worst, run); lastWx = k; day = TPU.addDays(day, 1); }
+    ok('같은 날씨가 나흘 넘게 이어지지 않는다', worst <= 3, `1년 최장 ${worst}일 연속`);
+
+    // 학급 코드에 이름이 들어가면 안 된다 — 아이가 쓰는 칸이다
+    ok('학급 코드는 숫자만 남는다', T.cleanClass('5학년 3반 강경욱') === '5-3' && T.cleanClass('강경욱') === '',
+      `'5학년 3반 강경욱' → '${T.cleanClass('5학년 3반 강경욱')}' · '강경욱' → '${T.cleanClass('강경욱')}'`);
+
+    // 날씨가 마당 온도를 실제로 움직이는가 (추운 날 병아리가 보온등을 찾는 근거)
+    const rooms = {};
+    for (const c of ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']) {
+      const r = T.setClass(c); rooms[r.wx] = T.roomC();
+    }
+    const spread = Object.keys(rooms).length > 1
+      && Math.max(...Object.values(rooms)) - Math.min(...Object.values(rooms)) >= 3;
+    ok('날씨에 따라 마당 온도가 달라진다', spread,
+      Object.keys(rooms).map((k) => `${k} ${rooms[k]}℃`).join(' · '));
+    T.setClass('');
+
+    // 자랑 글에 식별자가 섞이면 안 된다. 이 앱은 '아무것도 보내지 않는다'로 서 있다.
+    T.setClass('5-3');
+    const brag = T.brag();
+    const leaks = brag.includes('5-3') || /학년|반$|학교/m.test(brag);
+    ok('자랑 글에 반·학교가 들어가지 않는다', !leaks, JSON.stringify(brag));
+    T.setClass('');
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
   }

@@ -1,8 +1,9 @@
 /* 웹 전용 — 바탕화면 대신 하늘과 잔디를 그린다 */
 html, body {
   /* --horizon 은 app.js 의 resize() 가 화면 비율에 맞춰 정한다 (세로일수록 마당이 커진다) */
-  background: linear-gradient(#8FC7F5 0%, #BFE0FA calc(var(--horizon, 33%) * 0.66),
-    #DFF0FB calc(var(--horizon, 33%) - 2%), #B7DE93 var(--horizon, 33%),
+  /* --sky1~3 은 오늘 날씨가 정한다 (sim/weather.js). 값이 없으면 맑은 날 색이다. */
+  background: linear-gradient(var(--sky1, #8FC7F5) 0%, var(--sky2, #BFE0FA) calc(var(--horizon, 33%) * 0.66),
+    var(--sky3, #DFF0FB) calc(var(--horizon, 33%) - 2%), #B7DE93 var(--horizon, 33%),
     #8FCB6B calc(var(--horizon, 33%) + 29%), #7BBE5B 100%);
   overscroll-behavior: none;
   -webkit-user-select: none; user-select: none;
@@ -11,6 +12,12 @@ body.tp-hidden #stageHost, body.tp-hidden #bubbles { display: none; }
 
 /* 구름 */
 .cloud { position: absolute; background: rgba(255,255,255,.85); border-radius: 50%; pointer-events: none; filter: blur(0.3px); }
+/* 궂은 날은 구름이 잿빛으로 낮게 깔린다 */
+body[data-wx="cloudy"] .cloud, body[data-wx="rain"] .cloud { background: rgba(228,232,236,.9); }
+body[data-wx="rain"] .cloud { filter: blur(1.2px); }
+/* 마당 위에 얇게 덮이는 그늘 — 숫자는 날씨가 정한다 */
+#wxdim { position: fixed; inset: 0; pointer-events: none; z-index: 5;
+  background: #43505C; opacity: var(--wx-dim, 0); transition: opacity .9s ease; }
 
 /* 트레이 메뉴를 대신하는 화면 버튼 */
 #webbar {

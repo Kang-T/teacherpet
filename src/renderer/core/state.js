@@ -25,7 +25,7 @@
         holidays: [], vacation: null, paused: false,
         propPos: {}, propHidden: {},
       },
-      chapter: 0, onboarded: false, borrowed: null, lastBackup: '', backupNagged: '',   // borrowed = 친구에게 빌린 수탉(씨알 코드)
+      chapter: 0, onboarded: false, borrowed: null, lastBackup: '', backupNagged: '', classCode: '', wxTold: '',   // borrowed = 친구에게 빌린 수탉(씨알 코드)
       lastCrow: '', lastSeen: U.now(), openedDays: [],
     };
   }

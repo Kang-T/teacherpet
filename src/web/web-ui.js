@@ -82,20 +82,34 @@
     $('#wbStart').addEventListener('click', () => { remember(); begin(); });
   }
 
-  // ---- 구름 몇 조각 ----
+  // ---- 구름 ----
+  // 몇 조각이고 얼마나 빠른지는 오늘 날씨가 정한다. app.js 가 __tpClouds 로 알려 준다.
   const box = $('#clouds');
-  for (let i = 0; i < 7; i++) {
-    const c = document.createElement('div');
-    c.className = 'cloud';
-    const w = 60 + Math.random() * 130, h = w * (0.28 + Math.random() * 0.14);
-    // 구름은 하늘 띠 안에만 (--horizon 은 화면 비율에 따라 바뀐다)
-    const band = (0.06 + Math.random() * 0.62).toFixed(2);
-    c.style.cssText = `width:${w}px;height:${h}px;left:${Math.random() * 100}%;top:calc(var(--horizon, 33%) * ${band});opacity:${0.5 + Math.random() * 0.4}`;
-    box.appendChild(c);
-    const drift = 40 + Math.random() * 70, dur = 90 + Math.random() * 120;
-    c.animate([{ transform: 'translateX(0)' }, { transform: `translateX(${drift}px)` }],
-      { duration: dur * 1000, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' });
+  function makeClouds(n, kind) {
+    box.innerHTML = '';
+    document.body.dataset.wx = kind || 'clear';
+    const windy = kind === 'wind', heavy = kind === 'rain' || kind === 'cloudy';
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement('div');
+      c.className = 'cloud';
+      const w = (60 + Math.random() * 130) * (heavy ? 1.25 : 1), h = w * (0.28 + Math.random() * 0.14);
+      // 구름은 하늘 띠 안에만 (--horizon 은 화면 비율에 따라 바뀐다)
+      const band = (0.06 + Math.random() * (heavy ? 0.5 : 0.62)).toFixed(2);
+      c.style.cssText = `width:${w}px;height:${h}px;left:${Math.random() * 100}%;top:calc(var(--horizon, 33%) * ${band});opacity:${(heavy ? 0.7 : 0.5) + Math.random() * 0.3}`;
+      box.appendChild(c);
+      const drift = (40 + Math.random() * 70) * (windy ? 3.2 : 1);
+      const dur = (90 + Math.random() * 120) / (windy ? 4 : 1);
+      c.animate([{ transform: 'translateX(0)' }, { transform: `translateX(${drift}px)` }],
+        { duration: dur * 1000, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' });
+    }
   }
+  window.__tpClouds = makeClouds;
+  // app.js 가 우리보다 먼저 날씨를 정했을 수 있다. 그랬으면 남겨 둔 값을 그대로 쓴다.
+  const pending = window.__tpWx;
+  makeClouds(pending ? pending.clouds : 7, pending ? pending.key : 'clear');
+
+  // 궂은 날 마당 위에 얇게 덮이는 그늘 (투명도는 --wx-dim 이 정한다)
+  if (!$('#wxdim')) { const dim = document.createElement('div'); dim.id = 'wxdim'; document.body.appendChild(dim); }
 
   // ---- 가만히 있으면 버튼이 사라진다 ----
   // 화면에 남는 것은 마당과 닭뿐. 손을 대면 다시 나타난다.

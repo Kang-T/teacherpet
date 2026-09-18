@@ -4,7 +4,7 @@
 (() => {
   const api = window.teacherpet;
   const THREE = window.THREE;
-  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, school: SCH, granny: GR, journal: JR, farmcode: FC, qr: QR, bus } = window.TP;
+  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, school: SCH, granny: GR, journal: JR, farmcode: FC, qr: QR, weather: WX, bus } = window.TP;
   const { $, $$, now, today, rand, pick, clamp, uid, esc } = U;
   const { RULE, PX_PER_UNIT, STAGE_KO, STAGE_ORDER, SPEED, NAMES, PROP_NAMES, PROP_KO } = C;
   const { trait, moodOf, rank, TRAIT_DESC } = MIND;
@@ -42,6 +42,24 @@
     } catch (e) { /* 저장을 못 쓰는 브라우저 */ }
     location.reload();
   };
+
+  // ---- 오늘의 날씨 ----
+  // 날짜와 '우리 반'만으로 정해진다. 저장하지 않는다 — 언제 물어도 같은 답이 나오기 때문이다.
+  let wx = WX.of(today(), '');
+  function applyWeather() {
+    wx = WX.of(today(), state.classCode);
+    HLT.setRoom(wx.room);                       // 추운 날은 마당 전체가 춥다 → 병아리가 보온등을 찾는다
+    const r = document.documentElement.style;
+    r.setProperty('--sky1', wx.sky[0]);
+    r.setProperty('--sky2', wx.sky[1]);
+    r.setProperty('--sky3', wx.sky[2]);
+    r.setProperty('--wx-dim', String(wx.dim));
+    window.__tpWx = { clouds: wx.clouds, key: wx.key };
+    if (window.__tpClouds) window.__tpClouds(wx.clouds, wx.key);
+    const line = $('#wxLine');
+    if (line) line.textContent = `${wx.icon} ${wx.name}${state.classCode ? ' · ' + state.classCode + '반' : ''}`;
+    for (const b of birds) decide(b);
+  }
 
   // ---- 3D 무대 ----
   const world = window.TP_WORLD.create($('#stageHost'));
@@ -573,23 +591,23 @@
     // 긁기: 암탉이 가장 오래, 병아리는 짧게, 수탉은 덜 (파수를 보느라)
     const SCR = { chick: [0.9, 2, 4], young: [1.2, 3, 6], hen: [1.4, 5, 10], rooster: [0.9, 3, 7] }[d.stage] || [1.3, 4, 9];
     if (d.sick) SCR[0] *= 0.25;
-    add('scratch', SCR[0] * (d.hurt ? 0.4 : 1) * T.appetite * (0.6 + d.energy / 200) * (d.stress > 60 ? 0.3 : 1), () => setAnim(b, 'scratch', rand(SCR[1], SCR[2])));
+    add('scratch', wx.outdoor * SCR[0] * (d.hurt ? 0.4 : 1) * T.appetite * (0.6 + d.energy / 200) * (d.stress > 60 ? 0.3 : 1), () => setAnim(b, 'scratch', rand(SCR[1], SCR[2])));
     // 모래 목욕 — 이틀에 한 번, 평균 27분(게임 12초). 전염된다.
     const dustGap = d.lastDust ? U.daysBetween(d.lastDust, today()) : 99;
     const dirty = Math.max(0, 70 - (d.clean ?? 85)) / 70;         // 더러울수록 하고 싶어진다
-    add('dustbath', (dustGap >= 2 ? 1.2 : 0.05) * (1 + dirty * 2.2) * T.tidy * ({ chick: 0.45, young: 0.8, hen: 1.3, rooster: 1 }[d.stage] || 1) * (1 + (b.dustUrge || 0)) * (d.stress > 50 ? 0.2 : 1), () => {
+    add('dustbath', wx.dust * (dustGap >= 2 ? 1.2 : 0.05) * (1 + dirty * 2.2) * T.tidy * ({ chick: 0.45, young: 0.8, hen: 1.3, rooster: 1 }[d.stage] || 1) * (1 + (b.dustUrge || 0)) * (d.stress > 50 ? 0.2 : 1), () => {
       if (propVisible('dustpit') && gapTo(b, hm.dustpit.x, hm.dustpit.z) > 1.6) goTo(b, hm.dustpit.x + rand(-1.2, 1.2), 'godust', hm.dustpit.z + rand(-0.5, 0.5));
       else startDustBath(b);
     });
     // 햇볕 쬐기 — 끝나면 반드시 깃털 다듬기로 이어진다
-    add('sunbathe', 0.35 * T.tidy * (M.valence > -0.2 ? 1 : 0.2), () => setAnim(b, 'sunbathe', rand(5, 9)));
+    add('sunbathe', 0.35 * wx.dust * T.tidy * (M.valence > -0.2 ? 1 : 0.2), () => setAnim(b, 'sunbathe', rand(5, 9)));
     // 편안함 행동
     add('stretch', 0.22 * (d.energy / 100), () => setAnim(b, 'stretch', rand(1.4, 2.2)));
     add('shake', 0.3, () => setAnim(b, 'shake', 1.0));
     // 산책: 혼자 너무 멀어지면 무리 쪽으로 돌아간다 (닭은 몰려다닌다)
     const fc = flockCenter(b);
     const strayed = fc ? gap2(b, fc) : 0;
-    add('walk', 0.9 * T.curiosity * (d.energy / 100), () => {
+    add('walk', wx.outdoor * 0.9 * T.curiosity * (d.energy / 100), () => {
       b.walkZ = clampZ(b.z + rand(-1, 1) * rand(0.6, 3.5) * T.curiosity);
       let tx = b.x + rand(-1, 1) * rand(3, 10) * (d.old ? 0.6 : 1) * (T.curiosity > 1.4 ? 1.6 : 1);
       if (fc !== null) {
@@ -601,6 +619,14 @@
     // 무리에서 멀어지면 불안해져서 돌아간다
     if (fc && strayed > 7) add('regroup', (strayed - 7) / 6 * 1.8 * T.sociable, () => { goTo(b, fc.x + rand(-1.5, 1.5), 'walk', fc.z + rand(-1.2, 1.2)); showIcon(b, '👀', 1400); });
     add('preen', 0.16 * T.tidy, () => setAnim(b, 'preen', rand(2.5, 4.5)));
+    // 궂은 날엔 처마 밑으로 — 닭은 비를 맞으면 체온을 잃는다.
+    // 이미 처마 밑이면 그 자리에 머문다(다시 부르지 않는다).
+    if (wx.indoor > 0 && propVisible('coop')) {
+      const ex = hm.coop.x + (hm.flip ? -1 : 1) * 1.5, ez = hm.coop.z + 1.1;
+      const far = gapTo(b, ex, ez) > 2.4;
+      add('shelter', wx.indoor * (far ? 2.6 : 0.9) * (d.stage === 'chick' ? 1.3 : 1),
+        () => { if (far) goTo(b, ex + rand(-1.1, 1.1), 'gocoop', ez + rand(-0.5, 0.5)); else setAnim(b, 'huddle', rand(4, 8)); });
+    }
     // "저게 뭐지?" — 멀리서 커서가 얼쩡거리면 겁내면서도 조금씩 다가가 목을 빼고 본다
     if (d.stage === 'chick' && warmSpot()) { const ws = warmSpot(); add('warm', (gapTo(b, ws.x, ws.z) > 1.6 ? 0.55 : 0.1) * (1 + M.sleepy), () => goTo(b, ws.x + rand(-0.9, 0.9), 'golamp', ws.z + rand(-0.6, 0.6))); }
     // 수탉: 지붕에 올라가 울기
@@ -895,7 +921,7 @@
     const s = spec(b);
     if (b.d.stage !== 'egg') {
       b.d.hunger = clamp(b.d.hunger - dt * (100 / (8 * 3600)), 0, 100);
-      b.d.thirst = clamp(b.d.thirst - dt * (100 / (6 * 3600)), 0, 100);
+      b.d.thirst = clamp(b.d.thirst - dt * wx.thirst * (100 / (6 * 3600)), 0, 100);   // 무더위엔 물이 빨리 준다
       b.d.happy = clamp(b.d.happy - dt * (100 / (12 * 3600)), 10, 100);
       if (b.d.hunger < 30 || b.d.thirst < 30) b.d.aff = clamp(b.d.aff - dt * (3 / 3600), 0, 100);
       const T = trait(b), sleeping = b.anim === 'sleep';
@@ -1996,6 +2022,8 @@
 
   // 설정 탭
   function renderSettings() {
+    $('#classCode').value = state.classCode || '';
+    $('#wxLine').textContent = `${wx.icon} ${wx.name}${state.classCode ? ' · ' + state.classCode + '반' : ''}`;
     $('#soundOn').checked = state.settings.sound;
     const cal = !!state.settings.useCalendar;
     $('#useCalendar').checked = cal;
@@ -2023,6 +2051,38 @@
     if (!/^https?:$/.test(location.protocol)) return code;   // 데스크톱(file://)은 글자 그대로
     return location.origin + location.pathname + '#f=' + code.replace(/^농장-/, '');
   }
+  // 우리 반 — 숫자만 남는다 (weather.cleanClass). 기기 안에만 있고 어디로도 보내지 않는다.
+  $('#classCode').addEventListener('change', (e) => {
+    const v = WX.cleanClass(e.target.value);
+    e.target.value = v;                      // 정리된 모습을 그대로 보여 준다
+    if (v === state.classCode) return;
+    state.classCode = v; markDirty(); applyWeather();
+    toast(v ? `${v}반 날씨로 맞췄어요 — ${wx.icon} ${wx.name}` : `전국 공통 날씨로 돌렸어요 — ${wx.icon} ${wx.name}`, false, 5000);
+  });
+
+  // 오늘 자랑 글 — 이름도 학교도 반도 들어가지 않는다. 숫자와 날씨뿐이다.
+  function bragText() {
+    const chicks = birds.filter((b) => b.d.stage === 'chick').length;
+    const days = birds.length ? Math.max(...birds.map((b) => daysCared(b))) : 0;
+    const out = [`🐔 우리 농장 ${days}일차`, `${wx.icon} 오늘은 ${wx.name}`];
+    if (chicks) out.push(`🐤 병아리 ${chicks}마리 무사해요`);
+    else if (birds.length) out.push(`🐓 닭 ${birds.length}마리와 지내요`);
+    const last = (state.journal || []).slice(-1)[0];
+    if (last && last.text) out.push(`📔 ${last.text}`);
+    return out.join('\n');
+  }
+  $('#btnBrag').addEventListener('click', () => {
+    if (!birds.length) { toast('아직 자랑할 닭이 없어요', false, 5000); return; }
+    const t = bragText();
+    const done = () => toast('📋 자랑 글을 복사했어요');
+    const fail = () => grannySay('복사가 안 되는구나. 이대로 옮겨 적으렴.',
+      [{ label: '알겠어요', primary: true, fn: grannyHide }], 'think', { code: t });
+    try {
+      const p = navigator.clipboard && navigator.clipboard.writeText(t);
+      if (p && p.then) p.then(done, fail); else fail();
+    } catch (e) { fail(); }
+  });
+
   $('#btnCodeMake').addEventListener('click', () => {
     const code = FC.make(state);
     if (!code) { toast('아직 데려갈 닭이 없어요', false, 5000); return; }
@@ -2181,8 +2241,19 @@
          { label: '아니요', fn: grannyHide }], 'think'), 700);
     }
 
+    // 오늘 날씨를 하루 한 번 알려 준다. 날씨가 바뀌는 건 아이가 어쩔 수 없는 일이니,
+    // 혼내는 말이 아니라 '오늘은 이런 날이니 이걸 보아라' 하는 말로 한다.
+    applyWeather();
+    let toldWeather = false;
+    if (birds.length && state.onboarded && state.wxTold !== today() && !incoming) {
+      state.wxTold = today(); markDirty(); toldWeather = true;
+      afterWelcome(() => grannySay(`${wx.icon} ${wx.name}.\n${wx.say}`,
+        [{ label: '알겠어요', primary: true, fn: grannyHide }],
+        wx.key === 'clear' ? 'smile' : (wx.key === 'rain' || wx.key === 'cold' || wx.key === 'hot') ? 'worry' : 'think'), 2200);
+    }
+
     // 오래 안 챙겼으면 한 번 일러 준다. 기기 저장은 언젠가 반드시 날아간다.
-    if (birds.length && state.onboarded && !incoming) {
+    if (birds.length && state.onboarded && !incoming && !toldWeather) {
       const last = state.lastBackup || '';
       const days = last ? U.daysBetween(last, today()) : 99;
       if (days >= 7 && state.backupNagged !== today()) {
@@ -2240,6 +2311,12 @@
     fixBird(raw) { const d = ST.ensureBird(Object.assign({ id: 'x', name: '테스트', stage: 'chick' }, raw)); return { x: d.x, z: d.z }; },
     qr(text, mask) { const q = QR.make(text, mask); return q ? { n: q.n, rows: q.rows } : null; },
     wipeReady() { return typeof window.__tpWipe === 'function'; },
+    weather() { return { key: wx.key, name: wx.name, room: wx.room, dust: wx.dust, indoor: wx.indoor }; },
+    weatherOn(day, klass) { const w = WX.of(day, klass); return w.key; },
+    setClass(v) { state.classCode = WX.cleanClass(v); applyWeather(); return { code: state.classCode, wx: wx.key }; },
+    roomC() { return HLT.roomC(); },
+    cleanClass(v) { return WX.cleanClass(v); },
+    brag() { return bragText(); },
   };
   window.__tp = { runNeglect: () => { checkNeglect(); return birds.length; }, frozen: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.frozen : null; }, freezes: () => state.freezes, away: () => state.away.map((a) => a.name + ':' + (a.progress || 0)), album: () => state.album.length, journal: () => (state.journal || []).map((e) => e.kind + ':' + e.text + (e.photo ? ' [사진]' : '')), neglect: (name) => { const b = birds.find((q) => q.d.name === name); return b ? SCH.neglectedDays(b.d, state) : null; }, why: (n) => { const b = birds.find((q) => q.d.name === n); if (!b) return null; decide(b); return { choice: b.lastChoice, cands: b.lastCands }; }, lamp: (v) => { state.lampPower = v; return state.lampPower; }, comfort: () => birds.filter((q) => q.d.stage === 'chick').map((q) => ({ name: q.d.name, days: daysCared(q), st: q.comfort && q.comfort.state, need: q.comfort && +q.comfort.need.toFixed(1), act: q.comfort && +q.comfort.actual.toFixed(1) })), sickOf: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.sick : null; }, makeSick: (n, k) => { const b = birds.find((q) => q.d.name === n); if (b) { HLT.fallSick(b.d, k); return b.d.sick; } return null; }, poop: (n) => { for (let i = 0; i < (n || 1); i++) HYG.dropPoop(rand(world.xMin + 2, world.xMax - 2), rand(world.zMin + 2, world.zMax - 2), Math.random() < 0.15); markDirty(); return HYG.count(); }, poopCount: () => HYG.count(), amm: () => +(state.ammonia || 0).toFixed(1), setAmm: (v) => { state.ammonia = v; }, care: (name, what) => { const b = birds.find((q) => q.d.name === name); if (b) { careTick(b, what); return JSON.stringify(b.d.care); } return null; }, careOf: (name) => { const b = birds.find((q) => q.d.name === name); return b ? { care: b.d.care, days: daysCared(b), stage: b.d.stage } : null; }, at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const sp = wormSpot(px, py); if (sp) { worm.x = sp.x; worm.z = sp.z; worm.y = HOLD_Y; } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(2), z: +b.z.toFixed(2), head: b.heading === undefined ? null : +b.heading.toFixed(2) })), grow: (n, s) => { const b = birds.find((q) => q.d.name === n); if (b) advance(b, s); return !!b; }, world: () => ({ xMin: +world.xMin.toFixed(2), xMax: +world.xMax.toFixed(2), zMin: +world.zMin.toFixed(2), zMax: +world.zMax.toFixed(2), roamTop: world.roamTop, px: world.pxPerUnit, W: world.W, H: world.H }), screenOf: (k) => { const p = world.props[k]; if (!p) return null; const s = world.project(p.position.x, 0.5, p.position.z); return { x: Math.round(s.x), y: Math.round(s.y), pctY: +(s.y / world.H * 100).toFixed(1) }; }, gpu: () => ({ geo: world.renderer.info.memory.geometries, tex: world.renderer.info.memory.textures, calls: world.renderer.info.render.calls }) };
   init();
