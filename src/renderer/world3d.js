@@ -38,7 +38,7 @@
     // 그러면 확대하거나 각도를 바꾸는 순간 소품과 닭의 위치가 통째로 움직였다.
     const YARD = { w: 32, d: 30 };
     const world = {
-      renderer, scene, camera, birds: new Map(), props: {}, pxPerUnit: 40,
+      renderer, scene, camera, birds: new Map(), props: {}, decos: new Map(), pxPerUnit: 40,
       xMin: -YARD.w / 2, xMax: YARD.w / 2, zMin: -YARD.d, zMax: 0.6,
       YARD, view: { zoom: 1, elev: 24, tx: 0, tz: -YARD.d * 0.42 },
       roamTop: 0.35, W: 1, H: 1,
@@ -289,9 +289,10 @@
     // ---- 소품 ----
     const hard = (color, extra = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.75, metalness: 0 }, extra));
     function shadowed(o) { o.traverse((m) => { if (m.isMesh) { m.castShadow = true; } }); return o; }
+    let coopSkin = { roof: 0xD9574F, ridge: 0xB84640 };
     function makeCoop() {
       const g = new THREE.Group();
-      const wood = hard(0xE3BF92), trim = hard(0xFFF7EC), dark = hard(0x5B3A21), roofC = hard(0xD9574F);
+      const wood = hard(0xE3BF92), trim = hard(0xFFF7EC), dark = hard(0x5B3A21), roofC = hard(coopSkin.roof);
       // 몸체 (앞면이 +z)
       const W = 3.6, D = 2.6, Hh = 2.0;
       const body = new THREE.Mesh(new THREE.BoxGeometry(W, Hh, D), wood); body.position.y = Hh / 2 + 0.1; g.add(body);
@@ -306,7 +307,7 @@
         const panel = new THREE.Mesh(new THREE.BoxGeometry(slopeLen, 0.12, D + ow * 2 + 0.2), roofC);
         panel.position.set(side * (W / 2 + ow) / 2, Hh + 0.1 + rh / 2 + 0.06, 0); panel.rotation.z = -side * ang; g.add(panel);
       }
-      const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, D + ow * 2 + 0.3), hard(0xB84640)); ridge.position.set(0, Hh + 0.1 + rh + 0.06, 0); g.add(ridge);
+      const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, D + ow * 2 + 0.3), hard(coopSkin.ridge)); ridge.position.set(0, Hh + 0.1 + rh + 0.06, 0); g.add(ridge); g.userData.roofMats = [roofC, ridge.material];
       // 문 (아치) + 문틀
       const arch = new THREE.Shape(); arch.moveTo(-0.55, 0); arch.lineTo(-0.55, 0.7); arch.absarc(0, 0.7, 0.55, Math.PI, 0, true); arch.lineTo(0.55, 0); arch.closePath();
       const door = new THREE.Mesh(new THREE.ExtrudeGeometry(arch, { depth: 0.08, bevelEnabled: false }), dark); door.position.set(0, 0.1, D / 2 - 0.02); g.add(door);
@@ -433,6 +434,103 @@
         p.userData.layout = L;
       }
     }
+    // ── 마당 장식물 ──
+    // 아이가 사서 놓는 것. 닭의 판단에는 들어가지 않는다 — 걸어서 지나간다.
+    const decoMakers = {
+      flowerbed() {
+        const g = new THREE.Group();
+        const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.05, 0.22, 20), hard(0x8B6A4A));
+        soil.position.y = 0.11; g.add(soil);
+        const cols = [0xF07F9A, 0xFFE07A, 0xEF8A5A, 0xC79BE0];
+        for (let i = 0; i < 9; i++) {
+          const a = i / 9 * Math.PI * 2, r = 0.25 + (i % 3) * 0.26;
+          const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.42, 6), hard(0x6FAF62));
+          stem.position.set(Math.cos(a) * r, 0.42, Math.sin(a) * r); g.add(stem);
+          const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), hard(cols[i % 4]));
+          head.scale.y = 0.7; head.position.set(Math.cos(a) * r, 0.64, Math.sin(a) * r); head.castShadow = true; g.add(head);
+        }
+        return g;
+      },
+      scarecrow() {
+        const g = new THREE.Group();
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 8), hard(0x9B7A50));
+        post.position.y = 1.1; post.castShadow = true; g.add(post);
+        const arms = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.1, 0.1), hard(0x9B7A50));
+        arms.position.y = 1.55; g.add(arms);
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.8, 0.3), hard(0x7FA9D8));
+        body.position.y = 1.36; body.castShadow = true; g.add(body);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), hard(0xE8C87A));
+        head.position.y = 1.98; head.castShadow = true; g.add(head);
+        const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.06, 18), hard(0xC9A35E));
+        hat.position.y = 2.2; g.add(hat);
+        const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.24, 16), hard(0xC9A35E));
+        crown.position.y = 2.33; g.add(crown);
+        return g;
+      },
+      swing() {
+        const g = new THREE.Group();
+        for (const side of [-1, 1]) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.8, 8), hard(0xA9814F));
+          leg.position.set(side * 0.85, 0.9, 0); leg.rotation.z = side * 0.16; leg.castShadow = true; g.add(leg);
+        }
+        const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.0, 8), hard(0xA9814F));
+        bar.rotation.z = Math.PI / 2; bar.position.y = 1.78; g.add(bar);
+        for (const side of [-1, 1]) {
+          const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.95, 6), hard(0xE8DCC0));
+          rope.position.set(side * 0.34, 1.3, 0); g.add(rope);
+        }
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.34), hard(0xD9A05B));
+        seat.position.y = 0.84; seat.castShadow = true; g.add(seat);
+        return g;
+      },
+      fence() {
+        const g = new THREE.Group();
+        for (let i = -2; i <= 2; i++) {
+          const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.9, 0.14), hard(0xE8DCC0));
+          post.position.set(i * 0.6, 0.45, 0); post.castShadow = true; g.add(post);
+        }
+        for (const y of [0.34, 0.66]) {
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.1, 0.08), hard(0xE8DCC0));
+          rail.position.set(0, y, 0); g.add(rail);
+        }
+        return g;
+      },
+      pond() {
+        const g = new THREE.Group();
+        const rim = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.15, 0.14, 24), hard(0xA9987A));
+        rim.position.y = 0.07; g.add(rim);
+        const water = new THREE.Mesh(new THREE.CylinderGeometry(0.98, 0.98, 0.1, 24), hard(0x6FC2DE, { roughness: 0.15 }));
+        water.position.y = 0.12; g.add(water);
+        for (let i = 0; i < 5; i++) {
+          const a = i / 5 * Math.PI * 2;
+          const st = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 8), hard(0x9E9280));
+          st.scale.y = 0.55; st.position.set(Math.cos(a) * 1.14, 0.12, Math.sin(a) * 1.14); g.add(st);
+        }
+        return g;
+      },
+    };
+    // decos: [{ uid, kind, x, z }]
+    function setDecos(list) {
+      const keep = new Set();
+      for (const d of list || []) {
+        if (!decoMakers[d.kind]) continue;
+        keep.add(d.uid);
+        let o = world.decos.get(d.uid);
+        if (!o) { o = decoMakers[d.kind](); o.userData.decoUid = d.uid; o.userData.decoKind = d.kind; scene.add(o); world.decos.set(d.uid, o); }
+        o.position.set(d.x, 0, d.z);
+      }
+      for (const [uid, o] of world.decos) {
+        if (keep.has(uid)) continue;
+        scene.remove(o); disposeGroup(o); world.decos.delete(uid);
+      }
+    }
+    function setCoopSkin(spec) {
+      coopSkin = { roof: spec.roof, ridge: spec.ridge };
+      const c = world.props.coop;
+      if (!c || !c.userData.roofMats) return;
+      c.userData.roofMats[0].color.setHex(spec.roof);
+      c.userData.roofMats[1].color.setHex(spec.ridge);
+    }
     function setSupplies(feed, water, basketCount) {
       const f = world.props.feeder, w = world.props.waterer, b = world.props.basket;
       if (f) { f.userData.grain.visible = feed > 5; f.userData.grain.scale.set(0.4 + feed / 100 * 0.6, 1, 0.4 + feed / 100 * 0.6); }
@@ -464,6 +562,14 @@
         if (o) cands.push({ d: propHits[0].distance, v: { type: 'prop', name: o.userData.propName, part } });
       }
       if (exHits[0]) { let o = exHits[0].object; while (o && !extras.has(o)) o = o.parent; if (o) cands.push({ d: exHits[0].distance - 0.4, v: extras.get(o) }); }
+      // 장식물은 소품보다 살짝 뒤로 미룬다 — 겹쳐 놓았을 때 원래 쓰던 것이 먼저 잡혀야 한다
+      const decoObjs = Array.from(world.decos.values());
+      const decoHits = decoObjs.length ? ray.intersectObjects(decoObjs, true) : [];
+      if (decoHits[0]) {
+        let o = decoHits[0].object;
+        while (o && !o.userData.decoUid) o = o.parent;
+        if (o) cands.push({ d: decoHits[0].distance + 0.25, v: { type: 'deco', uid: o.userData.decoUid, kind: o.userData.decoKind } });
+      }
       cands.sort((a, b2) => a.d - b2.d);
       return cands.length ? cands[0].v : null;
     }
@@ -521,7 +627,7 @@
       u.shade.material.emissive.setHex(0xFF9A4A);
       u.shade.material.emissiveIntensity = p * 0.55;
     }
-    Object.assign(world, { capture, setLamp });
+    Object.assign(world, { capture, setLamp, setCoopSkin, setDecos });
 
     return world;
   }

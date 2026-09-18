@@ -164,6 +164,28 @@ label { display: inline-flex; align-items: center; gap: 4px; }
   margin-bottom: 3px;
 }
 #granny p { margin: 0; font-size: clamp(14px, 1.5vw, 16px); line-height: 1.7; color: #2B2620; }
+/* 할머니의 가게 */
+.shopCard { width: min(560px, calc(100vw - 28px)); max-height: 84vh; display: flex; flex-direction: column; }
+.shopTabs { display: flex; gap: 6px; padding: 0 14px 8px; flex-wrap: wrap; }
+.shopTabs .stab {
+  flex: 1 1 0; min-width: 76px; padding: 7px 4px; border-radius: 10px; cursor: pointer;
+  border: 2px solid #2B1B0E; background: #FFFDF5; font-size: 13px; box-shadow: 1px 1px 0 #2B1B0E;
+}
+.shopTabs .stab.on { background: #FFD966; font-weight: 700; }
+#shopHint { margin: 0 14px 8px; color: #7A6A50; }
+.shopGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 9px; padding: 0 14px 14px; overflow-y: auto; }
+.shopItem {
+  border: 2px solid #2B1B0E; border-radius: 12px; background: #FFFDF5; padding: 9px 7px;
+  text-align: center; cursor: pointer; box-shadow: 2px 2px 0 #2B1B0E; font-size: 12.5px;
+}
+.shopItem .si { font-size: 26px; line-height: 1.1; display: block; }
+.shopItem .sn { display: block; margin-top: 3px; font-weight: 700; color: #2B2620; }
+.shopItem .sp { display: block; margin-top: 2px; color: #7A5A20; }
+.shopItem.own { background: #F1F7EA; }
+.shopItem.on { background: #FFD966; }
+.shopItem.cant { opacity: .55; }
+#shopCoins { font-weight: 700; color: #7A5A20; margin-right: 6px; }
+
 /* 오늘의 날씨 — 왼쪽 위. 늘 보이지만 작고, 마당을 가리지 않는다 */
 #wxBadge {
   position: fixed; top: 12px; left: 14px; z-index: 30;

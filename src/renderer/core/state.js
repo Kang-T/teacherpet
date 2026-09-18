@@ -3,7 +3,7 @@
 (function (g) {
   const TP = (g.TP = g.TP || {});
   const U = TP.util, C = TP.config;
-  const VERSION = 6;
+  const VERSION = 7;
 
   function defaultState() {
     return {
@@ -23,8 +23,12 @@
         size: 4, sound: true,
         homeSide: 'left', lifeEnd: 'retire', useCalendar: true, pauseWeekends: true, quiet: false,   // 주말에는 쉰다 — 기본값
         holidays: [], vacation: null, paused: false,
-        propPos: {}, propHidden: {},
+        propHidden: {},
       },
+      // 마당 꾸미기. 자리는 마당 좌표 그대로 담는다 (마당 크기는 고정이다).
+      farm: { placements: {}, decos: [], coopSkin: 'red', ground: 'grass' },
+      owned: { hat: [], coop: ['red'], deco: [], ground: ['grass'] },
+      allowance: { day: '', streak: 0 },    // 할머니 용돈 — 하루 한 번
       chapter: 0, onboarded: false, borrowed: null, lastBackup: '', backupNagged: '', classCode: '', wxTold: '',   // borrowed = 친구에게 빌린 수탉(씨알 코드)
       lastCrow: '', lastSeen: U.now(), openedDays: [],
     };
@@ -60,7 +64,28 @@
   }
 
   // --- 마이그레이션 체인 ---
+  // 마당은 고정 크기다 (world 의 xMin/xMax = ±16). 그래서 비율 좌표를 마당 좌표로 바꿔도
+  // 어긋날 일이 없고, 장식물과 같은 자리 표기를 쓸 수 있게 된다.
+  const YARD_X = 16;
+
   const MIGRATIONS = {
+    // v6 → v7 : 소품 자리를 settings 에서 빼내 farm 으로. 꾸미기(모자·지붕·장식물·바닥) 추가
+    6(s) {
+      const pos = (s.settings && s.settings.propPos) || {};
+      const placements = {};
+      for (const k of Object.keys(pos)) {
+        const u = pos[k];
+        if (!u) continue;
+        const x = typeof u.fx === 'number' ? -YARD_X + u.fx * (YARD_X * 2) : u.x;
+        if (typeof x === 'number' && isFinite(x)) placements[k] = { x, z: u.z };
+      }
+      if (s.settings) delete s.settings.propPos;
+      s.farm = { placements, decos: [], coopSkin: 'red', ground: 'grass' };
+      s.owned = { hat: [], coop: ['red'], deco: [], ground: ['grass'] };
+      s.allowance = { day: '', streak: 0 };
+      s.version = 7;
+      return s;
+    },
     // v3 → v4 : 돌본 기록을 저장 데이터로, 위생·장비·학사일정 필드 추가
     3(s) {
       s.flock = (s.flock || []).map((d) => {
@@ -126,10 +151,20 @@
     //    그 뒤에 base.settings 를 병합하면 자기 자신에 자기 자신을 병합하는 꼴이 되어
     //    저장 데이터에 없는 기본값(homeSide, pauseWeekends 등)이 전부 사라진다.
     const dSettings = base.settings, dInventory = base.inventory, dEquipment = base.equipment;
+    const dFarm = base.farm, dOwned = base.owned, dAllow = base.allowance;
     const out = Object.assign(base, s);
     out.settings = Object.assign(dSettings, s.settings || {});
     out.inventory = Object.assign(dInventory, s.inventory || {});
     out.equipment = Object.assign(dEquipment, s.equipment || {});
+    out.farm = Object.assign(dFarm, s.farm || {});
+    out.owned = Object.assign(dOwned, s.owned || {});
+    out.allowance = Object.assign(dAllow, s.allowance || {});
+    // 가진 목록은 배열이어야 한다 (저장이 망가져도 화면이 죽지 않게)
+    for (const k of ['hat', 'coop', 'deco', 'ground']) if (!Array.isArray(out.owned[k])) out.owned[k] = [];
+    for (const k of ['red']) if (!out.owned.coop.includes(k)) out.owned.coop.push(k);
+    if (!out.owned.ground.includes('grass')) out.owned.ground.push('grass');
+    if (!Array.isArray(out.farm.decos)) out.farm.decos = [];
+    if (!out.farm.placements || typeof out.farm.placements !== 'object') out.farm.placements = {};
     out.away = s.away || [];
     out.openedDays = s.openedDays || [];
     out.flock = (out.flock || []).map(ensureBird);

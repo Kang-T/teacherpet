@@ -45,7 +45,7 @@
           <button data-feed="starter">스타터</button><button data-feed="grower">그로워</button><button data-feed="layer">레이어</button>
         </div><span id="feedHint"></span></div>
         <div class="stat"><b>😷 공기</b><span class="say" id="ammLabel"></span></div>
-        <div class="row tiny"><span>🪱 벌레 <b id="wormCount">0</b></span><button class="small" id="btnBuyWorm">🪱 1🪙</button><button class="small" id="btnBuyMed">💊 약 사기</button><button class="small" id="btnAlbum">📔 관찰일지</button></div>
+        <div class="row tiny"><span>🪱 벌레 <b id="wormCount">0</b></span><button class="small" id="btnBuyWorm">🪱 1🪙</button><button class="small" id="btnBuyMed">💊 약 사기</button><button class="small" id="btnAlbum">📔 관찰일지</button><button class="small" id="btnShop">🧺 꾸미기</button></div>
         <div class="row tiny"><span class="label">🤝 품앗이</span><button class="small" id="btnSeedMake">씨알 코드 만들기</button><button class="small" id="btnSeedUse">친구 코드 넣기</button><span id="seedHint" class="hint"></span></div>
         <div class="row tiny"><span class="label">✉️ 편지</span><button class="small" id="btnLetter">할머니께 편지 쓰기</button><span class="hint">고치고 싶은 것을 알려 주세요</span></div>
         <div class="row tiny"><label class="chk"><input type="checkbox" id="chkDetail"> 숫자로 자세히 보기</label></div>
@@ -132,6 +132,21 @@
   </section>
 </div>
 
+<div id="shopModal" class="ui hidden"><div class="modalCard shopCard">
+  <div class="jHead">
+    <h3>🧺 할머니의 가게</h3>
+    <div class="jActs"><span id="shopCoins">🪙 0</span><button class="small" id="closeShop">✕</button></div>
+  </div>
+  <div class="shopTabs">
+    <button class="stab on" data-kind="hat">🧢 모자</button>
+    <button class="stab" data-kind="coop">🏠 닭장</button>
+    <button class="stab" data-kind="deco">🌻 마당</button>
+    <button class="stab" data-kind="ground">🌱 바닥</button>
+  </div>
+  <p class="tiny" id="shopHint">닭을 예쁘게 해 줄 뿐이에요. 더 빨리 자라거나 덜 아프지는 않아요.</p>
+  <div id="shopGrid" class="shopGrid"></div>
+</div></div>
+
 <div id="journalModal" class="ui hidden"><div class="modalCard jCard">
   <div class="jHead">
     <h3>📔 관찰일지</h3>
@@ -150,6 +165,7 @@
 <script src="core/state.js"></script>
 <script src="core/farmcode.js"></script>
 <script src="core/qr.js"></script>
+<script src="core/shop.js"></script>
 <script src="sim/actions.js"></script>
 <script src="sim/entities.js"></script>
 <script src="sim/mind.js"></script>

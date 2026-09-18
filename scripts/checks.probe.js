@@ -195,6 +195,46 @@
     const leaks = brag.includes('5-3') || /학년|반$|학교/m.test(brag);
     ok('자랑 글에 반·학교가 들어가지 않는다', !leaks, JSON.stringify(brag));
     T.setClass('');
+
+    // ── 12. 꾸미기 ──
+    // 이 기능의 약속은 하나다: 겉모습만 바꾼다. 그게 깨지면 '잘 돌봤는가'가 기준이 아니게 된다.
+    const before = T.birdStats(NAME);
+    T.coins(200);
+    const r1 = T.buy('coop', 'blue');
+    const r2 = T.buy('ground', 'dirt');
+    const r3 = T.buy('deco', 'flowerbed');
+    const hat = T.hatOn(NAME, 'straw');
+    await wait(400);
+    const after = T.birdStats(NAME);
+    let drift = 0, driftKey = '';
+    for (const k of Object.keys(before || {})) {
+      const d2 = Math.abs(after[k] - before[k]);
+      if (d2 > drift) { drift = d2; driftKey = k; }
+    }
+    ok('꾸며도 닭의 수치가 그대로다', before && after && drift < 0.1,
+      `가장 많이 움직인 값 ${driftKey} ${drift.toFixed(4)} (0.4초 동안의 자연 감소분, 기준 0.1)`);
+    ok('산 것이 실제로 입혀진다', r1.farm.coop === 'blue' && r2.farm.ground === 'dirt' && hat === 'straw',
+      `지붕 ${r1.farm.coop} · 바닥 ${r2.farm.ground} · 모자 ${hat}`);
+    ok('장식물이 마당에 놓인다', r3.farm.decos >= 1, `${r3.farm.decos}개`);
+    // 값을 내고 산다 — 공짜가 아니어야 '돌보면 쌓인다'가 의미를 가진다
+    const spent = 200 - T.coins();
+    ok('코인이 실제로 줄어든다', spent > 0, `${spent}코인 썼음`);
+    // 다시 사도 이미 가진 것은 또 받지 않는다
+    const c0 = T.coins(); T.buy('coop', 'blue');
+    ok('가진 것을 다시 눌러도 돈이 나가지 않는다', T.coins() === c0, `${c0} → ${T.coins()}`);
+    // 모자를 다시 누르면 벗는다
+    ok('모자를 다시 누르면 벗는다', T.hatOn(NAME, 'straw') === null, '');
+    // 돈이 없으면 못 산다
+    T.coins(0);
+    const poor = T.buy('coop', 'green');
+    ok('돈이 모자라면 사지지 않는다', poor.farm.coop !== 'green', `지붕 ${poor.farm.coop}`);
+
+    // 소품 자리가 settings 가 아니라 farm 에 남는다 (8단계 속 공사)
+    T.movePropTo('lamp', 3.5, -8);
+    const pl = T.placements();
+    ok('소품 자리는 farm 에 마당 좌표로 남는다', pl.lamp && Math.abs(pl.lamp.x - 3.5) < 0.01 && Math.abs(pl.lamp.z + 8) < 0.01,
+      JSON.stringify(pl.lamp));
+    ok('옮긴 자리가 화면에도 반영된다', Math.abs(D.propPos('lamp').x - 3.5) < 0.2, JSON.stringify(D.propPos('lamp')));
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
   }

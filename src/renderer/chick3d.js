@@ -445,7 +445,59 @@
       if (heldWorm.visible) { heldWorm.rotation.z = Math.sin(st.t * 16) * 0.5; heldWorm.rotation.y = Math.sin(st.t * 11) * 0.3; }
     }
     function land() { st.squashV = -3.2; }
-    return { group, update, land, state: st };
+
+    // ── 모자 ──
+    // 머리에 붙여 두면 고개를 돌리고 숙일 때 저절로 같이 움직인다.
+    // 겉모습만 바꾼다 — 어떤 수치도 건드리지 않는다.
+    const hatSlot = new THREE.Group();
+    hatSlot.position.set(0, 1.42, 0.02);
+    head.add(hatSlot);
+    let hatNow = null;
+    function setHat(kind, spec) {
+      if (kind === hatNow) return;
+      hatNow = kind;
+      while (hatSlot.children.length) {
+        const c = hatSlot.children.pop();
+        c.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+      }
+      hatSlot.position.set(0, 1.42, 0.02);    // 리본·꽃이 옮겨 놓은 자리를 늘 되돌린다
+      if (!kind || !spec) return;
+      const col = hard(spec.color, { roughness: 0.65 });
+      if (kind === 'ribbon') {
+        // 리본은 머리에 얹지 않고 옆에 단다 (정수리에 두면 볏과 겹친다)
+        hatSlot.position.set(0.5, 1.12, 0.12);
+        for (const side of [-1, 1]) {
+          const loop = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.1, 8, 18), col);
+          loop.position.set(0, side * 0.3, 0); loop.rotation.x = Math.PI / 2; loop.rotation.z = side * 0.5; hatSlot.add(loop);
+        }
+        const knot = new THREE.Mesh(S(0.16), col); hatSlot.add(knot);
+      } else if (kind === 'flower') {
+        hatSlot.position.set(0.42, 1.28, 0.16);
+        for (let i = 0; i < 5; i++) {
+          const pet = new THREE.Mesh(S(0.2), col);
+          pet.position.set(Math.cos(i / 5 * Math.PI * 2) * 0.24, 0, Math.sin(i / 5 * Math.PI * 2) * 0.24);
+          pet.scale.set(1, 0.5, 1); hatSlot.add(pet);
+        }
+        const core = new THREE.Mesh(S(0.14), hard(0xE8913A)); core.position.y = 0.08; hatSlot.add(core);
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6), hard(0x6FAF62));
+        stem.position.y = -0.22; hatSlot.add(stem);
+      } else {
+        if (spec.brim) {
+          const brim = new THREE.Mesh(new THREE.CylinderGeometry(spec.brim, spec.brim, 0.08, 22), col);
+          hatSlot.add(brim);
+        }
+        if (spec.top) {
+          const crown = kind === 'party'
+            ? new THREE.Mesh(new THREE.ConeGeometry(spec.crown, spec.top, 20), col)
+            : new THREE.Mesh(new THREE.CylinderGeometry(spec.crown * 0.92, spec.crown, spec.top, 20), col);
+          crown.position.y = spec.top / 2 + 0.04; hatSlot.add(crown);
+          if (kind === 'party') { const ball = new THREE.Mesh(S(0.13), hard(0xFFE07A)); ball.position.y = spec.top + 0.08; hatSlot.add(ball); }
+        }
+      }
+      for (const o of hatSlot.children) o.castShadow = true;
+    }
+
+    return { group, update, land, setHat, state: st };
   }
   global.TP_CHICK3D = { createChick };
 })(typeof window !== 'undefined' ? window : module.exports);
