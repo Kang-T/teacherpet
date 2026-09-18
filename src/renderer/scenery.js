@@ -53,7 +53,7 @@
     // 앞쪽(카메라 쪽)은 세우지 않는다 — 시야를 가로막는다.
     const fence = new THREE.Group(); root.add(fence);
     const postMat = hard(0xF2E7CE), railMat = hard(0xEADCBE);
-    const x0 = -YARD.w / 2, x1 = YARD.w / 2, z0 = -YARD.d, z1 = 0.6;
+    const x0 = -YARD.w / 2, x1 = YARD.w / 2, z0 = -YARD.d, z1 = 0.6 + 1.4;
     const POST_H = 1.15, STEP = 2.2;
     const postGeo = new THREE.BoxGeometry(0.17, POST_H, 0.17);
     const spots = [];
