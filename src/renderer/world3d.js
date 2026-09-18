@@ -365,13 +365,13 @@
       const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), new THREE.MeshStandardMaterial({ color: 0xFFE2A8, emissive: 0xFFB347, emissiveIntensity: 2.2 })); bulb.position.set(1.2, 2.75, 0); g.add(bulb);
       const light = new THREE.PointLight(0xFFB870, 18, 7, 2); light.position.set(1.2, 2.6, 0); g.add(light);
       g.userData.light = light;
-      const glow = new THREE.Mesh(new THREE.CircleGeometry(1.6, 32), new THREE.MeshBasicMaterial({ color: 0xFFB870, transparent: true, opacity: 0.18, depthWrite: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(1.2, 0.02, 0); g.add(glow);
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(1.6, 32), new THREE.MeshBasicMaterial({ color: 0xFFB870, transparent: true, opacity: 0.18, depthWrite: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(1.2, 0.02, 0); glow.raycast = () => {}; g.add(glow);
       g.userData.glow = glow;
       // 켜져 있다는 것이 한눈에 보이도록 빛기둥을 세운다
       const beam = new THREE.Mesh(
         new THREE.ConeGeometry(1.7, 2.75, 28, 1, true),
         new THREE.MeshBasicMaterial({ color: 0xFFC978, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
-      beam.position.set(1.2, 1.4, 0); g.add(beam);
+      beam.position.set(1.2, 1.4, 0); beam.raycast = () => {}; g.add(beam);   // 빛은 클릭을 가로채지 않는다
       g.userData.beam = beam;
       g.userData.bulb = bulb;
       g.userData.shade = shade;

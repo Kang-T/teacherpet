@@ -29,7 +29,7 @@
       let best = null, bd = Infinity;
       for (const e of entities.byKind(kind)) {
         if (!e.pos) continue;
-        const p = e.pos(), d = Math.hypot(p.x - x, (p.z - z) * 1.4);
+        const p = e.pos(), d = Math.hypot(p.x - x, p.z - z);   // 앞뒤에 가중치를 주던 것은 마당이 얕던 시절 보정이다
         if (d < bd) { bd = d; best = e; }
       }
       return best ? { entity: best, dist: bd } : null;
