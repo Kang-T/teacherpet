@@ -116,9 +116,6 @@
       const face = ctl.dir > 0 ? 1 : -1;
       st.yawTarget = face * 0.8;                          // 서 있을 땐 얼굴이 보이는 3/4
       if (ctl.moving > 0.5) st.yawTarget = face * 1.3;    // 걸을 땐 진행 방향(거의 옆모습)
-      // 실제 진행 방향이 주어지면 그쪽을 본다 — 마당이 깊어져 앞뒤로도 걷기 때문이다.
-      // (앞으로 걸어오는데 몸이 옆을 향하면 미끄러지는 것처럼 보인다)
-      if (ctl.heading !== undefined && ctl.heading !== null && ctl.moving > 0.3) st.yawTarget = ctl.heading;
       if (a === 'beg') st.yawTarget = face * 0.5;
       if (a === 'sleep' || a === 'brood' || a === 'roost' || a === 'wail') st.yawTarget = face * 0.7;
       // 땅을 쪼거나 긁을 때는 몸을 덜 틀어 정면에 가깝게 — 옆을 보며 쪼면 어색하다
@@ -135,6 +132,10 @@
       if (a === 'pet') st.yawTarget = face * 0.55;
       if (a === 'scold' || a === 'startle' || a === 'flutter') st.yawTarget = face * 0.4;
       if (a === 'crow' || a === 'happy' || a === 'jump') st.yawTarget = face * 0.9;
+      // 실제로 움직이고 있으면 무조건 가는 쪽을 본다 — 동작별 자세보다 이것이 우선이다.
+      // (마당이 깊어져 앞뒤로도 달리는데, 옆을 본 채 달리면 미끄러지는 것처럼 보인다)
+      if (ctl.heading !== undefined && ctl.heading !== null) st.yawTarget = ctl.heading;
+
       // 각도 차이를 -π~π 로 접어서 가까운 쪽으로 돈다.
       // 안 그러면 앞뒤로 방향을 바꿀 때 몸이 반대로 한 바퀴 돈다.
       let dYaw = st.yawTarget - st.yaw;

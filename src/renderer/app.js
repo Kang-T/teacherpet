@@ -1121,12 +1121,11 @@
       if (gd > 0.08) {
         const k = Math.min(1, speed * dt / gd);
         b.x += gx * k; b.z = clampZ(b.z + gz * k);
-        b.heading = Math.atan2(gx, gz);              // 실제로 향하는 쪽 (모델이 이 방향을 본다)
         if (Math.abs(gx) > 0.05) faceDir(b, gx > 0 ? 1 : -1);
       }
       if (gd <= 0.08) {
         b.x = b.targetX; if (b.targetZ !== null && b.targetZ !== undefined) b.z = b.targetZ;
-        b.targetX = null; b.targetZ = null; b.walkZ = undefined; b.heading = undefined;
+        b.targetX = null; b.targetZ = null; b.walkZ = undefined;
         if (b.anim === 'gofeed') { b.goal = 'eat'; setAnim(b, 'eat', 3); }
         else if (b.anim === 'gowater') { b.goal = 'drink'; setAnim(b, 'drink', 2.5); }
         else if (b.anim === 'gocoop') { b.inCoop = true; setVisible(b, false); setAnim(b, 'sleep', rand(15, 30)); showIcon(b, '💤', 3000); }
@@ -1435,6 +1434,11 @@
         else b.look.set(b.x + rand(-6, 6), rand(0.5, 4), rand(2, 10));
       }
       const anim = ACT.pose(b.anim);
+      const mdx = b.x - (b.lastX === undefined ? b.x : b.lastX);
+      const mdz = b.z - (b.lastZ === undefined ? b.z : b.lastZ);
+      if (Math.hypot(mdx, mdz) > 0.004) { b.heading = Math.atan2(mdx, mdz); b.headAt = now(); }
+      else if (now() - (b.headAt || 0) > 350) b.heading = undefined;   // 멈추면 원래 자세로
+      b.lastX = b.x; b.lastZ = b.z;
       m.model.update(dt, { anim, moving, dir: b.dir, heading: b.heading, jumpY: b.y, lookTarget: b.look, curious: true, wobble: b.f === 1, hatch: b.hatching || 0, phase: b.dustPhase || 0, holdWorm: !!(worm && worm.carrier === b.d.id), sick: !!b.d.sick, hurt: !!b.d.hurt, dull: Math.max(0, (C.CLEAN.dullBelow - (b.d.clean ?? 85)) / C.CLEAN.dullBelow), speed: b.anim === 'chase' || b.fleeing ? 2.2 : 1, mood: b.d.stage === 'egg' ? null : moodOf(b) });
       if (b.f === 1 && b.d.stage === 'egg' && t > (b.wobbleUntil || 0)) b.f = 0;
       // 오버레이(아이콘·이름표) 위치
