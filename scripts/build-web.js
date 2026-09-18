@@ -66,7 +66,6 @@ html = must(html, '<div id="stageHost"></div>', `<div id="stageHost"></div>
   <button id="wbExport" title="이 반의 닭들을 파일로 내보내기">내보내기</button>
   <button id="wbImport" title="파일에서 불러오기">불러오기</button>
   <input type="file" id="wbFile" accept="application/json" hidden>
-  <button id="wbEdit" title="소품 옮기기">🔨 꾸미기</button>
   <span class="sep"></span>
   <button id="wbPrivacy" title="개인정보 처리방침" onclick="location.href='privacy.html'">개인정보</button>
   <button id="wbWipe" class="danger" title="이 기기에 저장된 것을 모두 지웁니다">모두 지우기</button>

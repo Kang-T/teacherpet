@@ -33,43 +33,46 @@
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 160), new THREE.ShadowMaterial({ opacity: 0.22 }));
     ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
-    const world = { renderer, scene, camera, birds: new Map(), props: {}, pxPerUnit: 50, elevDeg: 24, xMin: -10, xMax: 10, zMin: -6, zMax: 2, roamTop: 0.35, W: 1, H: 1 };
+    // 마당은 화면과 무관하게 '고정된 크기의 장소'다.
+    // 예전에는 xMin/xMax/zMin/zMax 를 화면 가장자리에서 역산했는데,
+    // 그러면 확대하거나 각도를 바꾸는 순간 소품과 닭의 위치가 통째로 움직였다.
+    const YARD = { w: 32, d: 30 };
+    const world = {
+      renderer, scene, camera, birds: new Map(), props: {}, pxPerUnit: 40,
+      xMin: -YARD.w / 2, xMax: YARD.w / 2, zMin: -YARD.d, zMax: 0.6,
+      YARD, view: { zoom: 1, elev: 24, tx: 0, tz: -YARD.d * 0.42 },
+      roamTop: 0.35, W: 1, H: 1,
+    };
     const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2(); const tmp = new THREE.Vector3();
     const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
     // ---- 카메라: 화면 아래쪽에 바닥선이 오고, 1유닛이 pxPerUnit 픽셀이 되도록 ----
-    function fit(W, H, pxPerUnit) {
-      world.W = W; world.H = H; world.pxPerUnit = pxPerUnit;
+    function fit(W, H) {
+      if (!(W > 1 && H > 1)) return;
+      world.W = W; world.H = H;
       renderer.setSize(W, H, false);
       renderer.domElement.style.width = W + 'px'; renderer.domElement.style.height = H + 'px';
       camera.aspect = W / H; camera.fov = FOV;
-      const halfH = H / (2 * pxPerUnit);
-      // 기준면(z≈0)에서 1 유닛이 pxPerUnit 픽셀이 되도록 카메라 거리를 정한다.
-      // 이러면 앞쪽 닭 크기는 예전(직교)과 똑같고, 뒤로 갈수록만 조금씩 작아진다.
+
+      const v = world.view;
+      const elev = THREE.MathUtils.degToRad(v.elev);
+      // 마당 전체가 화면에 들어오는 배율을 먼저 구하고, 거기에 사용자의 확대를 곱한다
+      const pxW = W / (YARD.w + 3);
+      const pxH = H / (YARD.d * Math.sin(elev) + 9);
+      const px = Math.min(pxW, pxH) * v.zoom;
+      world.pxPerUnit = px;
+
+      const halfH = H / (2 * px);
       const D = halfH / Math.tan(THREE.MathUtils.degToRad(FOV / 2));
-      const elev = THREE.MathUtils.degToRad(world.elevDeg || 24);
-      camera.position.set(0, D * Math.sin(elev), D * Math.cos(elev));
+      // 카메라는 바라보는 점(target) 주위를 돈다. 마당은 가만히 있는다.
+      const tx = v.tx, tz = v.tz;
+      camera.position.set(tx, D * Math.sin(elev), tz + D * Math.cos(elev));
       camera.up.set(0, 1, 0);
-      camera.lookAt(0, 0, 0);
+      camera.lookAt(tx, 0, tz);
       camera.near = Math.max(1, D * 0.15); camera.far = D * 6;
       camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-      // 바닥 원점이 화면 아래쪽(97%)에 오도록 카메라를 화면 위 방향으로 민다
-      const viewUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
-      camera.position.addScaledVector(viewUp, halfH * 0.97);
-      camera.updateMatrixWorld();
 
-      const a = screenToGround(0, H * 0.99), b = screenToGround(W, H * 0.99);
-      const halfW = halfH * camera.aspect;
-      world.xMin = a ? a.x : -halfW; world.xMax = b ? b.x : halfW;
-      const nearP = screenToGround(W / 2, H * 0.995), farP = screenToGround(W / 2, H * (world.roamTop || 0.35));
-      world.zMax = nearP ? nearP.z : 2;
-      world.zMin = farP ? farP.z : -20;
-      // 원근에서는 위로 갈수록 광선이 눕는다. 각도가 낮으면 먼 끝이 수십~수백 유닛까지
-      // 달아나 버리므로 마당 깊이를 제한한다. (직교에는 없던 문제)
-      const MAX_DEPTH = 46;
-      if (!(world.zMin < world.zMax)) { world.zMin = -20; world.zMax = 2; }
-      if (world.zMax - world.zMin > MAX_DEPTH) world.zMin = world.zMax - MAX_DEPTH;
-
+      // 마당 경계(xMin/xMax/zMin/zMax)는 화면이 어떻든 바뀌지 않는다.
       const span = Math.max(30, (world.xMax - world.xMin) * 0.8);
       const zSpan = Math.max(30, (world.zMax - world.zMin) * 0.8);
       sun.shadow.camera.left = -span; sun.shadow.camera.right = span;

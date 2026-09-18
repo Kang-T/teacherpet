@@ -37,14 +37,13 @@
   function resize() {
     if (innerWidth < 2 || innerHeight < 2) return;   // 숨겨진 탭·회전 중에는 건드리지 않는다
     W = innerWidth; H = innerHeight;
-    // 마당을 화면의 얼마까지 쓸지 — 세로로 길수록 넓게 쓴다.
-    // 가로 데스크톱은 기존 0.35 근처, 세로 태블릿·휴대폰은 0.16까지 내려가
-    // 하늘만 가득하던 화면이 마당으로 채워진다.
-    world.roamTop = clamp(0.46 - 0.22 * (H / Math.max(1, W)), 0.16, 0.38);
-    world.elevDeg = clamp(state.settings.elev ?? 24, 16, 55);
-    // 하늘과 잔디의 경계(CSS)도 같은 값을 따라간다
-    document.documentElement.style.setProperty('--horizon', (world.roamTop * 100).toFixed(1) + '%');
-    world.fit(W, H, BASE_PX * clamp(state.settings.zoom ?? 1, 0.55, 2.2));
+    world.view.zoom = clamp(state.settings.zoom ?? 1, 0.6, 2.4);
+    world.view.elev = clamp(state.settings.elev ?? 24, 16, 55);
+    world.fit(W, H);
+    // 하늘과 잔디의 경계 — 마당 뒤끝이 화면 어디에 오는지 보고 정한다
+    const far = world.project(0, 0, world.zMin);
+    document.documentElement.style.setProperty('--horizon',
+      (clamp(far ? far.y / H : 0.3, 0.05, 0.6) * 100).toFixed(1) + '%');
     layoutHome();
     for (const b of birds) b.x = clamp(b.x, world.xMin + XMARGIN, world.xMax - XMARGIN);
   }
@@ -85,17 +84,8 @@
     return (homeCache = out);
   }
   const propVisible = (k) => !(state.settings.propHidden || {})[k];
-  // 꾸미기 모드 — 평소에는 소품이 고정이다.
-  // 교실에서 "화면이 이상해졌어요"는 수업 흐름을 끊는 1순위 사고라, 옮기려면 모드를 켜야 한다.
-  let editMode = false;
-  function setEdit(on) {
-    editMode = !!on;
-    document.body.classList.toggle('editing', editMode);
-    const t = $('#editTip');
-    if (t) t.classList.toggle('hidden', !editMode);
-    const btn = $('#wbEdit');
-    if (btn) btn.classList.toggle('on', editMode);
-  }
+  // 소품은 언제나 끌어서 옮길 수 있다. 눌렀다 떼면 동작하고, 끌면 자리를 옮긴다.
+  // (모드를 따로 켜게 했더니 오히려 번거로웠다)
   // ── 관찰일지 ──
   // 아이가 따로 적지 않아도 한살이의 '순간'이 스스로 쌓인다.
   async function note(kind, b, once) {
@@ -391,13 +381,21 @@
   }
   function chaseTarget(b) { const car = wormCarrier(); if (car && car !== b) return { x: car.x, z: car.z, kind: 'worm' };
     if (worm && !(b.d.hunger > 95) && !((b.anim === 'sleep' || b.inCoop || b.anim === 'roost') && Math.abs(worm.x - b.x) > 2.5)) return { x: worm.x, z: worm.z, kind: 'worm' }; if (b.callTarget) { if (b.callTarget.follow) { const o = birds.find((q) => q.d.id === b.callTarget.follow); if (o) { b.callTarget.x = o.x; b.callTarget.z = o.z; } } return Object.assign({ kind: 'call' }, b.callTarget); } return null; }
+  const HOLD_Y = 1.3;                       // 손에 들고 있을 때의 높이
+  // 커서가 가리키는 '마당 바닥' 위의 자리. 마당 밖으로는 나가지 않는다.
+  function wormSpot(px, py) {
+    const g = world.screenToGround(px, py);
+    if (!g) return null;
+    return { x: clamp(g.x, world.xMin + 0.8, world.xMax - 0.8), z: clampZ(g.z) };
+  }
   function spawnWorm(px, py) {
     if (state.worms <= 0) { toast('🪱 벌레가 없어요. 닭장 메뉴에서 달걀 코인으로 살 수 있어요'); return false; }
     if (worm) return false;
+    const sp = wormSpot(px, py);
+    if (!sp) return false;
     state.worms -= 1; markDirty(); world.setWormCount(state.worms);
     const m = world.makeWorm(); world.scene.add(m.group);
-    const gp = world.screenToPlaneZ(px, py, 1.2) || { x: 0, y: 1 };
-    worm = { model: m, x: gp.x, y: Math.max(0.3, gp.y), z: 1.2, held: true, vy: 0, bornAt: now() };
+    worm = { model: m, x: sp.x, y: HOLD_Y, z: sp.z, held: true, vy: 0, bornAt: now() };
     return true;
   }
   function removeWorm() { if (!worm) return; world.scene.remove(worm.model.group); worm = null; for (const b of birds) { b.wormRun = 0; b.fleeing = false; if (b.anim === 'chase' || b.anim === 'beg') decide(b); } }
@@ -408,10 +406,13 @@
   function grabWorm(b) {
     if (!worm || worm.carrier) return;
     worm.carrier = b.d.id; worm.held = false;
-    b.wormRun = rand(3.5, 7.5); b.fleeing = true;
+    // 물고 달아나기는 '뺏길 상대'가 있을 때만 한다. 혼자면 그냥 자리에서 먹는다.
+    const rivals = birds.filter((q) => q !== b && eligible(q));
+    b.wormRun = rivals.length ? rand(3.5, 7.5) : 0;
+    b.fleeing = rivals.length > 0;
     setAnim(b, 'chase', 30); showIcon(b, '🪱', 1800);
     b.d.boredom = clamp(b.d.boredom - 25, 0, 100);
-    toast(`🪱 ${b.d.name}(이)가 벌레를 물고 달아나요!`, false, 3500);
+    toast(rivals.length ? `🪱 ${b.d.name}(이)가 벌레를 물고 달아나요!` : `🪱 ${b.d.name}(이)가 벌레를 물었어요`, false, 3500);
   }
   function stealWorm(from, to) {
     worm.carrier = to.d.id; to.wormRun = rand(2.5, 5); to.fleeing = true;
@@ -1490,7 +1491,7 @@
   addEventListener('mousemove', (e) => {
     if (drag) {
       if (drag.sweeping) { sweep(poopAt(e.clientX, e.clientY)); return; }
-      if (drag.worm) { if (worm) { const p = world.screenToPlaneZ(e.clientX, e.clientY, 1.2); if (p) { worm.x = clamp(p.x, world.xMin + 0.5, world.xMax - 0.5); worm.y = Math.max(0.15, p.y); } } return; }
+      if (drag.worm) { if (worm) { const sp = wormSpot(e.clientX, e.clientY); if (sp) { worm.x = sp.x; worm.z = sp.z; worm.y = HOLD_Y; } } return; }
       if (drag.prop) { // 소품 옮기기
         const gp = world.screenToGround(e.clientX, e.clientY);
         if (gp && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) {
@@ -1538,8 +1539,7 @@
       if (pp) { sweep(pp); drag = { sweeping: true, sx: e.clientX, sy: e.clientY }; canvas.style.cursor = 'grabbing'; return; }
       const pr = propAt(e.clientX, e.clientY);
       if (pr === 'wormbucket') { if (spawnWorm(e.clientX, e.clientY)) { drag = { worm: true, sx: e.clientX, sy: e.clientY }; canvas.style.cursor = 'grabbing'; } }
-      else if (pr && editMode) { const gp = world.screenToGround(e.clientX, e.clientY), L = home()[pr]; drag = { prop: pr, sx: e.clientX, sy: e.clientY, offX: gp ? gp.x - L.x : 0, offZ: gp ? gp.z - L.z : 0, moved: false }; canvas.style.cursor = 'grabbing'; }
-      else if (pr) { propClick(pr); }
+      else if (pr) { const gp = world.screenToGround(e.clientX, e.clientY), L = home()[pr]; drag = { prop: pr, sx: e.clientX, sy: e.clientY, offX: gp ? gp.x - L.x : 0, offZ: gp ? gp.z - L.z : 0, moved: false }; canvas.style.cursor = 'grabbing'; }
       else closePanel();
       return;
     }
@@ -1562,34 +1562,34 @@
     else touch(b);
     drag = null; canvas.style.cursor = 'grab';
   });
-  // 확대·축소 — 작게/보통/크게 버튼 대신 휠. 아이들이 쓰던 방식 그대로다.
-  // 땅을 두 번 누르면 닭들이 저를 부르는 줄 알고 달려온다
-  canvas.addEventListener('dblclick', (e) => {
-    if (editMode) return;
-    if (birdAt(e.clientX, e.clientY) || propAt(e.clientX, e.clientY)) return;
-    const gp = world.screenToGround(e.clientX, e.clientY);
-    if (!gp) return;
-    const x = clamp(gp.x, world.xMin + XMARGIN, world.xMax - XMARGIN);
-    const z = clampZ(gp.z);
-    world.puff(x, z, 6, 0.5, 0xFFF3C4);
-    const n = callFlock(x, z, null);
-    if (n) chime();
-  });
-
+  // 확대·축소 — 커서 아래의 땅을 붙잡고 확대한다.
+  // 그 지점이 제자리에 있어야 '확대'로 느껴진다. 예전에는 화면이 통째로 미끄러졌다.
+  // 바라보는 지점은 언제나 마당 안에 있어야 한다.
+  // 안 그러면 아이가 빈 구석을 확대하다 닭을 잃어버린다.
+  function panClamp() {
+    const v = world.view;
+    v.tx = clamp(v.tx, world.xMin + 2, world.xMax - 2);
+    v.tz = clamp(v.tz, world.zMin + 2, world.zMax - 2);
+  }
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const z = clamp((state.settings.zoom ?? 1) * (e.deltaY > 0 ? 0.92 : 1.087), 0.55, 2.2);
-    if (Math.abs(z - (state.settings.zoom ?? 1)) < 0.001) return;
-    state.settings.zoom = z; markDirty(); resize();
+    const z0 = world.view.zoom;
+    const z1 = clamp(z0 * (e.deltaY > 0 ? 0.9 : 1.111), 0.6, 2.4);
+    if (Math.abs(z1 - z0) < 0.001) return;
+    const before = world.screenToGround(e.clientX, e.clientY);
+    state.settings.zoom = z1; world.view.zoom = z1; world.fit(W, H);
+    const after = world.screenToGround(e.clientX, e.clientY);
+    if (before && after) { world.view.tx += before.x - after.x; world.view.tz += before.z - after.z; panClamp(); }
+    markDirty(); resize();
   }, { passive: false });
 
-  // 시점 — 우클릭을 누른 채 위아래로 움직이면 내려다보는 각도가 바뀐다 (지도 앱과 같은 조작)
+  // 시점 — 오른쪽 버튼을 누른 채 위아래로. 마당은 가만히 있고 카메라만 돈다.
   let tilt = null;
-  canvas.addEventListener('mousedown', (e) => { if (e.button === 2) { tilt = { y: e.clientY, from: state.settings.elev ?? 24 }; e.preventDefault(); } });
+  canvas.addEventListener('mousedown', (e) => { if (e.button === 2) { tilt = { y: e.clientY, from: world.view.elev }; e.preventDefault(); } });
   addEventListener('mousemove', (e) => {
     if (!tilt) return;
     const v = clamp(tilt.from + (e.clientY - tilt.y) * 0.16, 16, 55);
-    if (Math.abs(v - (state.settings.elev ?? 24)) < 0.15) return;
+    if (Math.abs(v - world.view.elev) < 0.15) return;
     state.settings.elev = v; resize();
   });
   addEventListener('mouseup', () => { if (tilt) { tilt = null; markDirty(); } });
@@ -1890,7 +1890,7 @@
     $$('[data-home]').forEach((b) => b.classList.toggle('primary', b.dataset.home === state.settings.homeSide));
     $$('[data-lifeend]').forEach((b) => b.classList.toggle('primary', b.dataset.lifeend === state.settings.lifeEnd));
   }
-  $('#btnViewReset').addEventListener('click', () => { state.settings.zoom = 1; state.settings.elev = 24; markDirty(); resize(); toast('화면을 처음 시점으로 되돌렸어요'); });
+  $('#btnViewReset').addEventListener('click', () => { state.settings.zoom = 1; state.settings.elev = 24; world.view.tx = 0; world.view.tz = world.zMin * 0.42; markDirty(); resize(); toast('화면을 처음 시점으로 되돌렸어요'); });
   $$('[data-prop]').forEach((c) => c.addEventListener('change', () => { state.settings.propHidden = state.settings.propHidden || {}; state.settings.propHidden[c.dataset.prop] = !c.checked; markDirty(); layoutHome(); }));
   $('#btnMore').addEventListener('click', () => {
     const hidden = $('#moreBox').classList.toggle('hidden');
@@ -1958,11 +1958,8 @@
   }, 1200);
   api.on('ui:toggle-menu', togglePanel);
   api.on('pet:size', (s) => { state.settings.zoom = clamp(s / 4, 0.55, 2.2); markDirty(); resize(); });
-  api.on('ui:toggle-edit', () => setEdit(!editMode));
-  $('#btnEdit').addEventListener('click', () => { setEdit(!editMode); $('#btnEdit').textContent = editMode ? '소품 옮기기 끄기' : '소품 옮기기 켜기'; if (editMode) closePanel(); });
   $('#chkDetail').checked = detailOn();
   $('#chkDetail').addEventListener('change', (e) => { state.settings.detail = e.target.checked; markDirty(); renderCoop(); });
-  $('#editDone').addEventListener('click', () => { setEdit(false); $('#btnEdit').textContent = '소품 옮기기 켜기'; });
   api.on('pet:toggle-visible', () => { visible = !visible; canvas.style.display = visible ? '' : 'none'; overlay.style.display = visible ? '' : 'none'; });
   api.on('work-area', () => setTimeout(resize, 50));
 
@@ -2017,6 +2014,6 @@
     requestAnimationFrame(loop);
   }
   // 디버그 훅 (자동 캡처용)
-  window.__tp = { runNeglect: () => { checkNeglect(); return birds.length; }, frozen: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.frozen : null; }, freezes: () => state.freezes, away: () => state.away.map((a) => a.name + ':' + (a.progress || 0)), album: () => state.album.length, journal: () => (state.journal || []).map((e) => e.kind + ':' + e.text + (e.photo ? ' [사진]' : '')), neglect: (name) => { const b = birds.find((q) => q.d.name === name); return b ? SCH.neglectedDays(b.d, state) : null; }, why: (n) => { const b = birds.find((q) => q.d.name === n); if (!b) return null; decide(b); return { choice: b.lastChoice, cands: b.lastCands }; }, lamp: (v) => { state.lampPower = v; return state.lampPower; }, comfort: () => birds.filter((q) => q.d.stage === 'chick').map((q) => ({ name: q.d.name, days: daysCared(q), st: q.comfort && q.comfort.state, need: q.comfort && +q.comfort.need.toFixed(1), act: q.comfort && +q.comfort.actual.toFixed(1) })), sickOf: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.sick : null; }, makeSick: (n, k) => { const b = birds.find((q) => q.d.name === n); if (b) { HLT.fallSick(b.d, k); return b.d.sick; } return null; }, poop: (n) => { for (let i = 0; i < (n || 1); i++) HYG.dropPoop(rand(world.xMin + 2, world.xMax - 2), rand(-1.5, 1.5), Math.random() < 0.15); markDirty(); return HYG.count(); }, poopCount: () => HYG.count(), amm: () => +(state.ammonia || 0).toFixed(1), setAmm: (v) => { state.ammonia = v; }, care: (name, what) => { const b = birds.find((q) => q.d.name === name); if (b) { careTick(b, what); return JSON.stringify(b.d.care); } return null; }, careOf: (name) => { const b = birds.find((q) => q.d.name === name); return b ? { care: b.d.care, days: daysCared(b), stage: b.d.stage } : null; }, at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const p = world.screenToPlaneZ(px, py, 1.2); if (p) { worm.x = p.x; worm.y = Math.max(0.15, p.y); } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(1) })), grow: (n, s) => { const b = birds.find((q) => q.d.name === n); if (b) advance(b, s); return !!b; }, world: () => ({ xMin: +world.xMin.toFixed(2), xMax: +world.xMax.toFixed(2), zMin: +world.zMin.toFixed(2), zMax: +world.zMax.toFixed(2), roamTop: world.roamTop, px: world.pxPerUnit, W: world.W, H: world.H }), screenOf: (k) => { const p = world.props[k]; if (!p) return null; const s = world.project(p.position.x, 0.5, p.position.z); return { x: Math.round(s.x), y: Math.round(s.y), pctY: +(s.y / world.H * 100).toFixed(1) }; }, gpu: () => ({ geo: world.renderer.info.memory.geometries, tex: world.renderer.info.memory.textures, calls: world.renderer.info.render.calls }) };
+  window.__tp = { runNeglect: () => { checkNeglect(); return birds.length; }, frozen: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.frozen : null; }, freezes: () => state.freezes, away: () => state.away.map((a) => a.name + ':' + (a.progress || 0)), album: () => state.album.length, journal: () => (state.journal || []).map((e) => e.kind + ':' + e.text + (e.photo ? ' [사진]' : '')), neglect: (name) => { const b = birds.find((q) => q.d.name === name); return b ? SCH.neglectedDays(b.d, state) : null; }, why: (n) => { const b = birds.find((q) => q.d.name === n); if (!b) return null; decide(b); return { choice: b.lastChoice, cands: b.lastCands }; }, lamp: (v) => { state.lampPower = v; return state.lampPower; }, comfort: () => birds.filter((q) => q.d.stage === 'chick').map((q) => ({ name: q.d.name, days: daysCared(q), st: q.comfort && q.comfort.state, need: q.comfort && +q.comfort.need.toFixed(1), act: q.comfort && +q.comfort.actual.toFixed(1) })), sickOf: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.sick : null; }, makeSick: (n, k) => { const b = birds.find((q) => q.d.name === n); if (b) { HLT.fallSick(b.d, k); return b.d.sick; } return null; }, poop: (n) => { for (let i = 0; i < (n || 1); i++) HYG.dropPoop(rand(world.xMin + 2, world.xMax - 2), rand(-1.5, 1.5), Math.random() < 0.15); markDirty(); return HYG.count(); }, poopCount: () => HYG.count(), amm: () => +(state.ammonia || 0).toFixed(1), setAmm: (v) => { state.ammonia = v; }, care: (name, what) => { const b = birds.find((q) => q.d.name === name); if (b) { careTick(b, what); return JSON.stringify(b.d.care); } return null; }, careOf: (name) => { const b = birds.find((q) => q.d.name === name); return b ? { care: b.d.care, days: daysCared(b), stage: b.d.stage } : null; }, at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const sp = wormSpot(px, py); if (sp) { worm.x = sp.x; worm.z = sp.z; worm.y = HOLD_Y; } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(1) })), grow: (n, s) => { const b = birds.find((q) => q.d.name === n); if (b) advance(b, s); return !!b; }, world: () => ({ xMin: +world.xMin.toFixed(2), xMax: +world.xMax.toFixed(2), zMin: +world.zMin.toFixed(2), zMax: +world.zMax.toFixed(2), roamTop: world.roamTop, px: world.pxPerUnit, W: world.W, H: world.H }), screenOf: (k) => { const p = world.props[k]; if (!p) return null; const s = world.project(p.position.x, 0.5, p.position.z); return { x: Math.round(s.x), y: Math.round(s.y), pctY: +(s.y / world.H * 100).toFixed(1) }; }, gpu: () => ({ geo: world.renderer.info.memory.geometries, tex: world.renderer.info.memory.textures, calls: world.renderer.info.render.calls }) };
   init();
 })();

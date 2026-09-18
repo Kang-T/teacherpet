@@ -7,7 +7,6 @@
   for (const b of document.querySelectorAll('#webbar [data-size]')) {
     b.addEventListener('click', () => window.__tpEmit('pet:size', +b.dataset.size));
   }
-  $('#wbEdit').addEventListener('click', () => window.__tpEmit('ui:toggle-edit'));
   $('#wbExport').addEventListener('click', () => window.__tpExport());
   $('#wbImport').addEventListener('click', () => $('#wbFile').click());
   $('#wbFile').addEventListener('change', (e) => { if (e.target.files[0]) window.__tpImport(e.target.files[0]); });
@@ -73,7 +72,6 @@
   const HIDE_AFTER = 4000;
   function busy() {   // 메뉴를 보는 중이거나 꾸미는 중이면 숨기지 않는다
     return !!document.querySelector('#panel:not(.hidden)')
-      || document.body.classList.contains('editing')
       || !!document.querySelector('#welcome');
   }
   function arm() {
