@@ -14,16 +14,18 @@
     return Math.max(C.BROOD.minC, C.BROOD.startC - C.BROOD.dropPerDay * caredDays);
   }
   // 어느 자리의 실제 온도
-  function tempAt(x, lamp, lampPower) {
+  function tempAt(x, z, lamp, lampPower) {
     if (!lamp || !lampPower) return ROOM_C;
-    const d = Math.abs(x - lamp.x);
+    // 마당이 깊어져 앞뒤 거리도 봐야 한다. 좌우만 보면 저 뒤에 있어도 따뜻하다고 나온다.
+    const dz = (z === undefined || lamp.z === undefined) ? 0 : (z - lamp.z);
+    const d = Math.hypot(x - lamp.x, dz);
     const fall = Math.max(0, 1 - (d / 4.5) ** 1.6);       // 유효 반경 4.5유닛
     return ROOM_C + LAMP_MAX_C * lampPower * fall;
   }
-  function comfort(bird, caredDays, x, lamp, lampPower) {
+  function comfort(bird, caredDays, x, z, lamp, lampPower) {
     const need = needC(bird, caredDays);
     if (need === null) return { state: 'na', need: null, actual: null, diff: 0 };
-    const actual = tempAt(x, lamp, lampPower);
+    const actual = tempAt(x, z, lamp, lampPower);
     const diff = actual - need;
     const t = C.BROOD.tolerance;
     return { state: diff < -t ? 'cold' : diff > t ? 'hot' : 'ok', need, actual, diff };

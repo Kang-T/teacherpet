@@ -403,8 +403,8 @@
       const g = new THREE.Group();
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.45, 0.7, 24), hard(0x8FB8E8)); body.position.y = 0.35; g.add(body);
       const rim = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.05, 8, 24), hard(0x6E9AD0)); rim.rotation.x = Math.PI / 2; rim.position.y = 0.7; g.add(rim);
-      const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.08, 24), hard(0x6B4A2E, { roughness: 1 })); soil.position.y = 0.66; g.add(soil);
-      const worms = new THREE.Group(); worms.position.y = 0.72; g.add(worms); g.userData.worms = worms;
+      const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.08, 24), hard(0x6B4A2E, { roughness: 1 })); soil.position.y = 0.66; soil.userData.part = 'worms'; g.add(soil);
+      const worms = new THREE.Group(); worms.position.y = 0.72; worms.userData.part = 'worms'; g.add(worms); g.userData.worms = worms;
       const label = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.02), hard(0xFFF7EC)); label.position.set(0, 0.35, 0.5); g.add(label);
       return shadowed(g);
     }
@@ -458,7 +458,11 @@
       const exHits = exObjs.length ? ray.intersectObjects(exObjs, true) : [];
       const cands = [];
       if (birdHits[0]) cands.push({ d: birdHits[0].distance, v: { type: 'bird', id: birdHits[0].object.userData.birdId } });
-      if (propHits[0]) { let o = propHits[0].object; while (o && !o.userData.propName) o = o.parent; if (o) cands.push({ d: propHits[0].distance, v: { type: 'prop', name: o.userData.propName } }); }
+      if (propHits[0]) {
+        let o = propHits[0].object, part = null;
+        while (o && !o.userData.propName) { if (!part && o.userData.part) part = o.userData.part; o = o.parent; }
+        if (o) cands.push({ d: propHits[0].distance, v: { type: 'prop', name: o.userData.propName, part } });
+      }
       if (exHits[0]) { let o = exHits[0].object; while (o && !extras.has(o)) o = o.parent; if (o) cands.push({ d: exHits[0].distance - 0.4, v: extras.get(o) }); }
       cands.sort((a, b2) => a.d - b2.d);
       return cands.length ? cands[0].v : null;

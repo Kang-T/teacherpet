@@ -336,7 +336,7 @@
   // 이 닭이 지금 자리에서 느끼는 온도 (병아리만 의미가 있다)
   function comfortOf(b) {
     const ws = warmSpot();
-    return HLT.comfort(b.d, daysCared(b), b.x, ws, ws ? (state.lampPower ?? 0.6) : 0);
+    return HLT.comfort(b.d, daysCared(b), b.x, b.z, ws, ws ? (state.lampPower ?? 0.6) : 0);
   }
   function warmSpot() { if (!propVisible('lamp')) return null; const L = home().lamp; const f = home().flip ? -1 : 1; return { x: L.x + 1.2 * f, z: L.z }; }
   HYG.init(world, () => ({ min: world.xMin + XMARGIN, max: world.xMax - XMARGIN }));
@@ -421,7 +421,8 @@
   }
   // 벌레통을 눌러 벌레를 꺼내고, 그대로 끌어다 놓을 수 있게 한다
   function spawnWormAt(px, py) {
-    if (spawnWorm(px, py)) { drag = { worm: true, sx: px, sy: py }; canvas.style.cursor = 'grabbing'; }
+    // 뗄 때 꺼내는 것이므로 바로 놓아 준다. 들고 있는 상태로 두면 공중에 떠 버린다.
+    if (spawnWorm(px, py) && worm) { worm.held = false; worm.y = 0.9; worm.vy = 0; }
   }
   function spawnWorm(px, py) {
     if (state.worms <= 0) { toast('🪱 벌레가 없어요. 닭장 메뉴에서 달걀 코인으로 살 수 있어요'); return false; }
@@ -1484,6 +1485,7 @@
   // ---- 마우스 ----
   function birdAt(x, y) { const h = world.pick(x, y); return h && h.type === 'bird' ? birds.find((b) => b.d.id === h.id) || null : null; }
   function propAt(x, y) { const h = world.pick(x, y); return h && h.type === 'prop' ? h.name : null; }
+  const propPartAt = (x, y) => { const h = world.pick(x, y); return h && h.type === 'prop' ? h.part : null; };
   function poopAt(x, y) { const h = world.pick(x, y); return h && h.type === 'poop' ? ENT.get(h.id) : null; }
   function sweep(p) {
     if (!p) return false;
@@ -1516,9 +1518,11 @@
     else if (name === 'coop') togglePanel();
     else if (name === 'lamp') {
       const on = (state.lampPower ?? 0) > 0.02;
-      state.lampPower = on ? 0 : 0.65;
+      if (on) { state.lampLast = state.lampPower; state.lampPower = 0; }
+      else state.lampPower = state.lampLast || 1;
       markDirty(); renderCoop(); lampEffect(state.lampPower);
-      toast(on ? '🌙 보온등을 껐어요' : '🔥 보온등을 켰어요 (중)');
+      const NAME = { 0.35: '약', 0.65: '중', 1: '강' };
+      toast(on ? '🌙 보온등을 껐어요' : `🔥 보온등을 켰어요 (${NAME[state.lampPower] || ''})`);
     }
   }
   let drag = null;
@@ -1599,7 +1603,11 @@
       const pp = poopAt(e.clientX, e.clientY);
       if (pp) { sweep(pp); drag = { sweeping: true, sx: e.clientX, sy: e.clientY }; canvas.style.cursor = 'grabbing'; return; }
       const pr = propAt(e.clientX, e.clientY);
-      if (pr) { const gp = world.screenToGround(e.clientX, e.clientY), L = home()[pr]; drag = { prop: pr, sx: e.clientX, sy: e.clientY, offX: gp ? gp.x - L.x : 0, offZ: gp ? gp.z - L.z : 0, moved: false }; canvas.style.cursor = 'grabbing'; }
+      if (pr === 'wormbucket' && propPartAt(e.clientX, e.clientY) === 'worms') {
+        // 통 위의 벌레를 집으면 그대로 끌고 다닌다. 통 몸통을 잡으면 통이 움직인다.
+        if (spawnWorm(e.clientX, e.clientY)) { drag = { worm: true, sx: e.clientX, sy: e.clientY }; canvas.style.cursor = 'grabbing'; }
+      }
+      else if (pr) { const gp = world.screenToGround(e.clientX, e.clientY), L = home()[pr]; drag = { prop: pr, sx: e.clientX, sy: e.clientY, offX: gp ? gp.x - L.x : 0, offZ: gp ? gp.z - L.z : 0, moved: false }; canvas.style.cursor = 'grabbing'; }
       else closePanel();
       return;
     }
@@ -1614,7 +1622,7 @@
     if (drag.worm) { if (worm) worm.held = false; drag = null; canvas.style.cursor = 'default'; return; }
     if (drag.prop) {
       // 벌레통은 눌렀다 떼면 벌레가 나오고, 끌면 통이 움직인다
-      if (!drag.moved) { if (drag.prop === 'wormbucket') spawnWormAt(e.clientX, e.clientY); else propClick(drag.prop); }
+      if (!drag.moved) { if (drag.prop === 'wormbucket') toast('🪱 통 위의 벌레를 집어서 끌어다 놓으세요', false, 5000); else propClick(drag.prop); }
       else toast('📦 자리를 옮겼어요');
       drag = null; canvas.style.cursor = 'pointer'; return;
     }
@@ -1979,7 +1987,6 @@
     const hid = $('#advBox').classList.toggle('hidden');
     $('#btnAdv').textContent = hid ? '⋯ 자세한 설정' : '⋯ 접기';
   });
-  $('#btnHelp').addEventListener('click', () => $('#helpBox').classList.toggle('hidden'));
   $('#btnPrivacy2').addEventListener('click', () => { if (api.openExternal) api.openExternal(location.origin + location.pathname + 'privacy.html'); else location.href = 'privacy.html'; });
   $('#btnWipe2').addEventListener('click', () => { const b = document.querySelector('#wbWipe'); if (b) b.click(); else toast('데스크톱 버전에서는 설정 폴더를 지워 주세요', false, 7000); });
   $('#btnExport2').addEventListener('click', () => { if (window.__tpExport) window.__tpExport(); else toast('웹 버전에서만 됩니다', false, 5000); });

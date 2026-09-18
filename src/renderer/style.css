@@ -263,3 +263,34 @@ body.menuOpen #dim { display: block; }
 .petShot.noshot { display: flex; align-items: center; justify-content: center; font-size: 24px; border-style: dashed; border-color: #CFC7B2; }
 .petCard .head, .petCard .stat, .petCard .hint { padding-right: 76px; }
 .petCard .actions { padding-right: 0; }
+
+/* ── 설정: 묶어서 보여준다 ── */
+.tab .card {
+  background: #FFFBF0; border: 2px solid #E6DFCC; border-radius: 14px;
+  padding: 12px 14px; margin-bottom: 10px;
+}
+.tab .card.sub { background: #F7F4EA; }
+.tab .card h4 { margin: 0 0 6px; font-size: 14px; }
+.tab .card > p { margin: 0 0 10px; font-size: 12.5px; color: #6B6153; line-height: 1.65; }
+.tab .btnRow { display: flex; gap: 8px; }
+.tab .btnRow.wrap { flex-wrap: wrap; gap: 4px 12px; }
+.tab .btnRow .big { flex: 1; font-size: 14px; padding: 10px 8px; background: #FFF3D0; }
+.tab .btnRow .big:hover { background: #FFE9A8; }
+.row.center { justify-content: center; }
+.tips { margin: 0; padding-left: 18px; }
+.tips li { font-size: 12.5px; line-height: 1.75; color: #4A4034; }
+
+/* 스위치 */
+.sw { display: flex; align-items: center; gap: 10px; padding: 7px 0; cursor: pointer; font-size: 14px; }
+.sw span { flex: 1; }
+.sw input { position: absolute; opacity: 0; pointer-events: none; }
+.sw i {
+  flex: none; width: 42px; height: 24px; border-radius: 999px;
+  background: #DDD5C4; border: 2px solid #2B1B0E; position: relative; transition: background .18s;
+}
+.sw i::after {
+  content: ''; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: #FFF; border: 2px solid #2B1B0E; transition: transform .18s;
+}
+.sw input:checked + i { background: #7FBF5A; }
+.sw input:checked + i::after { transform: translateX(18px); }
