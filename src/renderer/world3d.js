@@ -367,6 +367,14 @@
       g.userData.light = light;
       const glow = new THREE.Mesh(new THREE.CircleGeometry(1.6, 32), new THREE.MeshBasicMaterial({ color: 0xFFB870, transparent: true, opacity: 0.18, depthWrite: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(1.2, 0.02, 0); g.add(glow);
       g.userData.glow = glow;
+      // 켜져 있다는 것이 한눈에 보이도록 빛기둥을 세운다
+      const beam = new THREE.Mesh(
+        new THREE.ConeGeometry(1.7, 2.75, 28, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0xFFC978, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
+      beam.position.set(1.2, 1.4, 0); g.add(beam);
+      g.userData.beam = beam;
+      g.userData.bulb = bulb;
+      g.userData.shade = shade;
       g.userData.warmSpot = { dx: 1.2, dz: 0 };
       return shadowed(g);
     }
@@ -490,12 +498,24 @@
     function setLamp(power) {
       const g = world.props.lamp;
       if (!g || !g.userData.light) return;
+      const u = g.userData;
       const p = Math.max(0, Math.min(1, power || 0));
-      g.userData.light.intensity = 26 * p;
-      g.userData.glow.material.opacity = 0.05 + 0.3 * p;
-      g.userData.glow.visible = p > 0.02;
-      // 갓 안쪽도 같이 밝아진다
-      g.traverse((o) => { if (o.isMesh && o.material && o.material.emissive) o.material.emissiveIntensity = p * 0.9; });
+      const on = p > 0.02;
+      u.light.intensity = 30 * p;
+      u.light.visible = on;
+      u.glow.material.opacity = 0.10 + 0.34 * p;
+      u.glow.scale.setScalar(0.8 + 0.5 * p);
+      u.glow.visible = on;
+      u.beam.material.opacity = 0.07 + 0.16 * p;
+      u.beam.visible = on;
+      // 전구 — 꺼지면 회색으로 식는다
+      u.bulb.material.emissiveIntensity = 0.15 + 3.2 * p;
+      u.bulb.material.color.setHex(on ? 0xFFE2A8 : 0xBDB6AA);
+      u.bulb.material.emissive.setHex(on ? 0xFFB347 : 0x2A2620);
+      // 갓 안쪽도 은은하게 물든다
+      if (!u.shade.material.emissive) return;
+      u.shade.material.emissive.setHex(0xFF9A4A);
+      u.shade.material.emissiveIntensity = p * 0.55;
     }
     Object.assign(world, { capture, setLamp });
 

@@ -21,7 +21,7 @@
       freezes: C.RULE.careFreezePerTerm,
       settings: {
         size: 4, sound: true,
-        homeSide: 'left', lifeEnd: 'retire', useCalendar: false, pauseWeekends: true, quiet: false,
+        homeSide: 'left', lifeEnd: 'retire', useCalendar: true, pauseWeekends: true, quiet: false,   // 주말에는 쉰다 — 기본값
         holidays: [], vacation: null, paused: false,
         propPos: {}, propHidden: {},
       },

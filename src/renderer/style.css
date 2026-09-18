@@ -41,6 +41,7 @@ html, body {
   /* 화면 가운데. 아이들이 쓰는 화면이라 구석에 붙어 있으면 잘 못 찾는다. */
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: min(440px, calc(100vw - 28px)); max-height: 78vh; display: flex; flex-direction: column;
+  z-index: 45;   /* 덮개(#dim, 44) 보다 위 */
   background: #FFFDF5; border: 3px solid #2B1B0E; border-radius: 16px;
   box-shadow: 4px 4px 0 #2B1B0E; overflow: hidden;
 }
@@ -188,9 +189,9 @@ body.uiIdle #gAsk { opacity: 0; pointer-events: none; transition: opacity .55s; 
 @media (max-width: 640px) { #gImg { height: 110px; margin-right: -10px; } }
 
 /* 메뉴가 떠 있으면 마당을 살짝 가라앉힌다.
-   ::before + z-index:-1 로 하면 쌓임 맥락 때문에 패널 배경까지 덮어 회색이 된다.
-   퍼지는 그림자로 화면 전체를 어둡게 하는 편이 안전하다. */
-#panel:not(.hidden) { box-shadow: 4px 4px 0 #2B1B0E, 0 0 0 100vmax rgba(30, 24, 16, .22); }
+   ::before(쌓임 맥락 문제)도 퍼지는 그림자(잘림 문제)도 아닌, 그냥 덮개 한 장이 제일 안전하다. */
+#dim { position: fixed; inset: 0; z-index: 44; background: rgba(30, 24, 16, .22); display: none; }
+body.menuOpen #dim { display: block; }
 #moreBox.hidden { display: none; }
 
 /* 첫 장면에서만 보이는 아이 뒷모습 — 할머니를 마주 보고 선다 */
@@ -240,3 +241,25 @@ body.uiIdle #gAsk { opacity: 0; pointer-events: none; transition: opacity .55s; 
 
 #advBox.hidden, #helpBox.hidden { display: none; }
 #advBox { border-top: 1px dashed #D9CFB8; margin-top: 8px; padding-top: 8px; }
+
+/* 버튼처럼 안 생긴 버튼 — 펼치기·되돌리기처럼 눈에 덜 띄어야 하는 것들 */
+.linky {
+  border: 0; background: none; font: inherit; font-size: 12px; color: #7A6F5E;
+  cursor: pointer; padding: 3px 2px; text-decoration: underline; text-underline-offset: 3px;
+}
+.linky:hover { color: #2B1B0E; }
+.linky.danger { color: #B04A32; }
+/* 저장·가져오기는 눈에 띄게 */
+.saveRow .big { font-size: 14px; padding: 9px 14px; background: #FFF3D0; }
+.saveRow .big:hover { background: #FFE9A8; }
+/* 닭 카드 */
+.petCard { position: relative; }
+.iconBtn { border: 0; background: none; font-size: 13px; cursor: pointer; padding: 0 2px; line-height: 1; opacity: .55; }
+.iconBtn:hover { opacity: 1; }
+.petShot {
+  position: absolute; right: 10px; top: 10px; width: 62px; height: 62px;
+  border-radius: 12px; border: 2px solid #2B1B0E; object-fit: cover; background: #EFEADC;
+}
+.petShot.noshot { display: flex; align-items: center; justify-content: center; font-size: 24px; border-style: dashed; border-color: #CFC7B2; }
+.petCard .head, .petCard .stat, .petCard .hint { padding-right: 76px; }
+.petCard .actions { padding-right: 0; }

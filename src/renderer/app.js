@@ -86,6 +86,27 @@
   const propVisible = (k) => !(state.settings.propHidden || {})[k];
   // 소품은 언제나 끌어서 옮길 수 있다. 눌렀다 떼면 동작하고, 끌면 자리를 옮긴다.
   // (모드를 따로 켜게 했더니 오히려 번거로웠다)
+  // ── 닭 카드에 쓸 그 아이의 모습 ──
+  // 화면에서 그 닭만 잘라 작은 그림으로. 단계가 바뀌거나 한참 지났을 때만 새로 찍는다.
+  let shotBusy = false;
+  async function shotFor(b) {
+    if (shotBusy) return;
+    const key = b.d.stage + '|' + (b.d.sex || '');
+    if (b.thumbKey === key && now() - (b.thumbAt || 0) < 60000) return;
+    if (!visible || b.inCoop) return;
+    const pt = world.project(b.x, height(b) * 0.55, b.z);
+    if (!pt || pt.x < 40 || pt.x > world.W - 40 || pt.y < 40 || pt.y > world.H - 40) return;
+    shotBusy = true;
+    try {
+      const img = await Promise.race([
+        world.capture(pt.x, pt.y, 96, 96),
+        new Promise((r) => setTimeout(() => r(null), 1200)),
+      ]);
+      if (img) { b.thumb = img; b.thumbKey = key; b.thumbAt = now(); renderCoop(); }
+    } catch (e) { /* 없어도 그만 */ }
+    shotBusy = false;
+  }
+
   // ── 관찰일지 ──
   // 아이가 따로 적지 않아도 한살이의 '순간'이 스스로 쌓인다.
   async function note(kind, b, once) {
@@ -397,6 +418,10 @@
     const g = world.screenToGround(px, py);
     if (!g) return null;
     return { x: clamp(g.x, world.xMin + 0.8, world.xMax - 0.8), z: clampZ(g.z) };
+  }
+  // 벌레통을 눌러 벌레를 꺼내고, 그대로 끌어다 놓을 수 있게 한다
+  function spawnWormAt(px, py) {
+    if (spawnWorm(px, py)) { drag = { worm: true, sx: px, sy: py }; canvas.style.cursor = 'grabbing'; }
   }
   function spawnWorm(px, py) {
     if (state.worms <= 0) { toast('🪱 벌레가 없어요. 닭장 메뉴에서 달걀 코인으로 살 수 있어요'); return false; }
@@ -1452,7 +1477,7 @@
   let acc = 0;
   function loop(t) {
     const dt = Math.min(0.1, (t - last) / 1000); last = t; acc += dt;
-    if (acc >= 1 / 32) { for (const b of birds) update(b, acc); draw(acc); acc = 0; }
+    if (acc >= 1 / 32) { for (const b of birds) update(b, acc); tickFollow(); draw(acc); acc = 0; }
    requestAnimationFrame(loop);
   }
 
@@ -1536,8 +1561,16 @@
         else if (drag.b.d.aff < 40 && Math.random() < 0.5) showIcon(drag.b, '😣', 1500);
       }
       if (drag.moved) {
-        const p = world.screenToPlaneZ(e.clientX, e.clientY, drag.b.z);
-        if (p) { drag.b.x = clamp(p.x - drag.offX, world.xMin + XMARGIN, world.xMax - XMARGIN); drag.b.y = Math.max(0, p.y - height(drag.b) * 0.5); }
+        // 위로 크게 들어 올리면 공중으로, 아니면 바닥을 따라 앞뒤·좌우로 옮긴다.
+        // (예전에는 언제나 들어 올리기여서 앞뒤로 옮길 수가 없었다)
+        const lifted = (drag.sy - e.clientY) > 55;
+        if (lifted) {
+          const p = world.screenToPlaneZ(e.clientX, e.clientY, drag.b.z);
+          if (p) { drag.b.x = clamp(p.x - drag.offX, world.xMin + XMARGIN, world.xMax - XMARGIN); drag.b.y = Math.max(0, p.y - height(drag.b) * 0.5); }
+        } else {
+          const g = world.screenToGround(e.clientX, e.clientY);
+          if (g) { drag.b.x = clamp(g.x - drag.offX, world.xMin + XMARGIN, world.xMax - XMARGIN); drag.b.z = clampZ(g.z - (drag.offZ || 0)); drag.b.y = 0; }
+        }
       }
       return;
     }
@@ -1566,23 +1599,28 @@
       const pp = poopAt(e.clientX, e.clientY);
       if (pp) { sweep(pp); drag = { sweeping: true, sx: e.clientX, sy: e.clientY }; canvas.style.cursor = 'grabbing'; return; }
       const pr = propAt(e.clientX, e.clientY);
-      if (pr === 'wormbucket') { if (spawnWorm(e.clientX, e.clientY)) { drag = { worm: true, sx: e.clientX, sy: e.clientY }; canvas.style.cursor = 'grabbing'; } }
-      else if (pr) { const gp = world.screenToGround(e.clientX, e.clientY), L = home()[pr]; drag = { prop: pr, sx: e.clientX, sy: e.clientY, offX: gp ? gp.x - L.x : 0, offZ: gp ? gp.z - L.z : 0, moved: false }; canvas.style.cursor = 'grabbing'; }
+      if (pr) { const gp = world.screenToGround(e.clientX, e.clientY), L = home()[pr]; drag = { prop: pr, sx: e.clientX, sy: e.clientY, offX: gp ? gp.x - L.x : 0, offZ: gp ? gp.z - L.z : 0, moved: false }; canvas.style.cursor = 'grabbing'; }
       else closePanel();
       return;
     }
     const p = world.screenToPlaneZ(e.clientX, e.clientY, b.z);
-    drag = { b, offX: p ? p.x - b.x : 0, sx: e.clientX, sy: e.clientY, moved: false };
+    const g0 = world.screenToGround(e.clientX, e.clientY);
+    drag = { b, offX: p ? p.x - b.x : 0, offZ: g0 ? g0.z - b.z : 0, sx: e.clientX, sy: e.clientY, moved: false };
     canvas.style.cursor = 'grabbing';
   });
   addEventListener('mouseup', (e) => {
     if (!drag) return;
     if (drag.sweeping) { drag = null; canvas.style.cursor = 'default'; return; }
     if (drag.worm) { if (worm) worm.held = false; drag = null; canvas.style.cursor = 'default'; return; }
-    if (drag.prop) { if (!drag.moved) propClick(drag.prop); else toast('📦 자리를 옮겼어요 (설정에서 초기화 가능)'); drag = null; canvas.style.cursor = 'pointer'; return; }
+    if (drag.prop) {
+      // 벌레통은 눌렀다 떼면 벌레가 나오고, 끌면 통이 움직인다
+      if (!drag.moved) { if (drag.prop === 'wormbucket') spawnWormAt(e.clientX, e.clientY); else propClick(drag.prop); }
+      else toast('📦 자리를 옮겼어요');
+      drag = null; canvas.style.cursor = 'pointer'; return;
+    }
     const b = drag.b;
     if (drag.moved) {
-      b.carrying = false; b.d.x = toFrac(b.x); b.targetX = null;
+      b.carrying = false; b.d.x = toFrac(b.x); b.d.z = b.z; b.targetX = null;
       if (b.y > 0) { setAnim(b, 'fall', 99); b.vy = 0; } else decide(b);
       momRelief(b);
       markDirty();
@@ -1590,6 +1628,26 @@
     else touch(b);
     drag = null; canvas.style.cursor = 'grab';
   });
+  // ── 찾기: 그 아이에게 화면을 옮기고 잠시 따라다닌다 ──
+  let follow = null;
+  function followBird(b) {
+    follow = { id: b.d.id, until: now() + 9000 };
+    state.settings.zoom = clamp(Math.max(state.settings.zoom ?? 1, 1.7), 0.6, 2.4);
+    hoverId = b.d.id;
+    later(b, 9000, () => { if (hoverId === b.d.id) hoverId = null; });
+    toast(`📍 ${b.d.name}(이)를 따라가요`, false, 3000);
+    resize();
+  }
+  function tickFollow() {
+    if (!follow) return;
+    const b = birds.find((q) => q.d.id === follow.id);
+    if (!b || now() > follow.until) { follow = null; return; }
+    const v = world.view;
+    v.tx += (b.x - v.tx) * 0.12;
+    v.tz += (b.z - v.tz) * 0.12;
+    panClamp(); world.fit(W, H);
+  }
+
   // 확대·축소 — 커서 아래의 땅을 붙잡고 확대한다.
   // 그 지점이 제자리에 있어야 '확대'로 느껴진다. 예전에는 화면이 통째로 미끄러졌다.
   // 바라보는 지점은 언제나 마당 안에 있어야 한다.
@@ -1600,7 +1658,7 @@
     v.tz = clamp(v.tz, world.zMin + 2, world.zMax - 2);
   }
   canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
+    e.preventDefault(); follow = null;
     const z0 = world.view.zoom;
     const z1 = clamp(z0 * (e.deltaY > 0 ? 0.9 : 1.111), 0.6, 2.4);
     if (Math.abs(z1 - z0) < 0.001) return;
@@ -1613,7 +1671,7 @@
 
   // 시점 — 오른쪽 버튼을 누른 채 위아래로. 마당은 가만히 있고 카메라만 돈다.
   let tilt = null;
-  canvas.addEventListener('mousedown', (e) => { if (e.button === 2) { tilt = { y: e.clientY, from: world.view.elev }; e.preventDefault(); } });
+  canvas.addEventListener('mousedown', (e) => { if (e.button === 2) { follow = null; tilt = { y: e.clientY, from: world.view.elev }; e.preventDefault(); } });
   addEventListener('mousemove', (e) => {
     if (!tilt) return;
     const v = clamp(tilt.from + (e.clientY - tilt.y) * 0.16, 16, 55);
@@ -1695,8 +1753,8 @@
 
   // ---- 패널 ----
   const panel = $('#panel');
-  function openPanel(tab) { panel.classList.remove('hidden'); if (tab) showTab(tab); renderCoop(); renderSettings(); }
-  function closePanel() { panel.classList.add('hidden'); }
+  function openPanel(tab) { panel.classList.remove('hidden'); document.body.classList.add('menuOpen'); if (tab) showTab(tab); renderCoop(); renderSettings(); }
+  function closePanel() { panel.classList.add('hidden'); document.body.classList.remove('menuOpen'); }
   function togglePanel() { panel.classList.contains('hidden') ? openPanel() : closePanel(); }
   function showTab(name) { $$('.tabs button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name)); $$('section.tab').forEach((s) => s.classList.toggle('active', s.dataset.tab === name)); }
   $$('.tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -1771,10 +1829,11 @@
       const need = { egg: RULE.daysEgg, chick: RULE.daysChick, young: RULE.daysYoung }[b.d.stage];
       const n = daysCared(b);
       const card = document.createElement('div'); card.className = 'petCard' + (selectedId === b.d.id ? ' selected' : '');
+      shotFor(b);                                   // 그 아이의 지금 모습을 옆에 보여준다
       const days = Math.max(1, Math.ceil((now() - b.d.born) / 86400000));
       const broodedToday = b.d.stage === 'egg' && ST.caredToday(b.d);
       card.innerHTML = `
-        <div class="head"><span class="name">${esc(b.d.name)}</span>
+        <div class="head"><span class="name">${esc(b.d.name)}</span><button class="iconBtn" data-act="rename" title="이름 바꾸기">✏️</button>
           <span class="sex ${sexKnown(b.d) ? b.d.sex : ''}">${STAGE_KO[b.d.stage]}${sexMark(b.d)}${b.d.old ? ' · 노년' : ''}</span>
           <span class="stage">${doing(b)}</span></div>
         <div class="head"><span class="stage">${days}일째 · ${b.d.trait}${b.d.stage === 'hen' ? ` · 알 ${b.d.eggsLaid}개` : ''}${b.d.brooding ? ' · 품는 중' : ''}</span></div>
@@ -1785,13 +1844,14 @@
         <div class="hint">${b.d.trait} — ${TRAIT_DESC[b.d.trait] || ''}${b.d.momId ? ` · 엄마: ${(birds.find((h) => h.d.id === b.d.momId) || {}).d?.name || '떠남'}` : ''}</div>` : ''}
         <div class="actions">
           ${b.d.stage === 'egg' ? `<button class="small primary" data-act="brood" ${broodedToday ? 'disabled' : ''}>🤲 ${broodedToday ? '오늘 품었어요' : '품어주기'}</button>` : ''}
-          <button class="small" data-act="rename">✏️ 이름</button><button class="small" data-act="find">📍 찾기</button><button class="small danger" data-act="release">농장으로 보내기</button>
-        </div>`;
+          <button class="small" data-act="find">📍 찾기</button><button class="small danger" data-act="release">농장으로 보내기</button>
+        </div>
+        ${b.thumb ? `<img class="petShot" src="${b.thumb}" alt="">` : '<div class="petShot noshot">🐔</div>'}`;
       card.addEventListener('click', (e) => {
         const act = e.target.dataset && e.target.dataset.act; selectedId = b.d.id;
         if (act === 'brood') { broodTick(b); b.f = 1; b.wobbleUntil = performance.now() / 1000 + 1; setAnim(b, 'egg', 1.5); showIcon(b, '✨'); }
         else if (act === 'rename') { const nm = prompt('새 이름을 정해 주세요', b.d.name); if (nm && nm.trim()) { b.d.name = nm.trim().slice(0, 12); markDirty(); } }
-        else if (act === 'find') { b.x = (world.xMin + world.xMax) / 2; b.d.x = 0.5; b.inCoop = false; setVisible(b, true); if (b.d.stage !== 'egg') jump(b, 300); hoverId = b.d.id; setTimeout(() => { if (hoverId === b.d.id) hoverId = null; }, 3000); }
+        else if (act === 'find') { b.inCoop = false; setVisible(b, true); if (b.d.stage !== 'egg') jump(b, 300); followBird(b); closePanel(); }
         else if (act === 'release') { if (e.target.dataset.confirm) depart(b, 'retire'); else { e.target.dataset.confirm = '1'; e.target.textContent = '정말요? 한 번 더'; return; } }
         renderCoop();
       });
@@ -1913,12 +1973,8 @@
     $('#calInfo').textContent = (cal ? '' : '학사일정을 켜면 주말·공휴일·방학에 시간이 멈춥니다. ')
       + `🧊 돌봄 프리즈 ${state.freezes}개 남음` + (v ? ` · 🏖️ 방학 ${v.from}~${v.to}` : '')
       + ((state.settings.holidays || []).length ? ` · 🗓️ 쉬는 날 ${state.settings.holidays.length}일` : '');
-    $$('[data-prop]').forEach((c) => { c.checked = propVisible(c.dataset.prop); });
-    $$('[data-size]').forEach((b) => b.classList.toggle('primary', +b.dataset.size === state.settings.size));
-    $$('[data-home]').forEach((b) => b.classList.toggle('primary', b.dataset.home === state.settings.homeSide));
-    $$('[data-lifeend]').forEach((b) => b.classList.toggle('primary', b.dataset.lifeend === state.settings.lifeEnd));
-    $$('[data-guide]').forEach((b) => b.classList.toggle('primary', b.dataset.guide === (state.settings.guide || 'often')));
-  }
+      $$('[data-size]').forEach((b) => b.classList.toggle('primary', +b.dataset.size === state.settings.size));
+      }
   $('#btnAdv').addEventListener('click', () => {
     const hid = $('#advBox').classList.toggle('hidden');
     $('#btnAdv').textContent = hid ? '⋯ 자세한 설정' : '⋯ 접기';
@@ -1928,14 +1984,7 @@
   $('#btnWipe2').addEventListener('click', () => { const b = document.querySelector('#wbWipe'); if (b) b.click(); else toast('데스크톱 버전에서는 설정 폴더를 지워 주세요', false, 7000); });
   $('#btnExport2').addEventListener('click', () => { if (window.__tpExport) window.__tpExport(); else toast('웹 버전에서만 됩니다', false, 5000); });
   $('#btnImport2').addEventListener('click', () => { const f = document.querySelector('#wbFile'); if (f) f.click(); else toast('웹 버전에서만 됩니다', false, 5000); });
-  $$('[data-guide]').forEach((b) => b.addEventListener('click', () => {
-    state.settings.guide = b.dataset.guide;
-    if (GR.GUIDE[b.dataset.guide] && GR.GUIDE[b.dataset.guide].detail) state.settings.detail = true;
-    markDirty(); renderSettings(); renderCoop();
-    toast('할머니: ' + GR.GUIDE[b.dataset.guide].desc, false, 5000);
-  }));
   $('#btnViewReset').addEventListener('click', () => { state.settings.zoom = 1; state.settings.elev = 24; world.view.tx = 0; world.view.tz = world.zMin * 0.42; markDirty(); resize(); toast('화면을 처음 시점으로 되돌렸어요'); });
-  $$('[data-prop]').forEach((c) => c.addEventListener('change', () => { state.settings.propHidden = state.settings.propHidden || {}; state.settings.propHidden[c.dataset.prop] = !c.checked; markDirty(); layoutHome(); }));
   $('#btnMore').addEventListener('click', () => {
     const hidden = $('#moreBox').classList.toggle('hidden');
     $('#btnMore').textContent = hidden ? '⋯ 더 보기' : '⋯ 접기';
@@ -1969,8 +2018,6 @@
   });
   $('#gAsk').addEventListener('click', () => { if ($('#granny').classList.contains('hidden')) askGranny(); else grannyHide(); });
   $('#btnResetProps').addEventListener('click', () => { state.settings.propPos = {}; markDirty(); layoutHome(); toast('소품 배치를 처음으로 되돌렸어요'); });
-  $$('[data-home]').forEach((b) => b.addEventListener('click', () => { state.settings.homeSide = b.dataset.home; markDirty(); renderSettings(); layoutHome(); }));
-  $$('[data-lifeend]').forEach((b) => b.addEventListener('click', () => { state.settings.lifeEnd = b.dataset.lifeend; markDirty(); renderSettings(); toast({ safe: '안심 모드 — 아무도 떠나지 않아요', retire: '오래 방치하면 잠시 떠나요 (다시 돌보면 돌아와요)', natural: '나이가 다 되면 자연으로 돌아가요 (고학년용)' }[b.dataset.lifeend], false, 7000); }));
   $('#useCalendar').addEventListener('change', (e) => {
     state.settings.useCalendar = e.target.checked; markDirty(); renderSettings();
     toast(e.target.checked ? '🗓️ 학사일정을 씁니다 — 주말·공휴일·방학엔 시간이 멈춰요' : '🗓️ 학사일정을 끕니다 — 매일 시간이 흘러요', false, 7000);
