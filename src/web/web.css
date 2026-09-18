@@ -1,20 +1,25 @@
 /* 웹 전용 — 바탕화면 대신 하늘과 잔디를 그린다 */
 html, body {
-  /* --horizon 은 app.js 의 resize() 가 화면 비율에 맞춰 정한다 (세로일수록 마당이 커진다) */
+  /* 풀밭은 3D 가 그린다 (scenery.js). 여기는 하늘만 맡는다. */
   /* --sky1~3 은 오늘 날씨가 정한다 (sim/weather.js). 값이 없으면 맑은 날 색이다. */
-  background: linear-gradient(var(--sky1, #8FC7F5) 0%, var(--sky2, #BFE0FA) calc(var(--horizon, 33%) * 0.66),
-    var(--sky3, #DFF0FB) calc(var(--horizon, 33%) - 2%), var(--g-far, #B7DE93) var(--horizon, 33%),
-    var(--g-mid, #8FCB6B) calc(var(--horizon, 33%) + 29%), var(--g-near, #7BBE5B) 100%);
+  background: linear-gradient(var(--sky1, #8FC7F5) 0%, var(--sky2, #BFE0FA) 62%, var(--sky3, #DFF0FB) 100%);
   overscroll-behavior: none;
   -webkit-user-select: none; user-select: none;
 }
 body.tp-hidden #stageHost, body.tp-hidden #bubbles { display: none; }
 
-/* 구름 */
-.cloud { position: absolute; background: rgba(255,255,255,.85); border-radius: 50%; pointer-events: none; filter: blur(0.3px); }
-/* 궂은 날은 구름이 잿빛으로 낮게 깔린다 */
-body[data-wx="cloudy"] .cloud, body[data-wx="rain"] .cloud { background: rgba(228,232,236,.9); }
-body[data-wx="rain"] .cloud { filter: blur(1.2px); }
+/* 구름 — 캔버스 '위'에 얹는다. 화면 위쪽은 아주 멀어서 하늘색이 된 땅이라, 거기가 하늘 노릇을 한다.
+   한 덩어리가 아니라 동그라미 대여섯 개를 겹쳐야 구름처럼 보인다. */
+#clouds { position: fixed; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
+.cloud { position: absolute; pointer-events: none; filter: blur(0.4px); }
+.cloud i {
+  position: absolute; display: block; height: 0; border-radius: 50%;
+  background: #FFFFFF;
+}
+body[data-wx="cloudy"] .cloud i, body[data-wx="rain"] .cloud i { background: #E6EAEE; }
+body[data-wx="rain"] .cloud { filter: blur(1.6px); }
+body[data-wx="hot"] .cloud { filter: blur(1px); }
+
 /* 마당 위에 얇게 덮이는 그늘 — 숫자는 날씨가 정한다 */
 #wxdim { position: fixed; inset: 0; pointer-events: none; z-index: 5;
   background: #43505C; opacity: var(--wx-dim, 0); transition: opacity .9s ease; }

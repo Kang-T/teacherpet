@@ -235,6 +235,29 @@
     ok('소품 자리는 farm 에 마당 좌표로 남는다', pl.lamp && Math.abs(pl.lamp.x - 3.5) < 0.01 && Math.abs(pl.lamp.z + 8) < 0.01,
       JSON.stringify(pl.lamp));
     ok('옮긴 자리가 화면에도 반영된다', Math.abs(D.propPos('lamp').x - 3.5) < 0.2, JSON.stringify(D.propPos('lamp')));
+
+    // ── 13. 배경이 무겁지 않은가 ──
+    // 학교 크롬북에서 돌아가야 한다. 마당 밖 풍경을 올린 뒤 프레임이 무너지지 않았는지 본다.
+    // (브라우저 미리보기는 숨은 탭이라 rAF 가 멈춘다 — 이 측정은 Electron 에서만 뜻이 있다.)
+    const frames = [];
+    await new Promise((res) => {
+      let last = performance.now();
+      const t0 = last;
+      const f = () => {
+        const n = performance.now();
+        frames.push(n - last); last = n;
+        if (n - t0 < 2500) requestAnimationFrame(f); else res();
+      };
+      requestAnimationFrame(f);
+    });
+    frames.shift();
+    frames.sort((a, b) => a - b);
+    const midMs = frames.length ? frames[Math.floor(frames.length / 2)] : 999;
+    const p95 = frames.length ? frames[Math.floor(frames.length * 0.95)] : 999;
+    const calls = D.gpu().calls;
+    ok('배경을 올려도 프레임이 버틴다', frames.length > 30 && midMs < 24,
+      `중간 ${midMs.toFixed(1)}ms (${(1000 / midMs).toFixed(0)}fps) · 최악5% ${p95.toFixed(1)}ms · ${frames.length}프레임`);
+    ok('드로우콜이 예산 안에 있다', calls < 480, `${calls}개 (기준 480)`);
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
   }

@@ -30,13 +30,13 @@
     sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 5; sun.shadow.bias = -0.0005;
     scene.add(sun); scene.add(sun.target);
     const rim = new THREE.DirectionalLight(0xDDEEFF, 0.8); rim.position.set(-8, 6, -6); scene.add(rim);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 160), new THREE.ShadowMaterial({ opacity: 0.22 }));
-    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
     // 마당은 화면과 무관하게 '고정된 크기의 장소'다.
     // 예전에는 xMin/xMax/zMin/zMax 를 화면 가장자리에서 역산했는데,
     // 그러면 확대하거나 각도를 바꾸는 순간 소품과 닭의 위치가 통째로 움직였다.
     const YARD = { w: 32, d: 30 };
+    // 마당 밖 풍경 — 바닥·울타리·나무·밭·언덕·구름. 마당 크기를 알아야 울타리를 세운다.
+    const scenery = global.TP_SCENERY.build(THREE, scene, YARD);
     const world = {
       renderer, scene, camera, birds: new Map(), props: {}, decos: new Map(), pxPerUnit: 40,
       xMin: -YARD.w / 2, xMax: YARD.w / 2, zMin: -YARD.d, zMax: 0.6,
@@ -71,6 +71,7 @@
       camera.lookAt(tx, 0, tz);
       camera.near = Math.max(1, D * 0.15); camera.far = D * 6;
       camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+      scenery.setCamDist(D);        // 지평선(안개)이 확대와 함께 따라오게
 
       // 마당 경계(xMin/xMax/zMin/zMax)는 화면이 어떻든 바뀌지 않는다.
       const span = Math.max(30, (world.xMax - world.xMin) * 0.8);
@@ -574,7 +575,7 @@
       return cands.length ? cands[0].v : null;
     }
     let lastRender = performance.now();
-    function render() { const t = performance.now(); const d = Math.min(0.1, (t - lastRender) / 1000); tickPuffs(d); tickSparks(d); lastRender = t; tickShells(); renderer.render(scene, camera); if (pendingShot) takeShot(); }
+    function render() { const t = performance.now(); const d = Math.min(0.1, (t - lastRender) / 1000); tickPuffs(d); tickSparks(d); scenery.tick(d); lastRender = t; tickShells(); renderer.render(scene, camera); if (pendingShot) takeShot(); }
 
     Object.assign(world, { makeWorm, setWormCount, addShells, puff, sparkle, makePoop, addPickable, removePickable, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
     // 관찰일지용 사진 — 화면에서 한 곳을 잘라 작은 JPEG 로 돌려준다.
@@ -627,7 +628,7 @@
       u.shade.material.emissive.setHex(0xFF9A4A);
       u.shade.material.emissiveIntensity = p * 0.55;
     }
-    Object.assign(world, { capture, setLamp, setCoopSkin, setDecos });
+    Object.assign(world, { capture, setLamp, setCoopSkin, setDecos, scenery });
 
     return world;
   }

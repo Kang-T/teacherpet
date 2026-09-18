@@ -59,7 +59,6 @@ html = must(html, '<script src="vendor/three.global.js"></script>',
   'three.js 스크립트 태그');
 // 화면 버튼 + 환영 카드 + 구름
 html = must(html, '<div id="stageHost"></div>', `<div id="stageHost"></div>
-<div id="clouds"></div>
 <div id="webbar">
   <button id="wbMenu" title="닭장 열기">🐔</button>
   <input type="file" id="wbFile" accept="application/json" hidden>
@@ -74,7 +73,7 @@ html = must(html, '<div id="stageHost"></div>', `<div id="stageHost"></div>
   <a href="privacy.html">자세히</a></p>
   <button class="primary" id="wbStart">시작하기</button>
 </div>`, '무대 컨테이너');
-html = must(html, '</body>', `<script src="web-ui.js"></script>\n</body>`, '</body>');
+html = must(html, '</body>', `<div id="clouds"></div>\n<script src="web-ui.js"></script>\n</body>`, '</body>');
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
 
 // ---- 웹 전용 UI 동작 ---- (src/web/web-ui.js 를 그대로 복사)

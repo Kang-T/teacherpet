@@ -83,7 +83,9 @@
   }
 
   // ---- 구름 ----
-  // 몇 조각이고 얼마나 빠른지는 오늘 날씨가 정한다. app.js 가 __tpClouds 로 알려 준다.
+  // 이 카메라로는 하늘이 화면에 안 들어온다(scenery.js 머리말 참조).
+  // 화면 위쪽의 '하늘'은 아주 멀어서 하늘색이 된 땅이다. 그래서 구름은 캔버스 '위'에 얹는다.
+  // 한 조각이 아니라 덩어리 대여섯 개를 겹쳐야 구름처럼 보인다.
   const box = $('#clouds');
   function makeClouds(n, kind) {
     box.innerHTML = '';
@@ -92,19 +94,26 @@
     for (let i = 0; i < n; i++) {
       const c = document.createElement('div');
       c.className = 'cloud';
-      const w = (60 + Math.random() * 130) * (heavy ? 1.25 : 1), h = w * (0.28 + Math.random() * 0.14);
-      // 구름은 하늘 띠 안에만 (--horizon 은 화면 비율에 따라 바뀐다)
-      const band = (0.06 + Math.random() * (heavy ? 0.5 : 0.62)).toFixed(2);
-      c.style.cssText = `width:${w}px;height:${h}px;left:${Math.random() * 100}%;top:calc(var(--horizon, 33%) * ${band});opacity:${(heavy ? 0.7 : 0.5) + Math.random() * 0.3}`;
+      const w = (64 + Math.random() * 78) * (heavy ? 1.35 : 1);
+      // 맨 위 띠 안에만. 더 내려오면 마당 위에 안개처럼 깔려 보인다.
+      const top = (0.5 + Math.random() * 9).toFixed(1);
+      c.style.cssText = `width:${w.toFixed(0)}px;height:${(w * 0.4).toFixed(0)}px;left:${(Math.random() * 116 - 8).toFixed(1)}%;top:${top}%;opacity:${((heavy ? 0.6 : 0.42) + Math.random() * 0.26).toFixed(2)}`;
+      // 덩어리 대여섯 개를 겹쳐야 구름처럼 보인다
+      const lumps = 4 + Math.floor(Math.random() * 3);
+      for (let k = 0; k < lumps; k++) {
+        const b2 = document.createElement('i');
+        const r = (26 + Math.random() * 24);                  // 지름 (구름 너비의 %)
+        b2.style.cssText = `width:${r.toFixed(0)}%;padding-bottom:${r.toFixed(0)}%;left:${(k / lumps * 66 + Math.random() * 12).toFixed(0)}%;bottom:${(Math.random() * 22).toFixed(0)}%`;
+        c.appendChild(b2);
+      }
       box.appendChild(c);
-      const drift = (40 + Math.random() * 70) * (windy ? 3.2 : 1);
-      const dur = (90 + Math.random() * 120) / (windy ? 4 : 1);
+      const drift = (30 + Math.random() * 60) * (windy ? 3.4 : 1);
+      const dur = (110 + Math.random() * 130) / (windy ? 4.5 : 1);
       c.animate([{ transform: 'translateX(0)' }, { transform: `translateX(${drift}px)` }],
         { duration: dur * 1000, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' });
     }
   }
   window.__tpClouds = makeClouds;
-  // app.js 가 우리보다 먼저 날씨를 정했을 수 있다. 그랬으면 남겨 둔 값을 그대로 쓴다.
   const pending = window.__tpWx;
   makeClouds(pending ? pending.clouds : 7, pending ? pending.key : 'clear');
 

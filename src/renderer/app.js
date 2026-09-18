@@ -53,8 +53,7 @@
     world.setCoopSkin(skin);
     world.setDecos(f.decos);
     const gr = SHOP.get('ground', f.ground) || SHOP.get('ground', 'grass');
-    const r = document.documentElement.style;
-    r.setProperty('--g-near', gr.near); r.setProperty('--g-mid', gr.mid); r.setProperty('--g-far', gr.far);
+    world.scenery.setGround(gr.near, gr.mid);      // 바닥은 이제 진짜 3D 땅이다
     for (const b of birds) applyHat(b);
   }
   function applyHat(b) {
@@ -74,6 +73,10 @@
     r.setProperty('--sky2', wx.sky[1]);
     r.setProperty('--sky3', wx.sky[2]);
     r.setProperty('--wx-dim', String(wx.dim));
+    // 화면 위쪽의 '하늘'은 사실 아주 멀어서 하늘색이 된 땅이다.
+    // 그래서 안개 색과 CSS 하늘의 아래쪽 색이 같아야 경계가 안 보인다.
+    world.scenery.setSkyTone(wx.sky[2]);
+    world.scenery.setWind(wx.key === 'wind' ? 1 : 0);
     window.__tpWx = { clouds: wx.clouds, key: wx.key };
     if (window.__tpClouds) window.__tpClouds(wx.clouds, wx.key);
     const line = $('#wxLine');
@@ -98,10 +101,6 @@
     world.view.zoom = clamp(state.settings.zoom ?? 1, 0.6, 2.4);
     world.view.elev = clamp(state.settings.elev ?? 24, 16, 55);
     world.fit(W, H);
-    // 하늘과 잔디의 경계 — 마당 뒤끝이 화면 어디에 오는지 보고 정한다
-    const far = world.project(0, 0, world.zMin);
-    document.documentElement.style.setProperty('--horizon',
-      (clamp(far ? far.y / H : 0.3, 0.05, 0.6) * 100).toFixed(1) + '%');
     layoutHome();
     for (const b of birds) b.x = clamp(b.x, world.xMin + XMARGIN, world.xMax - XMARGIN);
   }
@@ -2484,6 +2483,8 @@
     birdStats(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null;
       return { health: b.d.health, hunger: b.d.hunger, thirst: b.d.thirst, happy: b.d.happy, energy: b.d.energy, clean: b.d.clean, stress: b.d.stress, aff: b.d.aff }; },
     placements() { return JSON.parse(JSON.stringify(state.farm.placements)); },
+    scenery() { return world.scenery; },
+    sceneryToggle(name, on) { const p = world.scenery.parts[name]; if (p) p.visible = on; return p ? p.visible : null; },
     movePropTo(k, x, z) { state.farm.placements[k] = { x, z }; layoutHome(); const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2) } : null; },
   };
   window.__tp = { runNeglect: () => { checkNeglect(); return birds.length; }, frozen: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.frozen : null; }, freezes: () => state.freezes, away: () => state.away.map((a) => a.name + ':' + (a.progress || 0)), album: () => state.album.length, journal: () => (state.journal || []).map((e) => e.kind + ':' + e.text + (e.photo ? ' [사진]' : '')), neglect: (name) => { const b = birds.find((q) => q.d.name === name); return b ? SCH.neglectedDays(b.d, state) : null; }, why: (n) => { const b = birds.find((q) => q.d.name === n); if (!b) return null; decide(b); return { choice: b.lastChoice, cands: b.lastCands }; }, lamp: (v) => { state.lampPower = v; return state.lampPower; }, comfort: () => birds.filter((q) => q.d.stage === 'chick').map((q) => ({ name: q.d.name, days: daysCared(q), st: q.comfort && q.comfort.state, need: q.comfort && +q.comfort.need.toFixed(1), act: q.comfort && +q.comfort.actual.toFixed(1) })), sickOf: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.sick : null; }, makeSick: (n, k) => { const b = birds.find((q) => q.d.name === n); if (b) { HLT.fallSick(b.d, k); return b.d.sick; } return null; }, poop: (n) => { for (let i = 0; i < (n || 1); i++) HYG.dropPoop(rand(world.xMin + 2, world.xMax - 2), rand(world.zMin + 2, world.zMax - 2), Math.random() < 0.15); markDirty(); return HYG.count(); }, poopCount: () => HYG.count(), amm: () => +(state.ammonia || 0).toFixed(1), setAmm: (v) => { state.ammonia = v; }, care: (name, what) => { const b = birds.find((q) => q.d.name === name); if (b) { careTick(b, what); return JSON.stringify(b.d.care); } return null; }, careOf: (name) => { const b = birds.find((q) => q.d.name === name); return b ? { care: b.d.care, days: daysCared(b), stage: b.d.stage } : null; }, at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const sp = wormSpot(px, py); if (sp) { worm.x = sp.x; worm.z = sp.z; worm.y = HOLD_Y; } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(2), z: +b.z.toFixed(2), head: b.heading === undefined ? null : +b.heading.toFixed(2) })), grow: (n, s) => { const b = birds.find((q) => q.d.name === n); if (b) advance(b, s); return !!b; }, world: () => ({ xMin: +world.xMin.toFixed(2), xMax: +world.xMax.toFixed(2), zMin: +world.zMin.toFixed(2), zMax: +world.zMax.toFixed(2), roamTop: world.roamTop, px: world.pxPerUnit, W: world.W, H: world.H }), screenOf: (k) => { const p = world.props[k]; if (!p) return null; const s = world.project(p.position.x, 0.5, p.position.z); return { x: Math.round(s.x), y: Math.round(s.y), pctY: +(s.y / world.H * 100).toFixed(1) }; }, gpu: () => ({ geo: world.renderer.info.memory.geometries, tex: world.renderer.info.memory.textures, calls: world.renderer.info.render.calls }) };
