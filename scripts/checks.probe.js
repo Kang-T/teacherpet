@@ -107,9 +107,14 @@
     // ── 8. 농장 코드가 왕복한다 ──
     const code = T.farmCode();
     const back = code ? T.readFarmCode(code) : { error: '코드를 만들지 못했다' };
-    const sameName = !back.error && back.birds[0] && back.birds[0].name === NAME;
+    const was = T.stateOf(NAME);
+    const b0 = !back.error && back.birds[0];
+    const sameName = b0 && b0.name === NAME;
     ok('농장 코드를 만들고 다시 읽는다', sameName,
       back.error || `${back.birds.length}마리(${back.birds.map((b) => b.name).join(',')}) · ${code.length}자`);
+    // 이름만 보면, 성격이나 돌본 날이 조용히 사라져도 모른다
+    ok('성격과 단계도 함께 따라온다', b0 && b0.trait && b0.stage === (was ? was.stage : b0.stage),
+      b0 ? `${b0.stage} · ${b0.trait}` : '-');
     if (code) {
       const i = Math.floor(code.length / 2);                 // 가운데 한 글자를 바꿔 본다
       const broken = code.slice(0, i) + (code[i] === 'A' ? 'B' : 'A') + code.slice(i + 1);
@@ -124,6 +129,31 @@
     ok('자리가 빠진 저장도 숫자 자리를 얻는다', okNum(fixed.x) && okNum(fixed.z), JSON.stringify(fixed));
     const fixed2 = T.fixBird({ x: null, z: NaN });
     ok('자리가 망가진 저장도 고쳐 읽는다', okNum(fixed2.x) && okNum(fixed2.z), JSON.stringify(fixed2));
+
+    // ── 10. QR ──
+    // 실제로 읽히는지는 jsQR 로 판 1~20 · 마스크 8종(180가지)을 확인했다.
+    // 여기서는 규격에서 값이 정해진 자리만 본다 — 그 자리가 틀리면 어떤 사진기도 못 읽는다.
+    const q = T.qr('https://kang-t.github.io/teacherpet/#f=eyJ2IjoxfQ-AKE');
+    const n = q ? q.n : 0;
+    const at = (r, c) => q.rows[r][c];
+    const finder = (r0, c0) => {
+      for (let r = 0; r < 7; r++) for (let c = 0; c < 7; c++) {
+        const want = (r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4)) ? 1 : 0;
+        if (at(r0 + r, c0 + c) !== want) return false;
+      }
+      return true;
+    };
+    ok('QR 판 크기가 규격대로다', q && (n - 17) % 4 === 0 && n >= 21, q ? `${n}칸` : '못 만듦');
+    ok('QR 모서리 표식 3개가 제자리', q && finder(0, 0) && finder(0, n - 7) && finder(n - 7, 0), '');
+    let timing = true;
+    for (let i = 8; i < n - 8; i++) { if (at(6, i) !== (i % 2 === 0 ? 1 : 0) || at(i, 6) !== (i % 2 === 0 ? 1 : 0)) timing = false; }
+    ok('QR 시간줄이 끊기지 않는다', q && timing, '형식 자리를 비우다 (6,8)·(8,6) 을 지우던 문제');
+    ok('QR 늘 검은 칸이 검다', q && at(n - 8, 8) === 1, '');
+    const m0 = T.qr('같은 글', 0), m3 = T.qr('같은 글', 3);
+    let sameMask = true;
+    if (m0 && m3) { for (let r = 0; r < m0.n && sameMask; r++) for (let c = 0; c < m0.n; c++) if (m0.rows[r][c] !== m3.rows[r][c]) { sameMask = false; break; } }
+    ok('QR 마스크가 실제로 다르게 나온다', m0 && m3 && !sameMask, '');
+    ok('새로 시작이 저장을 먼저 멈춘다', T.wipeReady(), '__tpWipe 가 없으면 지운 농장이 되살아난다');
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
   }

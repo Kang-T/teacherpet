@@ -68,6 +68,9 @@
     $('#wbResume').addEventListener('click', () => { remember(); begin(); });
     $('#wbFresh').addEventListener('click', () => {
       if (!confirm(`지난 농장의 닭 ${prev.n}마리가 사라집니다.\n정말 새로 시작할까요?`)) return;
+      // 지우는 일은 앱이 한다. 여기서 지우고 새로고침하면, 새로고침이 끝나기 전에
+      // 앱의 3초 자동 저장이 한 번 더 돌아 방금 지운 농장이 되살아난다.
+      if (window.__tpWipe) { window.__tpWipe(); return; }
       try { for (const k of Object.keys(localStorage)) if (k.startsWith('teacherpet.')) localStorage.removeItem(k); } catch (e) {}
       location.reload();
     });

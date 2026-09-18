@@ -164,6 +164,10 @@ label { display: inline-flex; align-items: center; gap: 4px; }
   margin-bottom: 3px;
 }
 #granny p { margin: 0; font-size: clamp(14px, 1.5vw, 16px); line-height: 1.7; color: #2B2620; }
+/* QR — 휴대폰 사진기로 비추는 그림. 흰 테두리를 잘라내면 안 읽힌다 */
+#granny .gQr { margin: 8px 0 0; text-align: center; }
+#granny .gQr svg { border-radius: 8px; box-shadow: 0 2px 8px rgba(43,27,14,.18); vertical-align: top; }
+
 /* 농장 코드 — 눈으로 따라 읽어야 하는 글자라, 말풍선 글씨와 섞이면 안 된다 */
 #granny .gCode {
   margin: 8px 0 2px; padding: 8px 10px; border-radius: 10px;
@@ -201,16 +205,6 @@ body.uiIdle #gAsk { opacity: 0; pointer-events: none; transition: opacity .55s; 
 #dim { position: fixed; inset: 0; z-index: 44; background: rgba(30, 24, 16, .22); display: none; }
 body.menuOpen #dim { display: block; }
 #moreBox.hidden { display: none; }
-
-/* 첫 장면에서만 보이는 아이 뒷모습 — 할머니를 마주 보고 선다 */
-#gKid {
-  width: auto; height: clamp(110px, 18vh, 170px); flex: none;
-  margin: 0 0 -6px -14px; pointer-events: none;
-  filter: drop-shadow(0 6px 10px rgba(43,27,14,.24));
-  animation: gIn .45s cubic-bezier(.2,1.2,.5,1);
-}
-#gKid.hidden { display: none; }
-@media (max-width: 640px) { #gKid { display: none; } }
 
 /* 관찰일지 */
 .jCard { width: min(560px, calc(100vw - 28px)); max-height: 82vh; display: flex; flex-direction: column; }
