@@ -38,15 +38,46 @@
   const SEEN = 'teacherpet.welcomed';
   let seen = false;
   try { seen = !!localStorage.getItem(SEEN); } catch (e) { seen = false; }
-  // 환영 카드가 사라지는 순간 = 할머니 이야기가 시작되는 순간.
-  // 두 경로(이미 본 사람 / 지금 누른 사람) 모두에서 반드시 알려야 한다.
-  // (한쪽에서만 알리면, 이미 본 사람은 이야기가 영영 시작되지 않는다)
   function begin() { $('#welcome') && $('#welcome').remove(); window.__tpEmit('ui:begin'); }
-  if (seen) begin();
-  else $('#wbStart').addEventListener('click', () => {
-    try { localStorage.setItem(SEEN, '1'); } catch (e) { /* 저장 불가 브라우저 */ }
+
+  // ---- 지난 농장이 있으면 먼저 묻는다 ----
+  // 학교 공용 PC 에서는 앞 사람의 농장이 그대로 남아 있다. 묻지 않으면 섞인다.
+  function savedFarm() {
+    try {
+      const s = JSON.parse(localStorage.getItem('teacherpet.state.v1') || 'null');
+      const n = s && Array.isArray(s.flock) ? s.flock.length : 0;
+      return n ? { n, names: s.flock.map((b) => b.name).filter(Boolean).slice(0, 4) } : null;
+    } catch (e) { return null; }
+  }
+  // ---- 환영 카드는 여기 한 곳에서만 갈라진다 ----
+  // 갈림길을 두 군데로 나눴더니, 한쪽이 바꿔 끼운 버튼을 다른 쪽이 붙잡으려다 터졌다.
+  //  1) 지난 농장이 있다      → 이어서 키우기 / 새로 시작
+  //  2) 처음 왔다            → 시작하기
+  //  3) 와 본 적 있고 농장은 없다 → 묻지 않고 바로 할머니 이야기로
+  const remember = () => { try { localStorage.setItem(SEEN, '1'); } catch (e) { /* 저장 불가 브라우저 */ } };
+  const card = $('#welcome');
+  const prev = card ? savedFarm() : null;
+  if (prev) {
+    card.innerHTML = `<h2>\u{1F414} 다시 왔어요</h2>
+      <p>지난번 농장에 <b>${prev.n}마리</b>가 있어요.<br>${prev.names.join(' \u00b7 ')}</p>
+      <p class="tiny">내 농장이 아니라면 새로 시작하세요.<br>지난 농장은 지워집니다.</p>
+      <div class="wRow">
+        <button class="primary" id="wbResume">이어서 키우기</button>
+        <button id="wbFresh">새로 시작</button>
+      </div>`;
+    $('#wbResume').addEventListener('click', () => { remember(); begin(); });
+    $('#wbFresh').addEventListener('click', () => {
+      if (!confirm(`지난 농장의 닭 ${prev.n}마리가 사라집니다.\n정말 새로 시작할까요?`)) return;
+      try { for (const k of Object.keys(localStorage)) if (k.startsWith('teacherpet.')) localStorage.removeItem(k); } catch (e) {}
+      location.reload();
+    });
+  } else if (seen || !card) {
+    // 환영 카드가 사라지는 순간 = 할머니 이야기가 시작되는 순간.
+    // 여기서 알리지 않으면 이미 본 사람은 이야기가 영영 시작되지 않는다.
     begin();
-  });
+  } else {
+    $('#wbStart').addEventListener('click', () => { remember(); begin(); });
+  }
 
   // ---- 구름 몇 조각 ----
   const box = $('#clouds');

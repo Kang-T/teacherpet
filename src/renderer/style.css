@@ -164,6 +164,14 @@ label { display: inline-flex; align-items: center; gap: 4px; }
   margin-bottom: 3px;
 }
 #granny p { margin: 0; font-size: clamp(14px, 1.5vw, 16px); line-height: 1.7; color: #2B2620; }
+/* 농장 코드 — 눈으로 따라 읽어야 하는 글자라, 말풍선 글씨와 섞이면 안 된다 */
+#granny .gCode {
+  margin: 8px 0 2px; padding: 8px 10px; border-radius: 10px;
+  background: #FFF6DC; border: 1.5px solid #E8D9A8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: clamp(11px, 1.15vw, 13px); line-height: 1.55; letter-spacing: .02em;
+  color: #4A3B1E; word-break: break-all; user-select: all; max-height: 26vh; overflow-y: auto;
+}
 #gBtns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 #gBtns button {
   font: inherit; font-size: 14px; border: 2px solid #2B1B0E; border-radius: 12px;

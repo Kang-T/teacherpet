@@ -25,7 +25,7 @@
         holidays: [], vacation: null, paused: false,
         propPos: {}, propHidden: {},
       },
-      chapter: 0, onboarded: false, borrowed: null,   // borrowed = 친구에게 빌린 수탉(씨알 코드)
+      chapter: 0, onboarded: false, borrowed: null, lastBackup: '', backupNagged: '',   // borrowed = 친구에게 빌린 수탉(씨알 코드)
       lastCrow: '', lastSeen: U.now(), openedDays: [],
     };
   }
@@ -49,7 +49,11 @@
     if (d.frozen === undefined) d.frozen = [];
     if (d.sick === undefined) d.sick = null;
     if (d.children === undefined) d.children = 0;
-    if (d.z === undefined) d.z = U.rand(-1.4, 1.4);
+    // 자리는 숫자여야 한다. 하나라도 비면 그 닭은 화면 밖(NaN)에 서서 영영 보이지 않는다.
+    // (x 는 0~1 비율, z 는 마당 좌표)
+    const num = (v) => typeof v === 'number' && isFinite(v);
+    if (!num(d.x)) d.x = U.rand(0.3, 0.8);
+    if (!num(d.z)) d.z = U.rand(-1.4, 1.4);
     delete d.exp;                                  // v3에서 NaN이 새던 필드
     delete d.fertile;                              // 읽는 곳이 없었다
     return d;

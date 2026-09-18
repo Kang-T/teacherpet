@@ -4,7 +4,7 @@
 (() => {
   const api = window.teacherpet;
   const THREE = window.THREE;
-  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, school: SCH, granny: GR, journal: JR, bus } = window.TP;
+  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, school: SCH, granny: GR, journal: JR, farmcode: FC, bus } = window.TP;
   const { $, $$, now, today, rand, pick, clamp, uid, esc } = U;
   const { RULE, PX_PER_UNIT, STAGE_KO, STAGE_ORDER, SPEED, NAMES, PROP_NAMES, PROP_KO } = C;
   const { trait, moodOf, rank, TRAIT_DESC } = MIND;
@@ -171,9 +171,14 @@
     if (full !== undefined) $('#gSay').innerHTML = esc(full).replace(/\n/g, '<br>');
     if (!blinking) $('#gImg').src = frameSrc(null);
   }
-  function grannySay(text, btns, mood) {
+  // opts.code — 농장 코드처럼 '읽고 옮겨 적는' 글자. 한 글자씩 찍으면 95자를 30초 동안 기다려야 하고
+  // 말풍선 밖으로 넘친다. 그래서 코드는 처음부터 통째로, 줄바꿈되는 상자에 따로 보여 준다.
+  function grannySay(text, btns, mood, opts) {
     setFace(mood);
     const card = $('#granny'), box = $('#gBtns'), say = $('#gSay');
+    const code = opts && opts.code ? String(opts.code) : '';
+    const codeHtml = code ? `<div class="gCode">${esc(code)}</div>` : '';
+    const draw = (n) => { say.innerHTML = esc(text.slice(0, n)).replace(/\n/g, '<br>') + codeHtml; };
     stopTyping();
     box.innerHTML = '';
     card.classList.remove('hidden');
@@ -181,9 +186,9 @@
     // 한 글자씩 — 말하고 있다는 느낌이 여기서 나온다. 누르면 바로 다 보인다.
     let i = 0;
     talking = true;
-    say.innerHTML = '';
+    draw(0);
     const finish = () => {
-      stopTyping(text);
+      stopTyping(); draw(text.length);
       for (const b of (btns || [])) {
         const el = document.createElement('button');
         if (b.primary) el.className = 'primary';
@@ -194,7 +199,7 @@
     };
     typeTimer = setInterval(() => {
       i += 1;
-      say.innerHTML = esc(text.slice(0, i)).replace(/\n/g, '<br>');
+      draw(i);
       if (i >= text.length) finish();
     }, 28);
     card.onclick = () => { if (talking) finish(); };
@@ -1997,9 +2002,42 @@
   });
   $('#btnPrivacy2').addEventListener('click', () => { if (api.openExternal) api.openExternal(location.origin + location.pathname + 'privacy.html'); else location.href = 'privacy.html'; });
   $('#btnWipe2').addEventListener('click', () => { const b = document.querySelector('#wbWipe'); if (b) b.click(); else toast('데스크톱 버전에서는 설정 폴더를 지워 주세요', false, 7000); });
-  $('#btnExport2').addEventListener('click', () => { if (window.__tpExport) window.__tpExport(); else toast('웹 버전에서만 됩니다', false, 5000); });
+  $('#btnExport2').addEventListener('click', () => { if (window.__tpExport) { state.lastBackup = today(); markDirty(); window.__tpExport(); } else toast('웹 버전에서만 됩니다', false, 5000); });
   $('#btnImport2').addEventListener('click', () => { const f = document.querySelector('#wbFile'); if (f) f.click(); else toast('웹 버전에서만 됩니다', false, 5000); });
   $('#btnViewReset').addEventListener('click', () => { state.settings.zoom = 1; state.settings.elev = 24; world.view.tx = 0; world.view.tz = world.zMin * 0.42; markDirty(); resize(); toast('화면을 처음 시점으로 되돌렸어요'); });
+  $('#btnCodeMake').addEventListener('click', () => {
+    const code = FC.make(state);
+    if (!code) { toast('아직 데려갈 닭이 없어요', false, 5000); return; }
+    grannySay('우리 닭들을 적어 두었단다.\n다른 기기에서 이 글자를 넣으면 이 아이들이 따라간단다.\n(사진과 일지는 따라가지 않아. 그건 [파일로 저장]으로 챙기렴.)',
+      [{ label: '복사하기',
+         primary: true,
+         // 복사는 약속(Promise)으로 끝난다. try/catch 로만 감싸면 실패가 새어 나가
+         // "복사했어요" 라고 거짓말을 하게 된다. 성공한 뒤에만 알린다.
+         fn: () => {
+           const done = () => toast('📋 농장 코드를 복사했어요');
+           const fail = () => toast('복사가 안 돼요. 코드를 손으로 적어 주세요', false, 6000);
+           try {
+             const p = navigator.clipboard && navigator.clipboard.writeText(code);
+             if (p && p.then) p.then(done, fail); else fail();
+           } catch (e) { fail(); }
+         } },
+       { label: '닫기', fn: grannyHide }], 'think', { code });
+  });
+  $('#btnCodeUse').addEventListener('click', () => {
+    const inp = prompt('농장 코드를 넣어 주세요', '');
+    if (!inp) return;
+    const r = FC.read(inp);
+    if (r.error) { toast(r.error, false, 7000); return; }
+    if (birds.length && !confirm(`지금 있는 닭 ${birds.length}마리를 두고, 코드 속 ${r.birds.length}마리로 바꿀까요?\n되돌릴 수 없어요.`)) return;
+    state.flock = r.birds.map((b) => newBird(b.stage, b));
+    state.coins = r.coins;
+    for (const b of birds) world.removeBird(b.d.id);
+    birds = state.flock.map(makeRuntime);
+    for (const b of birds) { b.x = rand(world.xMin + 4, world.xMax - 4); b.z = clampZ(rand(world.zMin + 4, world.zMax - 2)); decide(b); }
+    markDirty(); renderCoop();
+    grannySay(`${r.birds.length}마리가 도착했구나. ${r.birds.map((b) => b.name).join(', ')}.`,
+      [{ label: '반가워요', primary: true, fn: grannyHide }], 'smile');
+  });
   $('#btnMore').addEventListener('click', () => {
     const hidden = $('#moreBox').classList.toggle('hidden');
     $('#btnMore').textContent = hidden ? '⋯ 더 보기' : '⋯ 접기';
@@ -2093,6 +2131,19 @@
     HYG.restore(state.poops);
     const info = await api.info();
     $('#version').textContent = 'v' + info.version; $('#autostart').checked = !!info.openAtLogin;
+    // 오래 안 챙겼으면 한 번 일러 준다. 기기 저장은 언젠가 반드시 날아간다.
+    if (birds.length && state.onboarded) {
+      const last = state.lastBackup || '';
+      const days = last ? U.daysBetween(last, today()) : 99;
+      if (days >= 7 && state.backupNagged !== today()) {
+        state.backupNagged = today(); markDirty();
+        later0(() => grannySay(
+          last ? `저장해 둔 지 ${days}일이 지났구나.` : '우리 농장을 아직 한 번도 챙겨 두지 않았구나.'
+            + '\n\n기기를 바꾸거나 인터넷 기록을 지우면 아이들이 사라진단다.\n설정에서 [파일로 저장]을 눌러 두렴.',
+          [{ label: '지금 저장할게요', primary: true, fn: () => { grannyHide(); openPanel('settings'); } },
+           { label: '나중에요', fn: grannyHide }], 'worry'), 5000);
+      }
+    }
     if (!state.settings.guide) {
       // 웹은 환영 카드가 사라진 뒤(ui:begin), 데스크톱은 바로 시작한다.
       let began = false;
@@ -2135,6 +2186,9 @@
     setView(zoom, elev) { if (zoom !== undefined) state.settings.zoom = zoom; if (elev !== undefined) state.settings.elev = elev; resize(); },
     giveChick() { giveFirstChick(); return birds.length; },
     dropPoopAt(x, z) { return HYG.dropPoop(x, z, false); },
+    farmCode() { return FC.make(state); },
+    readFarmCode(code) { return FC.read(code); },
+    fixBird(raw) { const d = ST.ensureBird(Object.assign({ id: 'x', name: '테스트', stage: 'chick' }, raw)); return { x: d.x, z: d.z }; },
   };
   window.__tp = { runNeglect: () => { checkNeglect(); return birds.length; }, frozen: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.frozen : null; }, freezes: () => state.freezes, away: () => state.away.map((a) => a.name + ':' + (a.progress || 0)), album: () => state.album.length, journal: () => (state.journal || []).map((e) => e.kind + ':' + e.text + (e.photo ? ' [사진]' : '')), neglect: (name) => { const b = birds.find((q) => q.d.name === name); return b ? SCH.neglectedDays(b.d, state) : null; }, why: (n) => { const b = birds.find((q) => q.d.name === n); if (!b) return null; decide(b); return { choice: b.lastChoice, cands: b.lastCands }; }, lamp: (v) => { state.lampPower = v; return state.lampPower; }, comfort: () => birds.filter((q) => q.d.stage === 'chick').map((q) => ({ name: q.d.name, days: daysCared(q), st: q.comfort && q.comfort.state, need: q.comfort && +q.comfort.need.toFixed(1), act: q.comfort && +q.comfort.actual.toFixed(1) })), sickOf: (n) => { const b = birds.find((q) => q.d.name === n); return b ? b.d.sick : null; }, makeSick: (n, k) => { const b = birds.find((q) => q.d.name === n); if (b) { HLT.fallSick(b.d, k); return b.d.sick; } return null; }, poop: (n) => { for (let i = 0; i < (n || 1); i++) HYG.dropPoop(rand(world.xMin + 2, world.xMax - 2), rand(world.zMin + 2, world.zMax - 2), Math.random() < 0.15); markDirty(); return HYG.count(); }, poopCount: () => HYG.count(), amm: () => +(state.ammonia || 0).toFixed(1), setAmm: (v) => { state.ammonia = v; }, care: (name, what) => { const b = birds.find((q) => q.d.name === name); if (b) { careTick(b, what); return JSON.stringify(b.d.care); } return null; }, careOf: (name) => { const b = birds.find((q) => q.d.name === name); return b ? { care: b.d.care, days: daysCared(b), stage: b.d.stage } : null; }, at: (name) => { const b = birds.find((q) => q.d.name === name); if (!b) return null; const pt = world.project(b.x, 1, b.z); return { x: Math.round(pt.x), y: Math.round(pt.y) }; }, center: (name) => { const b = birds.find((q) => q.d.name === name); if (b) { b.x = (world.xMin + world.xMax) / 2; b.z = 0.5; } return !!b; }, hatch: (name) => { const b = birds.find((q) => q.d.name === name && q.d.stage === 'egg'); if (b) startHatching(b); return !!b; }, roof: () => { const r = birds.find((q) => q.d.stage === 'rooster'); if (r) { r.x = home().coop.x + 2.2; r.z = 1; goTo(r, home().coop.x, 'goroof'); return r.d.name; } return null; }, leave: () => { const r = birds.find((q) => q.d.onRoof); if (r) { leaveRoof(r); return r.d.name; } return null; }, set: (name, k, v) => { const b = birds.find((q) => q.d.name === name); if (b) b.d[k] = v; }, choices: () => birds.map((b) => b.d.name + ':' + (b.lastChoice || '-') + '/' + b.anim + ' v' + moodOf(b).valence.toFixed(2)), pick: (x, y) => world.pick(x, y), propPos: (k) => { const p = world.props[k]; return p ? { x: +p.position.x.toFixed(2), z: +p.position.z.toFixed(2), vis: p.visible } : null; }, settings: () => state.settings, spawnWorm: (px, py) => spawnWorm(px, py), moveWorm: (px, py) => { if (worm) { const sp = wormSpot(px, py); if (sp) { worm.x = sp.x; worm.z = sp.z; worm.y = HOLD_Y; } } }, releaseWorm: () => { if (worm) worm.held = false; }, whistle: () => $('#btnWhistle').click(), birds: () => birds.map((b) => ({ name: b.d.name, anim: b.anim, x: +b.x.toFixed(2), z: +b.z.toFixed(2), head: b.heading === undefined ? null : +b.heading.toFixed(2) })), grow: (n, s) => { const b = birds.find((q) => q.d.name === n); if (b) advance(b, s); return !!b; }, world: () => ({ xMin: +world.xMin.toFixed(2), xMax: +world.xMax.toFixed(2), zMin: +world.zMin.toFixed(2), zMax: +world.zMax.toFixed(2), roamTop: world.roamTop, px: world.pxPerUnit, W: world.W, H: world.H }), screenOf: (k) => { const p = world.props[k]; if (!p) return null; const s = world.project(p.position.x, 0.5, p.position.z); return { x: Math.round(s.x), y: Math.round(s.y), pctY: +(s.y / world.H * 100).toFixed(1) }; }, gpu: () => ({ geo: world.renderer.info.memory.geometries, tex: world.renderer.info.memory.textures, calls: world.renderer.info.render.calls }) };
   init();

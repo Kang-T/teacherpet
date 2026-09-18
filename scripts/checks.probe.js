@@ -104,6 +104,26 @@
     const w = T.wormState();
     ok('벌레가 바닥에 떨어진다', w && w.y < 0.25, w ? `높이 ${w.y}` : '벌레 없음');
     ok('벌레가 마당 안에 있다', w && w.z <= yard0.zMax + 0.5 && w.z >= yard0.zMin - 0.5, w ? `z ${w.z} (마당 ${yard0.zMin}~${yard0.zMax})` : '벌레 없음');
+    // ── 8. 농장 코드가 왕복한다 ──
+    const code = T.farmCode();
+    const back = code ? T.readFarmCode(code) : { error: '코드를 만들지 못했다' };
+    const sameName = !back.error && back.birds[0] && back.birds[0].name === NAME;
+    ok('농장 코드를 만들고 다시 읽는다', sameName,
+      back.error || `${back.birds.length}마리(${back.birds.map((b) => b.name).join(',')}) · ${code.length}자`);
+    if (code) {
+      const i = Math.floor(code.length / 2);                 // 가운데 한 글자를 바꿔 본다
+      const broken = code.slice(0, i) + (code[i] === 'A' ? 'B' : 'A') + code.slice(i + 1);
+      const r2 = T.readFarmCode(broken);
+      ok('한 글자만 틀려도 걸러낸다', !!r2.error, r2.error || '거르지 못했다');
+    }
+
+    // ── 9. 자리가 빠진 저장 데이터를 읽어도 닭이 마당에 선다 ──
+    // (손으로 만든 저장·옛 저장에 x 가 없으면 NaN 자리에 서서 영영 보이지 않았다)
+    const fixed = T.fixBird({});
+    const okNum = (v) => typeof v === 'number' && isFinite(v);
+    ok('자리가 빠진 저장도 숫자 자리를 얻는다', okNum(fixed.x) && okNum(fixed.z), JSON.stringify(fixed));
+    const fixed2 = T.fixBird({ x: null, z: NaN });
+    ok('자리가 망가진 저장도 고쳐 읽는다', okNum(fixed2.x) && okNum(fixed2.z), JSON.stringify(fixed2));
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
   }
