@@ -118,7 +118,9 @@
       if (ctl.moving > 0.5) st.yawTarget = face * 1.3;    // 걸을 땐 진행 방향(거의 옆모습)
       if (a === 'beg') st.yawTarget = face * 0.5;
       if (a === 'sleep' || a === 'brood' || a === 'roost' || a === 'wail') st.yawTarget = face * 0.7;
-      if (a === 'scratch') st.yawTarget = face * 0.85;
+      // 땅을 쪼거나 긁을 때는 몸을 덜 틀어 정면에 가깝게 — 옆을 보며 쪼면 어색하다
+      if (a === 'scratch') st.yawTarget = face * 0.5;
+      if (a === 'peck' || a === 'eat' || a === 'drink') st.yawTarget = face * 0.4;
       if (a === 'peckat') st.yawTarget = face * 0.7;
       if (a === 'cock') st.yawTarget = face * 0.6;
       if (a === 'alert' || a === 'guard' || a === 'crouch') st.yawTarget = face * 0.55;

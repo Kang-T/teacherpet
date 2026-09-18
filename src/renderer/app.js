@@ -723,12 +723,12 @@
   // 공중(aerial): 납작 웅크리고 하늘을 본다 / 지상(ground): 목을 빼고 꼿꼿이 경계한다
   // 한 마리가 놀라면 정서가 전염되어 무리 전체가 흩어진다.
   let lastAlarm = 0, fastFrames = 0;
-  function soundAlarm(kind, srcX, radius) {
+  function soundAlarm(kind, srcX, srcZ, radius) {
     if (now() - lastAlarm < 9000) return 0;        // 자주 놀라면 피곤하다
     lastAlarm = now();
     let n = 0;
     for (const b of birds) {
-      if (!eligible(b) || Math.abs(b.x - srcX) > (radius || 10)) continue;
+      if (!eligible(b) || Math.hypot(b.x - srcX, b.z - (srcZ === undefined ? b.z : srcZ)) > (radius || 10)) continue;
       const T = trait(b);
       if (Math.random() > 0.85 - T.bold * 0.3) continue;          // 대담한 성격은 안 놀란다
       b.d.stress = clamp(b.d.stress + (kind === 'aerial' ? 34 : 22) * T.flee, 0, 100);
@@ -817,8 +817,8 @@
     if (fastFrames < 2) return;
     fastFrames = 0;                                     // px/초
     const gp = world.screenToGround(x, y); if (!gp) return;
-    if (!birds.some((b) => eligible(b) && Math.abs(b.x - gp.x) < 6)) return;
-    soundAlarm(vy > Math.abs(vx) * 0.6 ? 'aerial' : 'ground', gp.x, 8);
+    if (!birds.some((b) => eligible(b) && Math.hypot(b.x - gp.x, b.z - gp.z) < 5)) return;
+    soundAlarm(vy > Math.abs(vx) * 0.6 ? 'aerial' : 'ground', gp.x, gp.z, 6);
   }
 
   // 수탉 울음 → 근처 새끼들이 놀란다
@@ -1049,12 +1049,16 @@
           reach = 0.22 + 0.06 * height(b);
         }
       }
-      const dx = tgt.x - b.x, dist = Math.abs(dx);
+      // 거리는 앞뒤까지 함께 본다. 좌우로만 재면 벌레가 바로 앞이나 뒤에 있을 때
+      // 이미 도착한 줄 알고 그 자리에 서 버린다.
+      const dx = tgt.x - b.x, dz = (tgt.z === undefined ? b.z : tgt.z) - b.z;
+      const dist = Math.hypot(dx, dz);
       if (dist > reach) {
-        faceDir(b, dx > 0 ? 1 : -1);
-        b.x += b.dir * s.speed * 2.4 * (b.d.old ? 0.7 : 1) * dt;
-        b.z += (tgt.z - b.z) * Math.min(1, dt * 2.5);
-        if (Math.abs(b.x - tgt.x) < dist * 0.02) b.x = tgt.x;
+        if (Math.abs(dx) > 0.12) faceDir(b, dx > 0 ? 1 : -1);
+        const step = s.speed * 2.4 * (b.d.old ? 0.7 : 1) * dt;
+        const k = Math.min(1, step / Math.max(0.0001, dist));
+        b.x += dx * k;
+        b.z = clampZ(b.z + dz * k);
       } else if (tgt.kind === 'worm') {
         const car = wormCarrier();
         if (car && car !== b) { if (Math.random() < 0.45) stealWorm(car, b); else { setAnim(b, 'beg', rand(0.4, 0.8)); if (b.y === 0) b.vy = 3.2; } return; }
@@ -1067,7 +1071,7 @@
     if (b.anim === 'beg') {
       b.animT += dt;
       if (!worm) { decide(b); return; }
-      if (Math.abs(worm.x - b.x) > 2.4) { setAnim(b, 'chase', 30); return; }
+      if (Math.hypot(worm.x - b.x, worm.z - b.z) > 2.4) { setAnim(b, 'chase', 30); return; }
       if (!worm.held && worm.y <= 0.05) { eatWorm(b); return; }
       if (b.animT > b.animDur) { setAnim(b, 'beg', rand(0.6, 1.2)); if (Math.random() < 0.4 && b.y === 0) b.vy = 3.2; }
       return;
@@ -1098,12 +1102,12 @@
         else if (b.anim === 'gocool') { setAnim(b, 'pant', rand(3, 6)); showIcon(b, '🥵', 2000); }
         else if (b.anim === 'gopeckat') setAnim(b, 'peckat', rand(2.5, 5));
         else if (b.anim === 'gohuddle') { setAnim(b, 'huddle', rand(4, 9)); b.d.stress = clamp(b.d.stress - 12, 0, 100); b.d.social = clamp(b.d.social - 25, 0, 100); }
-        else if (b.anim === 'godust') { b.z = clamp(home().dustpit.z + rand(-0.5, 0.5), -2.2, 2.2); startDustBath(b); }
+        else if (b.anim === 'godust') { b.z = clampZ(home().dustpit.z + rand(-0.5, 0.5)); startDustBath(b); }
         else if (b.anim === 'panic') { setAnim(b, 'flap', 1.2); }
-        else if (b.anim === 'follow') { b.z = clamp(momOf(b) ? momOf(b).z + rand(-0.6, 0.6) : b.z, -1.8, 1.8); setAnim(b, 'scratch', rand(3, 6)); b.d.social = clamp(b.d.social - 35, 0, 100); }
+        else if (b.anim === 'follow') { b.z = clampZ(momOf(b) ? momOf(b).z + rand(-0.6, 0.6) : b.z); setAnim(b, 'scratch', rand(3, 6)); b.d.social = clamp(b.d.social - 35, 0, 100); }
         else if (b.anim === 'gokid') { const k = birds.find((q) => q.d.id === b.careKid); setAnim(b, 'nuzzle', 2.2); if (k) { showIcon(k, '❤️', 1500); k.d.stress = clamp(k.d.stress - 30, 0, 100); k.d.social = clamp(k.d.social - 30, 0, 100); if (k.anim === 'idle' || k.anim === 'walk') setAnim(k, 'pet', 2); } b.d.social = clamp(b.d.social - 20, 0, 100); }
-        else if (b.anim === 'golamp') { b.z = clamp(home().lamp.z + rand(-0.6, 0.6), -2, 2); setAnim(b, Math.random() < 0.5 ? 'idle' : 'preen', rand(4, 9)); showIcon(b, '🔥', 1200); b.d.stress = clamp(b.d.stress - 10, 0, 100); }
-        else if (b.anim === 'golamp-sleep') { b.z = clamp(home().lamp.z + rand(-0.6, 0.6), -2, 2); setAnim(b, 'sleep', rand(20, 40)); showIcon(b, '💤', 2000); }
+        else if (b.anim === 'golamp') { b.z = clampZ(home().lamp.z + rand(-0.6, 0.6)); setAnim(b, Math.random() < 0.5 ? 'idle' : 'preen', rand(4, 9)); showIcon(b, '🔥', 1200); b.d.stress = clamp(b.d.stress - 10, 0, 100); }
+        else if (b.anim === 'golamp-sleep') { b.z = clampZ(home().lamp.z + rand(-0.6, 0.6)); setAnim(b, 'sleep', rand(20, 40)); showIcon(b, '💤', 2000); }
         else if (b.anim === 'goroof') jumpToRoof(b);
         else if (b.anim === 'gomom-sleep') { setAnim(b, 'sleep', rand(15, 35)); const m = momOf(b); if (m && eligible(m) && (m.anim === 'idle' || m.anim === 'walk' || m.anim === 'preen')) { m.targetX = null; setAnim(m, 'brood', rand(15, 35)); } }
         else setAnim(b, 'idle', rand(1, 3));
@@ -1603,7 +1607,7 @@
     b.inCoop = false; setVisible(b, true); b.targetX = null; b.callTarget = null;
     affect(b, -6 * trait(b).flee); b.d.happy = clamp(b.d.happy - 4, 10, 100); b.d.stress = clamp(b.d.stress + 40, 0, 100);
     setAnim(b, 'scold', 0.9); b.vy = 2.5; showIcon(b, '💢', 900);
-    soundAlarm('ground', b.x, 7);
+    soundAlarm('ground', b.x, b.z, 7);
     b.scolds = (b.scolds || 0) + 1; setTimeout(() => { b.scolds = Math.max(0, (b.scolds || 1) - 1); }, 60000);
     if (b.scolds >= 3) { later(b, 1000, () => burst(b, 'wail')); return; }
     later(b, 900, () => { if (b.anim === 'scold' || b.anim === 'idle') { showIcon(b, pick(['😢', '😳', '🥺']), 2200); const away = mouse.x >= 0 ? Math.sign(b.x - (world.screenToGround(mouse.x, mouse.y) || { x: b.x }).x) || 1 : b.dir; goTo(b, b.x + away * rand(3, 6) * trait(b).flee, 'walk'); b.fleeing = true; } });
