@@ -62,41 +62,47 @@
 
 
   <section data-tab="settings" class="tab">
-    <div class="row"><span class="label">화면</span><span class="hint">마우스 휠로 확대·축소, 오른쪽 버튼을 누른 채 위아래로 움직이면 보는 각도가 바뀌어요</span><button id="btnViewReset">처음 시점으로</button></div>
-    <div class="row"><span class="label">닭장 위치</span><button data-home="left">왼쪽 아래</button><button data-home="right">오른쪽 아래</button><button id="btnResetProps">배치 초기화</button></div>
-    <div class="row"><span class="label">소품</span><span class="hint">마당의 소품은 끌어서 옮길 수 있어요</span></div>
-    <div class="row"><span class="label">보이기</span>
-      <label><input type="checkbox" data-prop="coop"> 닭장</label><label><input type="checkbox" data-prop="nest"> 둥지</label><label><input type="checkbox" data-prop="feeder"> 모이통</label>
-      <label><input type="checkbox" data-prop="waterer"> 물통</label><label><input type="checkbox" data-prop="basket"> 바구니</label><label><input type="checkbox" data-prop="wormbucket"> 벌레통</label><label><input type="checkbox" data-prop="lamp"> 보온등</label><label><input type="checkbox" data-prop="dustpit"> 모래밭</label>
+    <div class="row">
+      <label><input type="checkbox" id="soundOn"> 소리</label>
+      <label><input type="checkbox" id="useCalendar"> 주말에는 쉴래요</label>
     </div>
-    <p class="hint">소품은 마우스로 끌어서 자리를 옮길 수 있어요.</p>
-    <div class="row"><label><input type="checkbox" id="soundOn"> 소리 (수탉 울음·부화)</label><label><input type="checkbox" id="autostart"> 컴퓨터 켤 때 자동 실행</label></div>
-    <div class="row"><span class="label">오래 못 돌보면</span>
-      <button data-lifeend="retire">잠시 떠나요 (다시 오면 돌아옴)</button>
-      <button data-lifeend="safe">안 떠나요 (안심 모드)</button>
-      <button data-lifeend="natural">자연으로 (고학년)</button>
+    <div class="row"><span class="label">할머니</span>
+      <button data-guide="often">자주 여쭤볼래요</button><button data-guide="sometimes">가끔</button><button data-guide="alone">혼자 해볼래요</button>
     </div>
-    <div class="row"><span class="label">쉬는 날</span>
-      <label><input type="checkbox" id="useCalendar"> <b>주말에는 쉴래요</b></label>
-      <label><input type="checkbox" id="pauseWeekends"> 공휴일도 쉬기</label>
-      <label><input type="checkbox" id="vacationOn"> 방학 동안 쉬기</label>
-      <button id="btnAddHoliday">쉬는 날 더하기</button>
+    <div class="row">
+      <button id="btnViewReset">처음 시점으로</button>
+      <button id="btnExport2">내보내기</button><button id="btnImport2">불러오기</button>
     </div>
-    <p class="hint" id="calInfo"></p>
-    <div class="help">
-      <b>닭의 한살이</b>
-      <ul>
-        <li>알(3일) → 병아리(7일) → 어린닭(7일) → 암탉/수탉. 모이와 물을 챙긴 날만 하루로 셉니다.</li>
-        <li>암탉은 배부르고 물을 마신 날 알을 하나 낳아요. <b>수탉이 있어야 병아리가 태어나는 알</b>이고, 없으면 달걀 바구니로 가요.</li>
-        <li>암탉이 알을 품거나, 선생님이 하루 한 번 품어주면 부화가 진행돼요.</li>
-        <li>닭은 최대 6마리. 어른이 된 지 60일이 지나면 나이가 들고, 90일이면 작별해요. 앨범에 남습니다.</li>
-        <li><b>누른 채 문지르기 = 쓰다듬기</b>(❤️) · <b>위로 끌기 = 들어 올리기</b> · <b>오른쪽 클릭 = 때찌</b>(혼내기, 친밀도 ↓) · 더블클릭 = 친구들 부르기.</li>
-        <li><b>친밀도</b>가 높으면 아침에 달려와 반기고 커서를 졸졸 따라와요. 낮으면 커서를 피하고 불러도 안 와요. 성격(호기심·겁쟁이·장난꾸러기·느긋)에 따라 정도가 달라요.</li>
-        <li><b>벌레통</b>에서 벌레를 잡아 끌고 다니면 닭들이 우르르 달려와요. 놓으면 제일 빠른 닭이 먹어요. 하루 3마리 무료, 더는 달걀 코인으로.</li>
-        <li>커서를 닭 근처 바닥에 잠시 두면 궁금해서 다가와요. 닭장을 클릭하면 이 메뉴가 열려요.</li>
-      </ul>
+    <div class="row"><button id="btnAdv">⋯ 자세한 설정</button></div>
+
+    <div id="advBox" class="hidden">
+      <div class="row"><span class="label">닭장 위치</span><button data-home="left">왼쪽</button><button data-home="right">오른쪽</button><button id="btnResetProps">배치 초기화</button></div>
+      <div class="row"><span class="label">보이기</span>
+        <label><input type="checkbox" data-prop="coop"> 닭장</label><label><input type="checkbox" data-prop="nest"> 둥지</label><label><input type="checkbox" data-prop="feeder"> 모이통</label>
+        <label><input type="checkbox" data-prop="waterer"> 물통</label><label><input type="checkbox" data-prop="basket"> 바구니</label><label><input type="checkbox" data-prop="wormbucket"> 벌레통</label><label><input type="checkbox" data-prop="lamp"> 보온등</label><label><input type="checkbox" data-prop="dustpit"> 모래밭</label>
+      </div>
+      <div class="row"><span class="label">오래 못 돌보면</span>
+        <button data-lifeend="retire">잠시 떠나요</button><button data-lifeend="safe">안 떠나요</button><button data-lifeend="natural">자연으로</button>
+      </div>
+      <div class="row"><span class="label">쉬는 날</span>
+        <label><input type="checkbox" id="pauseWeekends"> 공휴일</label>
+        <label><input type="checkbox" id="vacationOn"> 방학</label>
+        <button id="btnAddHoliday">쉬는 날 더하기</button>
+      </div>
+      <p class="hint" id="calInfo"></p>
+      <div class="row"><label><input type="checkbox" id="autostart"> 컴퓨터 켤 때 자동 실행</label></div>
+      <div class="row"><button id="btnHelp">❓ 어떻게 하나요</button><button id="btnPrivacy2">개인정보</button><button id="btnWipe2" class="danger">모두 지우기</button></div>
+      <div id="helpBox" class="help hidden">
+        <ul>
+          <li><b>모이와 물을 챙긴 날만</b> 하루로 셉니다.</li>
+          <li>병아리 14일 → 어린닭 28일 → 암탉·수탉. 볏이 자라야 암수를 알 수 있어요.</li>
+          <li>암탉은 알을 낳고, <b>수탉이 있어야</b> 병아리가 태어나요. 없으면 친구에게 씨알 코드를 받으세요.</li>
+          <li><b>누른 채 문지르기</b> = 쓰다듬기 · <b>위로 끌기</b> = 들어 올리기 · <b>땅을 두 번 누르기</b> = 부르기</li>
+          <li><b>휠</b> = 확대·축소 · <b>오른쪽 버튼 누른 채 위아래</b> = 보는 각도 · 소품은 끌어서 옮겨요</li>
+        </ul>
+      </div>
+      <div class="row"><button id="btnQuit" class="danger">종료</button><span class="version" id="version"></span></div>
     </div>
-    <div class="row"><button id="btnQuit" class="danger">티처펫 종료</button><span class="version" id="version"></span></div>
   </section>
 </div>
 

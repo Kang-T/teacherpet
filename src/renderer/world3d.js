@@ -364,7 +364,9 @@
       const shade = new THREE.Mesh(new THREE.ConeGeometry(0.75, 0.8, 24, 1, true), hard(0xC0392B, { side: THREE.DoubleSide })); shade.position.set(1.2, 2.95, 0); g.add(shade);
       const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), new THREE.MeshStandardMaterial({ color: 0xFFE2A8, emissive: 0xFFB347, emissiveIntensity: 2.2 })); bulb.position.set(1.2, 2.75, 0); g.add(bulb);
       const light = new THREE.PointLight(0xFFB870, 18, 7, 2); light.position.set(1.2, 2.6, 0); g.add(light);
+      g.userData.light = light;
       const glow = new THREE.Mesh(new THREE.CircleGeometry(1.6, 32), new THREE.MeshBasicMaterial({ color: 0xFFB870, transparent: true, opacity: 0.18, depthWrite: false })); glow.rotation.x = -Math.PI / 2; glow.position.set(1.2, 0.02, 0); g.add(glow);
+      g.userData.glow = glow;
       g.userData.warmSpot = { dx: 1.2, dz: 0 };
       return shadowed(g);
     }
@@ -484,7 +486,18 @@
         s.res(c.toDataURL('image/jpeg', 0.62));
       } catch (e) { s.res(null); }
     }
-    Object.assign(world, { capture });
+    // 보온등이 켜졌는지 눈으로 알 수 있어야 한다. 예전에는 세기와 무관하게 늘 켜져 있었다.
+    function setLamp(power) {
+      const g = world.props.lamp;
+      if (!g || !g.userData.light) return;
+      const p = Math.max(0, Math.min(1, power || 0));
+      g.userData.light.intensity = 26 * p;
+      g.userData.glow.material.opacity = 0.05 + 0.3 * p;
+      g.userData.glow.visible = p > 0.02;
+      // 갓 안쪽도 같이 밝아진다
+      g.traverse((o) => { if (o.isMesh && o.material && o.material.emissive) o.material.emissiveIntensity = p * 0.9; });
+    }
+    Object.assign(world, { capture, setLamp });
 
     return world;
   }

@@ -187,7 +187,10 @@ label { display: inline-flex; align-items: center; gap: 4px; }
 body.uiIdle #gAsk { opacity: 0; pointer-events: none; transition: opacity .55s; }
 @media (max-width: 640px) { #gImg { height: 110px; margin-right: -10px; } }
 
-#panel:not(.hidden)::before { content: ''; position: fixed; inset: 0; z-index: -1; background: rgba(30,24,16,.22); }
+/* 메뉴가 떠 있으면 마당을 살짝 가라앉힌다.
+   ::before + z-index:-1 로 하면 쌓임 맥락 때문에 패널 배경까지 덮어 회색이 된다.
+   퍼지는 그림자로 화면 전체를 어둡게 하는 편이 안전하다. */
+#panel:not(.hidden) { box-shadow: 4px 4px 0 #2B1B0E, 0 0 0 100vmax rgba(30, 24, 16, .22); }
 #moreBox.hidden { display: none; }
 
 /* 첫 장면에서만 보이는 아이 뒷모습 — 할머니를 마주 보고 선다 */
@@ -234,3 +237,6 @@ body.uiIdle #gAsk { opacity: 0; pointer-events: none; transition: opacity .55s; 
   #journalList { overflow: visible !important; }
   .jItem { break-inside: avoid; border-color: #BBB; }
 }
+
+#advBox.hidden, #helpBox.hidden { display: none; }
+#advBox { border-top: 1px dashed #D9CFB8; margin-top: 8px; padding-top: 8px; }

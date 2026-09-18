@@ -266,6 +266,7 @@
   // 보온등을 켜고 끌 때 눈에 보이게 — 숫자가 아니라 빛으로 알 수 있어야 한다
   function lampEffect(power) {
     const hm = home();
+    world.setLamp(propVisible('lamp') ? power : 0);
     if (!propVisible('lamp')) return;
     const p = world.props.lamp;
     if (p) {
@@ -318,7 +319,7 @@
   }
   function warmSpot() { if (!propVisible('lamp')) return null; const L = home().lamp; const f = home().flip ? -1 : 1; return { x: L.x + 1.2 * f, z: L.z }; }
   HYG.init(world, () => ({ min: world.xMin + XMARGIN, max: world.xMax - XMARGIN }));
-  function layoutHome() { homeCache = null; world.setProps(home()); world.setSupplies(state.feed, state.water, state.basket); world.setWormCount(state.worms); }
+  function layoutHome() { homeCache = null; world.setProps(home()); world.setLamp(propVisible('lamp') ? (state.lampPower ?? 0) : 0); world.setSupplies(state.feed, state.water, state.basket); world.setWormCount(state.worms); }
   const toWorldX = (frac) => world.xMin + XMARGIN + frac * (world.xMax - world.xMin - XMARGIN * 2);
   const toFrac = (x) => clamp((x - world.xMin - XMARGIN) / (world.xMax - world.xMin - XMARGIN * 2), 0, 1);
 
@@ -1488,6 +1489,12 @@
     }
     else if (name === 'basket') { openPanel('coop'); toast(state.basket ? `🧺 달걀 ${state.basket}개가 모였어요` : '🧺 아직 달걀이 없어요'); }
     else if (name === 'coop') togglePanel();
+    else if (name === 'lamp') {
+      const on = (state.lampPower ?? 0) > 0.02;
+      state.lampPower = on ? 0 : 0.65;
+      markDirty(); renderCoop(); lampEffect(state.lampPower);
+      toast(on ? '🌙 보온등을 껐어요' : '🔥 보온등을 켰어요 (중)');
+    }
   }
   let drag = null;
   // 문지르기(쓰다듬기): 버튼을 누르지 않고 닭 위에서 마우스를 왔다갔다 하면 발동
@@ -1517,7 +1524,7 @@
         const gp = world.screenToGround(e.clientX, e.clientY);
         if (gp && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) {
           drag.moved = true; state.settings.propPos = state.settings.propPos || {};
-          state.settings.propPos[drag.prop] = { fx: clamp((gp.x - drag.offX - world.xMin) / (world.xMax - world.xMin), 0.01, 0.99), z: clamp(gp.z - drag.offZ, -3.2, 2.2) };
+          state.settings.propPos[drag.prop] = { fx: clamp((gp.x - drag.offX - world.xMin) / (world.xMax - world.xMin), 0.01, 0.99), z: clampZ(gp.z - drag.offZ) };   // 마당 전체가 범위다 (예전 -3.2~2.2 는 얕던 시절 값이라 뒤로 못 보냈다)
           layoutHome(); markDirty();
         }
         return;
@@ -1830,7 +1837,7 @@
     toast(`🌾 모이통에 ${f.name} 사료를 넣었어요 — ${f.desc}`, false, 4500);
   }));
   $$('[data-lamp]').forEach((x) => x.addEventListener('click', () => { setTimeout(checkStep, 60); lampEffect(+x.dataset.lamp);
-    state.lampPower = +x.dataset.lamp; markDirty(); renderCoop();
+    state.lampPower = +x.dataset.lamp; markDirty(); renderCoop(); world.setLamp(state.lampPower);
     toast(`🔥 보온등 ${x.textContent}`, false, 2500);
   }));
   $('#btnBuyMed').addEventListener('click', () => {
@@ -1910,7 +1917,23 @@
     $$('[data-size]').forEach((b) => b.classList.toggle('primary', +b.dataset.size === state.settings.size));
     $$('[data-home]').forEach((b) => b.classList.toggle('primary', b.dataset.home === state.settings.homeSide));
     $$('[data-lifeend]').forEach((b) => b.classList.toggle('primary', b.dataset.lifeend === state.settings.lifeEnd));
+    $$('[data-guide]').forEach((b) => b.classList.toggle('primary', b.dataset.guide === (state.settings.guide || 'often')));
   }
+  $('#btnAdv').addEventListener('click', () => {
+    const hid = $('#advBox').classList.toggle('hidden');
+    $('#btnAdv').textContent = hid ? '⋯ 자세한 설정' : '⋯ 접기';
+  });
+  $('#btnHelp').addEventListener('click', () => $('#helpBox').classList.toggle('hidden'));
+  $('#btnPrivacy2').addEventListener('click', () => { if (api.openExternal) api.openExternal(location.origin + location.pathname + 'privacy.html'); else location.href = 'privacy.html'; });
+  $('#btnWipe2').addEventListener('click', () => { const b = document.querySelector('#wbWipe'); if (b) b.click(); else toast('데스크톱 버전에서는 설정 폴더를 지워 주세요', false, 7000); });
+  $('#btnExport2').addEventListener('click', () => { if (window.__tpExport) window.__tpExport(); else toast('웹 버전에서만 됩니다', false, 5000); });
+  $('#btnImport2').addEventListener('click', () => { const f = document.querySelector('#wbFile'); if (f) f.click(); else toast('웹 버전에서만 됩니다', false, 5000); });
+  $$('[data-guide]').forEach((b) => b.addEventListener('click', () => {
+    state.settings.guide = b.dataset.guide;
+    if (GR.GUIDE[b.dataset.guide] && GR.GUIDE[b.dataset.guide].detail) state.settings.detail = true;
+    markDirty(); renderSettings(); renderCoop();
+    toast('할머니: ' + GR.GUIDE[b.dataset.guide].desc, false, 5000);
+  }));
   $('#btnViewReset').addEventListener('click', () => { state.settings.zoom = 1; state.settings.elev = 24; world.view.tx = 0; world.view.tz = world.zMin * 0.42; markDirty(); resize(); toast('화면을 처음 시점으로 되돌렸어요'); });
   $$('[data-prop]').forEach((c) => c.addEventListener('change', () => { state.settings.propHidden = state.settings.propHidden || {}; state.settings.propHidden[c.dataset.prop] = !c.checked; markDirty(); layoutHome(); }));
   $('#btnMore').addEventListener('click', () => {

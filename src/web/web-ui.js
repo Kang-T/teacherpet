@@ -7,8 +7,6 @@
   for (const b of document.querySelectorAll('#webbar [data-size]')) {
     b.addEventListener('click', () => window.__tpEmit('pet:size', +b.dataset.size));
   }
-  $('#wbExport').addEventListener('click', () => window.__tpExport());
-  $('#wbImport').addEventListener('click', () => $('#wbFile').click());
   $('#wbFile').addEventListener('change', (e) => { if (e.target.files[0]) window.__tpImport(e.target.files[0]); });
 
   // ---- 모두 지우기 ----
