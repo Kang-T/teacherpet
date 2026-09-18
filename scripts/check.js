@@ -33,7 +33,7 @@ const args = ['electron', '.'];
 if (process.env.CI) args.splice(2, 0, '--no-sandbox');
 const child = spawn('npx', args, { cwd: ROOT, env });
 let buf = '';
-const timer = setTimeout(() => { console.error('시간 초과 — Electron 을 종료합니다'); child.kill(); }, 120000);
+const timer = setTimeout(() => { console.error('시간 초과 — Electron 을 종료합니다'); child.kill(); }, 300000);
 
 child.stdout.on('data', (d) => { buf += d; });
 child.stderr.on('data', (d) => { buf += d; });

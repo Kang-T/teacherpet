@@ -6,6 +6,12 @@
   const ok = (name, pass, detail) => out.push({ name, pass: !!pass, detail: detail === undefined ? '' : String(detail) });
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const round = (n) => Math.round(n * 100) / 100;
+  // 그래픽카드 없이(CI 의 SwiftShader) 그리면 프레임이 3fps 까지 떨어진다.
+  // 시뮬레이션은 프레임마다 최대 0.1초씩만 흐르므로, 실시간의 1/3 속도가 된다.
+  // '몇 초 안에 도착하는가' 류의 검사는 그만큼 더 기다려 줘야 한다.
+  const gpuName = (window.__tpTest.gpuName && window.__tpTest.gpuName()) || '';
+  const SOFT = /llvmpipe|swiftshader|softwarerasterizer|software/i.test(gpuName);
+  const SLOW = SOFT ? 4 : 1;
 
   try {
     // 준비: 병아리 한 마리
@@ -42,7 +48,7 @@
     let maxStep = 0, jumpAt = null;
     const t0 = Date.now();
     let prev = start;
-    while (Date.now() - t0 < 40000) {
+    while (Date.now() - t0 < 40000 * SLOW) {
       await wait(60);
       const s = T.stateOf(NAME);
       if (!s) break;
@@ -55,7 +61,7 @@
     }
     const last = T.stateOf(NAME);
     const reached = Math.hypot(last.x - lamp.x, last.z - lamp.z);
-    ok('보온등까지 스스로 간다', reached < 4.5, `${round(startDist)} → ${round(reached)} (${Math.round((Date.now() - t0) / 1000)}초)`);
+    ok('보온등까지 스스로 간다', reached < 4.5, `${round(startDist)} → ${round(reached)} (${Math.round((Date.now() - t0) / 1000)}초${SOFT ? ', 소프트웨어 렌더링이라 여유를 줌' : ''})`);
     // 0.06초에 2유닛 넘게 움직이면 순간이동이다 (걷기 속도의 수십 배)
     ok('가는 동안 순간이동이 없다', maxStep < 2.0, `한 번에 최대 ${round(maxStep)} (${jumpAt || '-'})`);
 
@@ -255,13 +261,11 @@
     const midMs = frames.length ? frames[Math.floor(frames.length / 2)] : 999;
     const p95 = frames.length ? frames[Math.floor(frames.length * 0.95)] : 999;
     const calls = D.gpu().calls;
-    const gpuName = T.gpuName ? T.gpuName() : '';
-    const soft = /llvmpipe|swiftshader|softwarerasterizer|software/i.test(gpuName);
     const fpsLine = `중간 ${midMs.toFixed(1)}ms (${(1000 / midMs).toFixed(0)}fps) · 최악5% ${p95.toFixed(1)}ms · ${frames.length}프레임`;
     // CI(xvfb)는 그래픽카드 없이 소프트웨어로 그린다. 거기서 잰 프레임 수는
     // 학교 크롬북 성능과 아무 상관이 없어서, 알리기만 하고 떨어뜨리지는 않는다.
-    ok('배경을 올려도 프레임이 버틴다', soft || (frames.length > 30 && midMs < 24),
-      soft ? `${fpsLine} — 소프트웨어 렌더링(${gpuName})이라 판정하지 않음` : fpsLine);
+    ok('배경을 올려도 프레임이 버틴다', SOFT || (frames.length > 30 && midMs < 24),
+      SOFT ? `${fpsLine} — 소프트웨어 렌더링(${gpuName})이라 판정하지 않음` : fpsLine);
     ok('드로우콜이 예산 안에 있다', calls < 480, `${calls}개 (기준 480)`);
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
