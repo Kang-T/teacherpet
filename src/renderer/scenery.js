@@ -25,6 +25,7 @@
   function build(THREE, scene, YARD) {
     const hard = (color, extra) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.85, metalness: 0 }, extra || {}));
     const root = new THREE.Group(); scene.add(root);
+    const m4 = new THREE.Matrix4();
 
     // ── 바닥 ──
     // 마당보다 훨씬 넓게 깔고, 먼 쪽은 안개로 하늘에 녹인다.
@@ -48,6 +49,43 @@
     patchEdge.receiveShadow = true;
     root.add(patchEdge);
 
+    // ── 마당 안 풀포기 ──
+    // 울타리 안이 민무늬 초록 한 장이라 허전했다. 풀을 조금씩 심는다.
+    // 소품과 닭이 다니는 한가운데는 비워 둔다 — 밟히는 자리에 풀이 남아 있으면 어색하다.
+    const tufts = new THREE.Group(); root.add(tufts);
+    const tuftMat = hard(0x7CC05C);
+    const tuftGeo = new THREE.ConeGeometry(0.075, 0.58, 4);
+    const TUFT_SPOTS = [];
+    for (let i = 0; i < 44; i++) {
+      const x = -YARD.w / 2 + 1.4 + Math.random() * (YARD.w - 2.8);
+      const z = -YARD.d + 1.2 + Math.random() * (YARD.d - 2.0);
+      // 마당 한가운데(소품·닭이 몰리는 곳)는 성글게
+      const midness = 1 - Math.min(1, Math.hypot(x / (YARD.w / 2), (z + YARD.d / 2) / (YARD.d / 2)));
+      if (Math.random() < midness * 0.7) continue;
+      TUFT_SPOTS.push([x, z]);
+    }
+    const tuftMesh = new THREE.InstancedMesh(tuftGeo, tuftMat, TUFT_SPOTS.length * 3);
+    tuftMesh.castShadow = false; tuftMesh.receiveShadow = false;
+    {
+      const q = new THREE.Quaternion(), p3 = new THREE.Vector3(), sc3 = new THREE.Vector3();
+      const axis = new THREE.Vector3(0, 0, 1);
+      let n = 0;
+      for (const [x, z] of TUFT_SPOTS) {
+        for (let k = 0; k < 3; k++) {          // 한 포기에 잎 세 장
+          const a = (k - 1) * 0.5 + (Math.random() - 0.5) * 0.3;
+          const h = 0.7 + Math.random() * 0.7;
+          q.setFromAxisAngle(axis, a);
+          p3.set(x + (k - 1) * 0.12, 0.2 * h, z + (Math.random() - 0.5) * 0.18);
+          sc3.set(1, h, 1);
+          m4.compose(p3, q, sc3);
+          tuftMesh.setMatrixAt(n++, m4);
+        }
+      }
+      tuftMesh.count = n;
+      tuftMesh.instanceMatrix.needsUpdate = true;
+    }
+    tufts.add(tuftMesh);
+
     // ── 울타리 ──
     // 닭이 돌아서는 바로 그 줄에 세운다. 보이지 않던 벽에 이유를 준다.
     // 앞쪽(카메라 쪽)은 세우지 않는다 — 시야를 가로막는다.
@@ -62,7 +100,7 @@
     for (let x = x0 + STEP; x <= x1 - STEP + 0.01; x += STEP) spots.push([x, z1, 0.62]);            // 앞 (낮게)
     const posts = new THREE.InstancedMesh(postGeo, postMat, spots.length);
     posts.castShadow = true; posts.receiveShadow = true;
-    const m4 = new THREE.Matrix4();
+
     const sc = new THREE.Vector3(), q0 = new THREE.Quaternion(), pos = new THREE.Vector3();
     spots.forEach(([x, z, k], i) => {
       const f = k || 1;                       // 앞쪽 기둥은 낮다
@@ -97,7 +135,7 @@
     ];
     for (const [tx, tz, s] of TREE_SPOTS) {
       const t = new THREE.Group();
-      const far = Math.min(1, (-tz) / 90) * 0.55;            // 멀수록 하늘색에 섞는다
+      const far = Math.min(1, (-tz) / 90) * 0.22;            // 살짝만. 나머지는 안개가 맡는다
       const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * s, 0.30 * s, 2.2 * s, 7),
         hard(fade(THREE, 0xA9814F, far, 0xBFE0FA)));
       trunk.position.y = 1.1 * s; trunk.castShadow = true; t.add(trunk);
@@ -120,11 +158,11 @@
       [-38, -50, 28, 15, 0xA8BE72, 0x93AC63], [38, -54, 32, 15, 0x9DB878, 0x8AA668],
       [0, -62, 36, 13, 0xAEC07C, 0x99AE6C],
     ]) {
-      const base = new THREE.Mesh(new THREE.PlaneGeometry(w, d), hard(fade(THREE, hue, 0.1, 0xBFE0FA)));
+      const base = new THREE.Mesh(new THREE.PlaneGeometry(w, d), hard(fade(THREE, hue, 0.04, 0xBFE0FA)));
       base.rotation.x = -Math.PI / 2; base.position.set(fx, 0.02, fz); fields.add(base);
       const rows = Math.floor(d / 2.8);
       const rowGeo = new THREE.PlaneGeometry(w * 0.9, 1.1);
-      const rowMat = hard(fade(THREE, dark, 0.1, 0xBFE0FA));
+      const rowMat = hard(fade(THREE, dark, 0.04, 0xBFE0FA));
       const inst = new THREE.InstancedMesh(rowGeo, rowMat, rows);
       const rq = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
       const rp = new THREE.Vector3(), rs = new THREE.Vector3(1, 1, 1);
@@ -140,8 +178,8 @@
     // 납작한 반구를 늘여서. 안개가 짙게 먹는 자리에 둬야 '멀다'고 읽힌다.
     const hills = new THREE.Group(); root.add(hills);
     for (const [hx, hz, w, h, t] of [
-      [-58, -78, 96, 10, 0.3], [26, -84, 120, 13, 0.34], [96, -76, 88, 9, 0.28],
-      [-14, -94, 160, 16, 0.4], [-124, -88, 110, 11, 0.36], [130, -92, 116, 13, 0.38],
+      [-58, -78, 96, 10, 0.1], [26, -84, 120, 13, 0.13], [96, -76, 88, 9, 0.08],
+      [-14, -94, 160, 16, 0.18], [-124, -88, 110, 11, 0.15], [130, -92, 116, 13, 0.16],
     ]) {
       const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2),
         hard(fade(THREE, 0x7FA86A, t, 0xBFE0FA)));
@@ -189,15 +227,30 @@
     // ── 밖에서 조절하는 것들 ──
     // 바닥재(잔디·흙·모래·클로버) — 울타리 '안'만 바꾼다.
     // 바깥 들판까지 같이 바꿨더니 흙마당을 고른 순간 온 세상이 흙이 됐다.
-    function setGround(near, mid) {
+    function setGround(near, mid, tuft) {
       patchMat.color.set(near);
       patchEdge.material.color.set(mid);
+      // 흙마당에 잔디 포기가 남아 있으면 어색하다. 바닥재에 맞춰 같이 바꾼다.
+      tufts.visible = tuft !== null;
+      if (tuft !== null) tuftMat.color.set(tuft);
     }
     // 날씨 — 안개 색이 곧 '하늘' 색이다. CSS 하늘과 같은 색을 줘야 경계가 안 보인다.
-    function setSkyTone(hex) { scene.fog.color.set(hex); }
+    // haze 는 '얼마나 일찍부터 뿌옇게 시작하는가'다. 맑은 날에 온 들판이 뿌옇던 문제가
+    //  안개를 한 값으로만 쓴 탓이었다 — 안개는 지평선을 만드는 장치이지 날씨가 아니다.
+    let haze = 0.12, camD = 120;
+    function applyFog() {
+      // haze 0 이면 지평선 바로 앞(1.45~1.85)에서만 걷히고, 1 이면 마당 가까이(0.75~1.5)까지 자욱하다
+      scene.fog.near = camD * (1.45 - haze * 0.7);
+      scene.fog.far = camD * (1.85 - haze * 0.35);
+    }
+    function setSkyTone(hex, h) {
+      scene.fog.color.set(hex);
+      if (typeof h === 'number') haze = Math.max(0, Math.min(1, h));
+      applyFog();
+    }
     // 안개 거리는 카메라가 얼마나 멀리 있느냐에 따라 달라져야 한다.
     // 확대하면 카메라가 가까워지므로(fit 참조), 고정값을 쓰면 확대할 때마다 지평선이 튄다.
-    function setCamDist(D) { scene.fog.near = D * 0.95; scene.fog.far = D * 1.8; }
+    function setCamDist(D) { camD = D; applyFog(); }
     let windy = 0;
     const setWind = (v) => { windy = v; };
 

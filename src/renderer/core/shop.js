@@ -32,11 +32,11 @@
     { id: 'fence', kind: 'deco', name: '울타리', icon: '🚧', price: 10 },
     { id: 'pond', kind: 'deco', name: '작은 웅덩이', icon: '💧', price: 18 },
 
-    // 바닥
-    { id: 'grass', kind: 'ground', name: '잔디', icon: '🌱', price: 0, near: '#7BBE5B', mid: '#8FCB6B', far: '#B7DE93' },
-    { id: 'dirt', kind: 'ground', name: '흙마당', icon: '🟤', price: 16, near: '#B99164', mid: '#C9A377', far: '#DCC19B' },
-    { id: 'sand', kind: 'ground', name: '모래마당', icon: '🏖️', price: 16, near: '#D9C58C', mid: '#E4D3A2', far: '#EFE3C2' },
-    { id: 'clover', kind: 'ground', name: '클로버밭', icon: '🍀', price: 24, near: '#5FA85A', mid: '#74B968', far: '#9BD189' },
+    // 바닥 (tuft = 마당에 심는 풀포기 색. null 이면 풀을 뽑는다)
+    { id: 'grass', kind: 'ground', name: '잔디', icon: '🌱', price: 0, near: '#7BBE5B', mid: '#8FCB6B', far: '#B7DE93', tuft: '#9BDA6E' },
+    { id: 'dirt', kind: 'ground', name: '흙마당', icon: '🟤', price: 16, near: '#B99164', mid: '#C9A377', far: '#DCC19B', tuft: null },
+    { id: 'sand', kind: 'ground', name: '모래마당', icon: '🏖️', price: 16, near: '#D9C58C', mid: '#E4D3A2', far: '#EFE3C2', tuft: null },
+    { id: 'clover', kind: 'ground', name: '클로버밭', icon: '🍀', price: 24, near: '#5FA85A', mid: '#74B968', far: '#9BD189', tuft: '#7FCB63' },
   ];
 
   const byId = {};

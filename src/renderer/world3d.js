@@ -418,11 +418,34 @@
       let t = 0;
       return { group: g, update(dt) { t += dt; segs.forEach((m, i) => { m.position.y = Math.sin(t * 9 + i * 1.1) * 0.05; m.position.z = Math.sin(t * 6 + i * 0.9) * 0.04; }); } };
     }
+    // 통 안의 벌레 — 흙에서 고개를 내민 모양.
+    // 예전에는 누운 벌레를 방사형으로 깔았더니 위에서 보면 문어 다리처럼 보였다.
+    function makeBucketWorm(seed) {
+      const g = new THREE.Group();
+      const n = 4;
+      for (let i = 0; i < n; i++) {
+        const t = i / (n - 1);                       // 0=흙 속, 1=끝
+        const m = new THREE.Mesh(new THREE.SphereGeometry(0.075 - i * 0.008, 10, 8),
+          hard(i === n - 1 ? 0xE87F8E : 0xF2A2AC, { roughness: 0.6 }));
+        // 흙에서 솟아올랐다가 앞으로 꺾이는 곡선
+        m.position.set(Math.sin(t * 2.0) * 0.16, t * 0.19, -Math.cos(t * 1.4) * 0.05);
+        m.castShadow = true;
+        g.add(m);
+      }
+      g.rotation.y = seed * 2.4;
+      return g;
+    }
     function setWormCount(n) {
       const b = world.props.wormbucket; if (!b) return;
-      const ws = b.userData.worms; const k = Math.min(4, n);
+      const ws = b.userData.worms; const k = Math.min(3, n);
       while (ws.children.length > k) ws.remove(ws.children[ws.children.length - 1]);
-      while (ws.children.length < k) { const i = ws.children.length; const w = makeWorm().group; w.scale.setScalar(0.8); w.position.set(Math.cos(i * 1.7) * 0.2, 0, Math.sin(i * 1.7) * 0.2); w.rotation.y = i * 1.3; ws.add(w); }
+      while (ws.children.length < k) {
+        const i = ws.children.length;
+        const w = makeBucketWorm(i + 0.4);
+        // 통 안쪽에 옹기종기 — 테두리 밖으로 뻗지 않게 반경을 좁힌다
+        w.position.set(Math.cos(i * 2.3) * 0.17, -0.04, Math.sin(i * 2.3) * 0.17);
+        ws.add(w);
+      }
     }
     function setProps(layout) { // layout: { coop:{x,z}, nest:{x,z}, ... , flip }
       const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket, lamp: makeLamp, dustpit: makeDustPit };

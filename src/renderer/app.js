@@ -53,7 +53,7 @@
     world.setCoopSkin(skin);
     world.setDecos(f.decos);
     const gr = SHOP.get('ground', f.ground) || SHOP.get('ground', 'grass');
-    world.scenery.setGround(gr.near, gr.mid);      // 바닥은 이제 진짜 3D 땅이다
+    world.scenery.setGround(gr.near, gr.mid, gr.tuft === undefined ? '#9BDA6E' : gr.tuft);   // 바닥은 이제 진짜 3D 땅이다
     for (const b of birds) applyHat(b);
   }
   function applyHat(b) {
@@ -75,7 +75,7 @@
     r.setProperty('--wx-dim', String(wx.dim));
     // 화면 위쪽의 '하늘'은 사실 아주 멀어서 하늘색이 된 땅이다.
     // 그래서 안개 색과 CSS 하늘의 아래쪽 색이 같아야 경계가 안 보인다.
-    world.scenery.setSkyTone(wx.sky[2]);
+    world.scenery.setSkyTone(wx.sky[2], wx.haze);
     world.scenery.setWind(wx.key === 'wind' ? 1 : 0);
     window.__tpWx = { clouds: wx.clouds, key: wx.key };
     if (window.__tpClouds) window.__tpClouds(wx.clouds, wx.key);
@@ -332,6 +332,15 @@
       if (GR.GUIDE[k].detail) state.settings.detail = true;
       markDirty();
       $('#granny').classList.remove('choose');
+      if (birds.length) {
+        // 이미 닭이 있는 농장. 첫 병아리를 또 줄 수는 없으니 여기서 안내를 끝낸다.
+        // (예전에는 그냥 giveFirstChick 을 불렀고, 그 함수는 닭이 있으면 조용히 되돌아가
+        //  '네'를 눌러도 아무 일도 일어나지 않는 막다른 길이 됐다)
+        state.onboarded = true; markDirty();
+        scene(['그래. 그럼 우리 아이들을 보러 가자꾸나.'],
+          () => { grannyHide(); $('#gAsk').classList.remove('hidden'); startSteps(); }, 'smile');
+        return;
+      }
       scene(['그래. 그럼 이 아이부터 보자꾸나.'], () => giveFirstChick(), 'smile');
     };
     $('#granny').classList.add('choose');
@@ -2007,11 +2016,11 @@
   }
   $('#btnFeed').addEventListener('click', () => { if (now() - state.lastFeedRefill < RULE.refillCooldownMin * 60000) return; state.feed = 100; state.lastFeedRefill = now(); markDirty(); renderCoop(); checkStep(); world.setSupplies(state.feed, state.water, state.basket); toast('🌾 모이통을 채웠어요'); for (const b of birds) if (b.d.stage !== 'egg' && b.d.hunger < 70 && !b.d.brooding) decide(b); });
   $('#btnWater').addEventListener('click', () => { if (now() - state.lastWaterRefill < RULE.refillCooldownMin * 60000) return; state.water = 100; state.lastWaterRefill = now(); markDirty(); renderCoop(); checkStep(); world.setSupplies(state.feed, state.water, state.basket); toast('💧 물통을 채웠어요'); });
-  $('#btnStarter').addEventListener('click', () => giveFirstChick());
+  $('#btnStarter').addEventListener('click', () => { if (!giveFirstChick()) toast('이미 닭이 있어요', false, 4000); });
   // 첫 병아리는 할머니가 건넨다. 알이 아니라 병아리로 시작하는 이유는,
   // 알로 시작하면 7일 동안 할 수 있는 일이 '품기' 버튼 하나뿐이기 때문이다.
   function giveFirstChick() {
-    if (birds.length) return;
+    if (birds.length) return false;        // 부르는 쪽이 '못 줬다'는 걸 알 수 있어야 한다
     // 아이가 처음 받는 병아리다. 반드시 눈에 잘 띄는 곳에 둔다.
     // (닭장 옆에 두었더니 마당 뒤쪽 구석이라 화면 밖으로 밀렸다)
     const cx = (world.xMin + world.xMax) / 2;
@@ -2027,6 +2036,7 @@
     later0(() => note('start', rt), 900);
     scene([GR.CHAPTERS[1].say, `이름은 "${d.name}"라고 불러 두었단다. 마음에 안 들면 바꾸어도 좋아.`],
       () => { $('#gAsk').classList.remove('hidden'); startSteps(); }, 'proud');
+    return true;
   }
   $$('[data-feed]').forEach((x) => x.addEventListener('click', () => {
     state.feedType = x.dataset.feed; for (const q of birds) q.d.wrongFeed = 0;
@@ -2485,6 +2495,12 @@
     placements() { return JSON.parse(JSON.stringify(state.farm.placements)); },
     scenery() { return world.scenery; },
     sceneryToggle(name, on) { const p = world.scenery.parts[name]; if (p) p.visible = on; return p ? p.visible : null; },
+    askGuide() { askGuide(); return true; },
+    grannyButtons() { return [...document.querySelectorAll('#gBtns button')].map((b) => b.textContent); },
+    clickGranny(i) { const b = document.querySelectorAll('#gBtns button')[i || 0]; if (!b) return false; b.click(); return true; },
+    grannyOpen() { return !document.querySelector('#granny').classList.contains('hidden'); },
+    grannyText() { const e = document.querySelector('#gSay'); return e ? e.textContent.trim() : ''; },
+    onboarded() { return !!state.onboarded; },
     gpuName() {
       try {
         const gl = world.renderer.getContext();

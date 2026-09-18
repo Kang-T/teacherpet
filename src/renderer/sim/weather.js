@@ -14,25 +14,27 @@
   }
 
   // room = 마당 기본 온도를 몇 도 올리고 내리는가 (보온등 계산에 그대로 들어간다)
+  // haze = 멀리가 얼마나 뿌연가 (0=지평선 바로 앞에서만 걷힘, 1=마당 가까이까지 자욱함)
+  //        맑은 날인데 온 들판이 뿌옇던 문제 때문에 날씨마다 따로 잡는다
   // dust/outdoor/indoor/thirst = 닭의 하루를 얼마나 바꾸는가
   const KINDS = {
     clear:  { name: '맑음', icon: '☀️', w: 32, room: 0, dust: 1.35, outdoor: 1, indoor: 0, thirst: 1,
-      sky: ['#8FC7F5', '#BFE0FA', '#DFF0FB'], clouds: 6, dim: 0,
+      sky: ['#8FC7F5', '#BFE0FA', '#DFF0FB'], clouds: 6, dim: 0, haze: 0.12,
       say: '오늘은 볕이 좋구나. 닭들이 모래 목욕을 하겠어.' },
     cloudy: { name: '흐림', icon: '☁️', w: 24, room: -1, dust: 0.8, outdoor: 0.95, indoor: 0.1, thirst: 1,
-      sky: ['#A3B3C2', '#C4D0DA', '#DCE4EA'], clouds: 14, dim: 0.1,
+      sky: ['#A3B3C2', '#C4D0DA', '#DCE4EA'], clouds: 14, dim: 0.1, haze: 0.5,
       say: '하늘이 낮구나. 비가 올지도 모르겠다.' },
     rain:   { name: '비', icon: '🌧️', w: 15, room: -3, dust: 0, outdoor: 0.35, indoor: 1, thirst: 0.8,
-      sky: ['#788795', '#94A3B0', '#B2BEC8'], clouds: 18, dim: 0.22,
+      sky: ['#788795', '#94A3B0', '#B2BEC8'], clouds: 18, dim: 0.22, haze: 0.85,
       say: '오늘은 비가 오는구나. 닭들이 젖으면 안 된단다.' },
     wind:   { name: '바람', icon: '💨', w: 11, room: -2, dust: 0.6, outdoor: 0.8, indoor: 0.35, thirst: 1,
-      sky: ['#8FBEE4', '#B6D2E8', '#D8E8F2'], clouds: 10, dim: 0.06,
+      sky: ['#8FBEE4', '#B6D2E8', '#D8E8F2'], clouds: 10, dim: 0.06, haze: 0.18,
       say: '바람이 제법 부는구나. 닭들이 깃털을 세울 게다.' },
     hot:    { name: '무더위', icon: '🔥', w: 9, room: 6, dust: 1.1, outdoor: 0.6, indoor: 0.25, thirst: 1.9,
-      sky: ['#79B9EF', '#BFE2F7', '#F3EBCE'], clouds: 3, dim: 0,
+      sky: ['#79B9EF', '#BFE2F7', '#F3EBCE'], clouds: 3, dim: 0, haze: 0.6,
       say: '오늘은 몹시 덥구나. 물통을 자주 보아라.' },
     cold:   { name: '추위', icon: '❄️', w: 9, room: -5, dust: 0.5, outdoor: 0.6, indoor: 0.5, thirst: 0.7,
-      sky: ['#9FC4E8', '#CBDEF0', '#E8F0F8'], clouds: 9, dim: 0.04,
+      sky: ['#9FC4E8', '#CBDEF0', '#E8F0F8'], clouds: 9, dim: 0.04, haze: 0.3,
       say: '오늘은 춥구나. 병아리가 보온등을 찾을 게다.' },
   };
   const ORDER = ['clear', 'cloudy', 'rain', 'wind', 'hot', 'cold'];

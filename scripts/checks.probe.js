@@ -267,6 +267,30 @@
     ok('배경을 올려도 프레임이 버틴다', SOFT || (frames.length > 30 && midMs < 24),
       SOFT ? `${fpsLine} — 소프트웨어 렌더링(${gpuName})이라 판정하지 않음` : fpsLine);
     ok('드로우콜이 예산 안에 있다', calls < 480, `${calls}개 (기준 480)`);
+
+    // ── 14. 할머니 대화가 막다른 길로 끝나지 않는가 ──
+    // 닭이 이미 있는 농장에서 안내를 고르면 '네'를 눌러도 아무 일이 없었다.
+    // (giveFirstChick 이 닭이 있으면 조용히 되돌아갔다)
+    // '버튼이 눌리는가'가 아니라 '누르면 무언가 달라지는가'를 봐야 잡힌다.
+    const hadBirds = D.birds().length;
+    T.askGuide();
+    await wait(500);
+    T.clickGranny(0);                          // 안내 수준 고르기
+    await wait(500);
+    const stuck = [];
+    for (let i = 0; i < 8 && T.grannyOpen(); i++) {
+      const before = T.grannyText();
+      if (!T.clickGranny(0)) break;
+      await wait(550);
+      const after = T.grannyOpen() ? T.grannyText() : '(닫힘)';
+      if (before === after) stuck.push(before.slice(0, 24));
+      else stuck.length = 0;                   // 달라졌으면 막힌 게 아니다
+      if (stuck.length >= 2) break;            // 두 번 눌러도 그대로면 막다른 길
+    }
+    ok('안내를 고른 뒤 눌러도 반응 없는 곳이 없다', stuck.length < 2,
+      stuck.length >= 2 ? `"${stuck[0]}..." 에서 멈춤` : '끝까지 진행됨');
+    ok('안내를 고르면 시작한 것으로 기록된다', T.onboarded(), '');
+    ok('대화가 끝나도 닭이 그대로다', D.birds().length === hadBirds, `${hadBirds} → ${D.birds().length}마리`);
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
   }
