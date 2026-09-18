@@ -116,6 +116,9 @@
       const face = ctl.dir > 0 ? 1 : -1;
       st.yawTarget = face * 0.8;                          // 서 있을 땐 얼굴이 보이는 3/4
       if (ctl.moving > 0.5) st.yawTarget = face * 1.3;    // 걸을 땐 진행 방향(거의 옆모습)
+      // 실제 진행 방향이 주어지면 그쪽을 본다 — 마당이 깊어져 앞뒤로도 걷기 때문이다.
+      // (앞으로 걸어오는데 몸이 옆을 향하면 미끄러지는 것처럼 보인다)
+      if (ctl.heading !== undefined && ctl.heading !== null && ctl.moving > 0.3) st.yawTarget = ctl.heading;
       if (a === 'beg') st.yawTarget = face * 0.5;
       if (a === 'sleep' || a === 'brood' || a === 'roost' || a === 'wail') st.yawTarget = face * 0.7;
       // 땅을 쪼거나 긁을 때는 몸을 덜 틀어 정면에 가깝게 — 옆을 보며 쪼면 어색하다
@@ -131,8 +134,13 @@
       if (a === 'ecstatic' || a === 'stomp') st.yawTarget = face * 0.5;
       if (a === 'pet') st.yawTarget = face * 0.55;
       if (a === 'scold' || a === 'startle' || a === 'flutter') st.yawTarget = face * 0.4;
-      if (a === 'crow' || a === 'happy' || a === 'jump' || a === 'eat' || a === 'drink' || a === 'peck') st.yawTarget = face * 0.9;
-      st.yaw = lerp(st.yaw, st.yawTarget, 1 - Math.exp(-dt * 6));
+      if (a === 'crow' || a === 'happy' || a === 'jump') st.yawTarget = face * 0.9;
+      // 각도 차이를 -π~π 로 접어서 가까운 쪽으로 돈다.
+      // 안 그러면 앞뒤로 방향을 바꿀 때 몸이 반대로 한 바퀴 돈다.
+      let dYaw = st.yawTarget - st.yaw;
+      while (dYaw > Math.PI) dYaw -= Math.PI * 2;
+      while (dYaw < -Math.PI) dYaw += Math.PI * 2;
+      st.yaw += dYaw * (1 - Math.exp(-dt * 6));
       root.rotation.y = st.yaw;
 
       // ── 땅 긁기 (활동 시간의 34%. 닭다움의 핵심)
