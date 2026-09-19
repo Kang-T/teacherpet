@@ -496,7 +496,10 @@
   function setVisible(b, v) { b.b3.holder.visible = v; }
   const GRAV = 22; // 유닛/초²
   // ---- 간식(벌레) · 부르기 ----
-  let worm = null;   // { model, x, y, z, held, vy, bornAt }
+  let worm = null;   // { model, x, y, z, held, vy, bornAt, escapes, dir, dartUntil }
+  // 벌레는 가만히 누워 있지 않는다. 꿈틀대며 기어가고, 닭이 다가오면 달아난다.
+  // 다만 두 번까지만 빠져나간다 — 영영 못 잡으면 아이가 지친다.
+  const WORM_ESCAPE_MAX = 2;
   const eligible = (b) => b.d.stage !== 'egg' && !b.d.brooding && !b.carrying;
   const affect = (b, delta) => { b.d.aff = clamp(b.d.aff + delta, 0, 100); markDirty(); };
   // ---- 마음 도우미 (sim/mind.js 위에) ----
@@ -536,8 +539,39 @@
     if (!sp) return false;
     state.worms -= 1; markDirty(); world.setWormCount(state.worms);
     const m = world.makeWorm(); world.scene.add(m.group);
-    worm = { model: m, x: sp.x, y: HOLD_Y, z: sp.z, held: true, vy: 0, bornAt: now() };
+    worm = { model: m, x: sp.x, y: HOLD_Y, z: sp.z, held: true, vy: 0, bornAt: now(), escapes: 0, dir: rand(0, Math.PI * 2), turnAt: 0, dartUntil: 0 };
     return true;
+  }
+  // 벌레가 기어간다. 닭이 가까이 오면 반대쪽으로 달아나지만, 닭보다 느리다.
+  // (벌레 속도 1.5 vs 병아리 1.5·암탉 1.8 — 쫓기면 결국 잡힌다)
+  function tickWormCrawl(dt) {
+    if (!worm || worm.held || worm.carrier) return;
+    let near = null, nd = 1e9;
+    for (const b of birds) {
+      if (!eligible(b)) continue;
+      const d = Math.hypot(b.x - worm.x, b.z - worm.z);
+      if (d < nd) { nd = d; near = b; }
+    }
+    const scared = near && nd < 3.4 && worm.escapes < WORM_ESCAPE_MAX;
+    let speed;
+    if (now() < worm.dartUntil) speed = 3.2;            // 헛챈 직후 — 쏙 달아난다
+    else if (scared) speed = 1.5;
+    else speed = 0.22;                                   // 평소엔 느릿느릿 꿈틀
+    if (scared || now() < worm.dartUntil) {
+      const away = Math.atan2(worm.z - near.z, worm.x - near.x);
+      // 곧장 반대로만 가면 뻔하다. 조금씩 비틀며 달아난다.
+      worm.dir += Math.atan2(Math.sin(away - worm.dir), Math.cos(away - worm.dir)) * Math.min(1, dt * 6);
+      worm.dir += Math.sin(now() / 240) * dt * 1.6;
+    } else if (now() > worm.turnAt) {
+      worm.turnAt = now() + rand(900, 2200);
+      worm.dir += rand(-1.2, 1.2);
+    }
+    const nx = worm.x + Math.cos(worm.dir) * speed * dt;
+    const nz = worm.z + Math.sin(worm.dir) * speed * dt;
+    const cx = clamp(nx, world.xMin + 1.2, world.xMax - 1.2);
+    const cz = clampZ(nz);
+    if (cx !== nx || cz !== nz) worm.dir += Math.PI * 0.6;    // 울타리에 닿으면 튕겨 돌아선다
+    worm.x = cx; worm.z = cz;
   }
   function removeWorm() { if (!worm) return; world.scene.remove(worm.model.group); worm = null; for (const b of birds) { b.wormRun = 0; b.fleeing = false; if (b.anim === 'chase' || b.anim === 'beg') decide(b); } }
   function eatWorm(b) {
@@ -972,17 +1006,14 @@
   // 커서를 '닭의 머리보다 조금 위'에 두어야 고개를 치켜든다.
   // 키의 0.6 배로 낮췄더니 머리보다 아래가 되어 오히려 내려다보며 땅을 쪼았다(부리 1.91).
   // 0.7~0.86 구간에서는 부리가 키의 79% 까지 올라가고 화면의 커서와도 20px 안에 든다.
-  const PECK_UP = 0.78;
-  function cursorStand(headY) {
+  // 화면의 커서는 언제나 땅의 한 점을 가리킨다. 그러니 '커서를 쫀다'는 것은
+  // 그 땅점을 쫀다는 뜻이다. 문제는 닭이 그 점 '위에' 올라서는 것이었다 —
+  // 그러면 제 몸으로 자리를 가린 채 발밑을 내리찍게 된다.
+  // 한 걸음 물러서서 앞으로 목을 뻗게 하면, 부리가 커서 쪽으로 나아가는 게 보인다.
+  const PECK_BACK = 1.05;
+  function cursorStand() {
     if (!cursorSpot || mouse.x < 0) return null;
-    const a = world.screenToPlaneZ(mouse.x, mouse.y, cursorSpot.z);           // 바닥점 — 높이 ≈ 0
-    const c = world.screenToPlaneZ(mouse.x, mouse.y, cursorSpot.z + 2);       // 조금 앞 — 높이 > 0
-    if (!a || !c) return null;
-    const dy = c.y - a.y;
-    if (Math.abs(dy) < 1e-4) return null;
-    const k = (headY - a.y) / dy;                                             // 몇 배만큼 앞으로
-    if (!isFinite(k) || k < 0 || k > 8) return null;
-    return { x: a.x + (c.x - a.x) * k, z: clampZ(cursorSpot.z + 2 * k) };
+    return { x: cursorSpot.x, z: clampZ(cursorSpot.z + PECK_BACK) };
   }
 
   function tickCursorPeck(dt) {
@@ -993,7 +1024,7 @@
     for (const b of birds) {
       if (!eligible(b) || b.d.hurt) continue;
       // 거리는 '커서를 쪼려면 서야 할 자리'를 기준으로 잰다 (바닥 그림자가 아니라)
-      const stand0 = cursorStand(height(b) * PECK_UP) || cursorSpot;
+      const stand0 = cursorStand() || cursorSpot;
       const dx = stand0.x - b.x, d2 = Math.abs(dx), dz = Math.abs(b.z - stand0.z);
 
       // 이미 쪼는 중 — 제자리에서 좌우로만 맞추고, 높으면 폴짝 뛰어 잡으려 한다
@@ -1031,7 +1062,7 @@
       if (d2 < reach && d2 >= 1.6 && ACT.canInterrupt(b.anim, 'gopeckat') && b.d.stress < 55) {
         if (Math.random() > 0.45 * T.curiosity * T.approach) continue;
         b.curious = true;
-        const stand = cursorStand(height(b) * PECK_UP) || cursorSpot;
+        const stand = cursorStand() || cursorSpot;
         goTo(b, stand.x - Math.sign(dx) * 0.7, 'gopeckat', stand.z);
         if (Math.random() < 0.35) showIcon(b, '👀', 1600);
       }
@@ -1647,8 +1678,10 @@
       const moving = ACT.isMoving(b.anim) ? 1 : 0;
       // 쪼거나 갸웃할 때는 '화면 위의 커서 그 자체'를 겨눈다 (바닥 그림자가 아니라)
       if ((b.anim === 'peckat' || b.anim === 'cock' || b.anim === 'gopeckat') && mouse.x >= 0) {
-        const pt = world.screenToPlaneZ(mouse.x, mouse.y, b.z);
-        if (pt) { b.look.set(pt.x, Math.max(0.05, pt.y), b.z); b.aimed = true; }
+        // 커서가 가리키는 땅점을 본다. 닭은 그보다 한 걸음 뒤에 서 있으므로
+        // 앞으로·아래로 목을 뻗는 자세가 된다 (제자리에서 발밑을 찍는 게 아니라).
+        const pt = cursorSpot || world.screenToPlaneZ(mouse.x, mouse.y, b.z);
+        if (pt) { b.look.set(pt.x, 0.12, pt.z === undefined ? b.z : pt.z); b.aimed = true; }
       } else b.aimed = false;
       if (b.aimed) { /* 위에서 이미 조준함 */ } else
       if (worm && (b.anim === 'chase' || b.anim === 'beg')) b.look.set(worm.x, worm.y + 0.3, worm.z);
@@ -1681,8 +1714,17 @@
       else if (b.tagEl) b.tagEl.style.display = 'none';
     }
     if (worm) {
-      if (!worm.held && !worm.carrier) { if (worm.y > 0 || worm.vy > 0) { worm.vy -= GRAV * dt; worm.y += worm.vy * dt; if (worm.y <= 0) { worm.y = 0; worm.vy = 0; } } if (now() - worm.bornAt > 90000) removeWorm(); }
-      if (worm) { worm.model.group.visible = !worm.carrier; worm.model.group.position.set(worm.x, worm.y + 0.12, worm.z); worm.model.update(dt); }
+      if (!worm.held && !worm.carrier) {
+        if (worm.y > 0 || worm.vy > 0) { worm.vy -= GRAV * dt; worm.y += worm.vy * dt; if (worm.y <= 0) { worm.y = 0; worm.vy = 0; } }
+        if (worm.y <= 0.02) tickWormCrawl(dt);
+        if (now() - worm.bornAt > 90000) removeWorm();
+      }
+      if (worm) {
+        worm.model.group.visible = !worm.carrier;
+        worm.model.group.position.set(worm.x, worm.y + 0.12, worm.z);
+        if (!worm.held && !worm.carrier) worm.model.group.rotation.y = -worm.dir + Math.PI / 2;   // 가는 쪽으로 몸을 튼다
+        worm.model.update(dt);
+      }
     }
     tickHygiene(dt);
     tickCursorPeck(dt);
@@ -2674,7 +2716,7 @@
     // 커서를 쪼려면 닭이 어디에 서야 하는가 (바닥 그림자가 아니라 그보다 앞)
     standFor(name) {
       const b = birds.find((q) => q.d.name === name); if (!b) return null;
-      const st = cursorStand(height(b) * PECK_UP);
+      const st = cursorStand();
       const gp2 = cursorSpot;
       if (!st || !gp2) return null;
       return { stand: { x: +st.x.toFixed(2), z: +st.z.toFixed(2) }, ground: { x: +gp2.x.toFixed(2), z: +gp2.z.toFixed(2) } };
@@ -2702,7 +2744,7 @@
     setMouse(px, py) { mouse.x = px; mouse.y = py; mouse.movedAt = now(); return { x: mouse.x, y: mouse.y }; },
     peckNow(name) {
       const b = birds.find((q) => q.d.name === name); if (!b) return null;
-      const st = cursorStand(height(b) * PECK_UP) || cursorSpot;
+      const st = cursorStand() || cursorSpot;
       if (st) faceDir(b, st.x > b.x ? 1 : -1);          // 게임에서도 쪼기 전에 커서 쪽으로 돌아선다
       setAnim(b, 'peckat', 6);
       return true;

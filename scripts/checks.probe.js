@@ -109,8 +109,11 @@
     for (const k of ['clear', 'cloudy', 'rain', 'wind', 'hot', 'cold']) {
       T.setWeather(k);
       const ws2 = T.warmSpot();             // 따뜻한 자리는 기둥이 아니라 갓 아래다
-      T.place(NAME, ws2.x, ws2.z); D.lamp(1);
-      await wait(360);
+      D.lamp(1);
+      T.place(NAME, ws2.x, ws2.z); T.holdStill(NAME, 6);
+      await wait(200);
+      T.place(NAME, ws2.x, ws2.z); T.holdStill(NAME, 6);   // 걸어 나가지 않게 한 번 더
+      await wait(220);
       const st3 = T.stateOf(NAME).comfort;
       if (st3 === 'cold') badDays.push(k);
     }
@@ -355,10 +358,12 @@
     await wait(300);
 
     const sf = T.standFor(NAME);
-    // 설 자리는 바닥 그림자보다 카메라 쪽(z 가 큰 쪽)이어야 한다
-    ok('커서를 쪼려고 설 자리를 바닥 그림자보다 앞으로 잡는다',
+    // 화면의 커서는 언제나 땅의 한 점을 가리킨다. 그러니 '커서를 쫀다'는 그 땅점을 쫀다는 뜻이다.
+    // 문제는 닭이 그 점 '위에' 서는 것이었다 — 제 몸으로 자리를 가린 채 발밑을 찍는다.
+    // 한 걸음 뒤(카메라 쪽, z 가 큰 쪽)에 서야 앞으로 목을 뻗는 모습이 된다.
+    ok('커서 점 위가 아니라 한 걸음 뒤에 선다',
       sf && sf.stand.z > sf.ground.z + 0.5,
-      sf ? `설 자리 z ${sf.stand.z} · 바닥 z ${sf.ground.z}` : '없음');
+      sf ? `설 자리 z ${sf.stand.z} · 커서 점 z ${sf.ground.z}` : '없음');
 
     // 그 자리에 세워 놓고 쪼게 한 뒤, 부리가 화면에서 커서와 얼마나 떨어지는지 본다
     if (sf) T.place(NAME, sf.stand.x, sf.stand.z);
@@ -378,11 +383,8 @@
     // ⚠️ 화면상 거리만 재면 옛 동작이 더 좋게 나온다(25px vs 30px).
     //    닭이 커서의 바닥점에 서면 부리가 화면상으로는 커서에 닿기 때문이다 —
     //    그런데 그게 바로 '커서 밑을 쫀다'는 그 모습이다. 재야 할 것은 고개를 들었는가다.
-    const tall = bestAt ? bestAt.tall : 0;
-    okMotion('커서를 쪼려고 고개를 치켜든다', tall > 0 && highest > tall * 0.72,
-      `부리 최고 ${highest} · 키 ${tall} (기준 키의 0.72배)`);
-    okMotion('그러면서 화면의 커서에도 닿는다', bestPx < 45,
-      `가장 가까울 때 ${Math.round(bestPx)}px 차 (기준 45px)`);
+    okMotion('부리가 화면의 커서에 닿는다', bestPx < 45,
+      `가장 가까울 때 ${Math.round(bestPx)}px 차 · 그때 부리 높이 ${bestAt ? bestAt.wy : '-'} (기준 45px)`);
 
     // ── 17. 어른 닭은 날개가 있다 ──
     // 높은 데서 내려도 다치지 않아야 한다. 병아리는 다친다 — 그게 조심해야 할 이유다.
