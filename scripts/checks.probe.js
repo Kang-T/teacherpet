@@ -345,25 +345,44 @@
     // ── 16. 커서를 쪼는가, 커서 '밑'을 쪼는가 ──
     // 닭이 커서의 바닥 그림자로 걸어가면, 그 자리에서 커서는 정확히 발밑이 된다.
     // 그러면 고개를 들 이유가 없어 늘 땅을 쫀다.
-    // 실제 경로(궁금해서 다가감 → 쫌)를 그대로 태우고, 부리 끝이 화면에서
-    // 커서와 얼마나 떨어지는지로 잰다. '아쉽다'는 느낌을 숫자로 바꾼 것이다.
-    D.set(NAME, 'stress', 0); D.set(NAME, 'aff', 95); D.set(NAME, 'energy', 80);
+    // '다가올지 말지'는 무작위라, 그걸 끼워 두면 검사 결과가 25~48px 사이를 오간다.
+    // 그래서 둘로 나눈다: ① 설 자리를 어디로 잡는가 ② 그 자리에서 부리가 커서로 가는가.
+    D.set(NAME, 'stress', 0); D.set(NAME, 'aff', 95);
     T.place(NAME, -4, -7);
-    await wait(500);
-    // 커서는 닭에서 조금 떨어진 마당 위 한 점에 가만히 둔다
-    const target = T.screenOfPoint(1.5, 0, -7);
-    let bestPx = 1e9, bestAt = null;
-    for (let i = 0; i < 70; i++) {
-      T.setMouse(target.x, target.y);            // 커서를 계속 그 자리에 (멈춰 있어야 다가온다)
-      await wait(140);
+    await wait(400);
+    const aim = T.screenOfPoint(1.5, 0, -7);
+    T.setMouse(aim.x, aim.y);
+    await wait(300);
+
+    const sf = T.standFor(NAME);
+    // 설 자리는 바닥 그림자보다 카메라 쪽(z 가 큰 쪽)이어야 한다
+    ok('커서를 쪼려고 설 자리를 바닥 그림자보다 앞으로 잡는다',
+      sf && sf.stand.z > sf.ground.z + 0.5,
+      sf ? `설 자리 z ${sf.stand.z} · 바닥 z ${sf.ground.z}` : '없음');
+
+    // 그 자리에 세워 놓고 쪼게 한 뒤, 부리가 화면에서 커서와 얼마나 떨어지는지 본다
+    if (sf) T.place(NAME, sf.stand.x, sf.stand.z);
+    T.holdStill(NAME, 8);                       // 재는 동안 딴 데로 걸어가면 숫자가 흔들린다
+    await wait(250);
+    T.peckNow(NAME);
+    let bestPx = 1e9, bestAt = null, highest = 0;
+    for (let i = 0; i < 26; i++) {
+      T.setMouse(aim.x, aim.y);
+      await wait(110);
       const bk = T.beakScreen(NAME);
       if (!bk) continue;
-      const dpx = Math.hypot(bk.x - target.x, bk.y - target.y);
+      const dpx = Math.hypot(bk.x - aim.x, bk.y - aim.y);
       if (dpx < bestPx) { bestPx = dpx; bestAt = bk; }
-      if (bestPx < 30) break;
+      if (bk.wy > highest) highest = bk.wy;
     }
-    okMotion('부리가 커서를 겨눈다 (발밑이 아니라)', bestPx < 45,
-      `가장 가까울 때 ${Math.round(bestPx)}px 차 · 그때 부리 높이 ${bestAt ? bestAt.wy : '-'} (기준 45px)`);
+    // ⚠️ 화면상 거리만 재면 옛 동작이 더 좋게 나온다(25px vs 30px).
+    //    닭이 커서의 바닥점에 서면 부리가 화면상으로는 커서에 닿기 때문이다 —
+    //    그런데 그게 바로 '커서 밑을 쫀다'는 그 모습이다. 재야 할 것은 고개를 들었는가다.
+    const tall = bestAt ? bestAt.tall : 0;
+    okMotion('커서를 쪼려고 고개를 치켜든다', tall > 0 && highest > tall * 0.72,
+      `부리 최고 ${highest} · 키 ${tall} (기준 키의 0.72배)`);
+    okMotion('그러면서 화면의 커서에도 닿는다', bestPx < 45,
+      `가장 가까울 때 ${Math.round(bestPx)}px 차 (기준 45px)`);
 
     // ── 17. 어른 닭은 날개가 있다 ──
     // 높은 데서 내려도 다치지 않아야 한다. 병아리는 다친다 — 그게 조심해야 할 이유다.
@@ -380,6 +399,30 @@
     const seq = [];
     D.lamp(0);
     for (let i = 0; i < 5; i++) { T.clickProp('lamp'); await wait(160); seq.push(D.lamp()); }
+    // ── 19. 소품을 뚫고 다니지 않는가 ──
+    // 모이통·바구니를 그대로 통과해서 몸이 반쯤 박혀 보였다.
+    // 소품 한가운데에 놓고 제자리에 붙잡은 뒤, 스스로 밀려 나오는지 본다.
+    // (붙잡지 않으면 닭이 딴 데로 걸어가 버려서 검사가 헛돈다 — 실제로 그렇게 속았다)
+    D.grow(NAME, 'hen');
+    const fx2 = D.propPos('feeder');
+    T.place(NAME, fx2.x, fx2.z);
+    T.holdStill(NAME, 8);
+    let overWorst = 0, overProp = '';
+    for (let i = 0; i < 12; i++) {
+      await wait(130);
+      T.holdStill(NAME, 8);                     // 계속 붙잡아 둔다
+      const st4 = T.insideProp(NAME);
+      if (st4 && st4.over > overWorst) { overWorst = st4.over; overProp = st4.prop; }
+    }
+    const last4 = T.insideProp(NAME);
+    okMotion('소품 속에 박히면 스스로 밀려 나온다', last4 && last4.over <= 0.06,
+      last4 ? `끝에 ${last4.prop || '없음'} 에 ${last4.over} 겹침 (도중 최대 ${overWorst} · ${overProp})` : '없음');
+    // 그래도 먹을 수는 있어야 한다 — 너무 멀리 밀어내면 모이통을 못 쓴다
+    const afterPush = T.stateOf(NAME);
+    const gapFeeder = Math.hypot(afterPush.x - fx2.x, afterPush.z - fx2.z);
+    okMotion('밀려나도 모이통에 닿는 거리에 남는다', gapFeeder < 2.2,
+      `모이통에서 ${gapFeeder.toFixed(2)} (기준 2.2)`);
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));

@@ -144,6 +144,13 @@
     return (homeCache = out);
   }
   const propVisible = (k) => !(state.settings.propHidden || {})[k];
+  // 소품의 '단단한 속' — 닭이 밀려나는 반지름 (0 이면 막지 않는다).
+  // 먹고 마시려면 붙어서야 하므로 실제로 쓰는 자리보다 작게 잡는다.
+  // 둥지(품는다)·모래밭(들어가 목욕한다)·횟대(올라탄다)는 닭이 겹쳐야 하는 물건이라 0 이다.
+  const PROP_SOLID = {
+    coop: 1.65, nest: 0, feeder: 0.6, waterer: 0.6,
+    basket: 0.5, wormbucket: 0.45, lamp: 0.2, dustpit: 0, perch: 0,
+  };
   // 소품은 언제나 끌어서 옮길 수 있다. 눌렀다 떼면 동작하고, 끌면 자리를 옮긴다.
   // (모드를 따로 켜게 했더니 오히려 번거로웠다)
   // ── 닭 카드에 쓸 그 아이의 모습 ──
@@ -962,6 +969,10 @@
   // 그 자리에 서는 순간 커서는 정확히 닭의 발밑이 되어, 고개를 들 이유가 없어진다.
   // 카메라 쪽으로 조금 앞에 세워야 커서가 머리 높이로 올라온다.
   // (화면의 커서는 광선 하나다. 그 광선 위에서 높이가 머리만큼 되는 지점을 찾는다)
+  // 커서를 '닭의 머리보다 조금 위'에 두어야 고개를 치켜든다.
+  // 키의 0.6 배로 낮췄더니 머리보다 아래가 되어 오히려 내려다보며 땅을 쪼았다(부리 1.91).
+  // 0.7~0.86 구간에서는 부리가 키의 79% 까지 올라가고 화면의 커서와도 20px 안에 든다.
+  const PECK_UP = 0.78;
   function cursorStand(headY) {
     if (!cursorSpot || mouse.x < 0) return null;
     const a = world.screenToPlaneZ(mouse.x, mouse.y, cursorSpot.z);           // 바닥점 — 높이 ≈ 0
@@ -982,7 +993,7 @@
     for (const b of birds) {
       if (!eligible(b) || b.d.hurt) continue;
       // 거리는 '커서를 쪼려면 서야 할 자리'를 기준으로 잰다 (바닥 그림자가 아니라)
-      const stand0 = cursorStand(height(b) * 0.82) || cursorSpot;
+      const stand0 = cursorStand(height(b) * PECK_UP) || cursorSpot;
       const dx = stand0.x - b.x, d2 = Math.abs(dx), dz = Math.abs(b.z - stand0.z);
 
       // 이미 쪼는 중 — 제자리에서 좌우로만 맞추고, 높으면 폴짝 뛰어 잡으려 한다
@@ -1020,7 +1031,7 @@
       if (d2 < reach && d2 >= 1.6 && ACT.canInterrupt(b.anim, 'gopeckat') && b.d.stress < 55) {
         if (Math.random() > 0.45 * T.curiosity * T.approach) continue;
         b.curious = true;
-        const stand = cursorStand(height(b) * 0.82) || cursorSpot;
+        const stand = cursorStand(height(b) * PECK_UP) || cursorSpot;
         goTo(b, stand.x - Math.sign(dx) * 0.7, 'gopeckat', stand.z);
         if (Math.random() < 0.35) showIcon(b, '👀', 1600);
       }
@@ -1245,6 +1256,26 @@
         }
       }
       b.x = clamp(b.x, world.xMin + XMARGIN, world.xMax - XMARGIN);
+    }
+    // 소품을 뚫고 지나가지 않게 한다.
+    // 다만 모이통·물통은 붙어서 먹어야 하므로, '쓰는 자리'보다 작은 속만 막는다.
+    // 둥지·모래밭·횟대는 닭이 올라타거나 들어가는 물건이라 아예 막지 않는다.
+    if (b.d.stage !== 'egg' && !b.d.brooding && !b.inCoop && !isHigh(b) && !b.leap && !b.carrying) {
+      const hm2 = home();
+      for (const k of PROP_NAMES) {
+        const r = PROP_SOLID[k];
+        if (!r || !propVisible(k)) continue;
+        if (k === 'coop' && (b.anim === 'gocoop' || b.anim === 'goroof')) continue;   // 들어가는 중이면 통과
+        const L = hm2[k]; if (!L) continue;
+        const dx = b.x - L.x, dz = (b.z - L.z) * 1.35;          // 앞뒤는 납작하게 본다 (내려다보는 화면)
+        const dist = Math.hypot(dx, dz);
+        const rr = r + height(b) * 0.16;                         // 큰 닭일수록 조금 더 비켜선다
+        if (dist < rr && dist > 0.001) {
+          const push = (rr - dist) * Math.min(1, dt * 7);
+          b.x = clamp(b.x + (dx / dist) * push, world.xMin + XMARGIN, world.xMax - XMARGIN);
+          b.z = clampZ(b.z + (dz / dist) * push * 0.7);
+        }
+      }
     }
     // 벌레가 나타나면 하던 일을 멈추고 달려간다
     const tgt = chaseTarget(b);
@@ -2633,14 +2664,49 @@
       const b = birds.find((q) => q.d.name === name); if (!b) return null;
       const m = b.b3 && b.b3.model; if (!m || !m.beakTip) return null;
       const w = m.beakTip(); const s2 = world.project(w.x, w.y, w.z);
-      return { x: Math.round(s2.x), y: Math.round(s2.y), wy: +w.y.toFixed(2) };
+      // tall = 그 닭의 키. 부리를 '얼마나 치켜들었나'는 키에 견주어야 뜻이 있다.
+      return { x: Math.round(s2.x), y: Math.round(s2.y), wy: +w.y.toFixed(2), tall: +height(b).toFixed(2) };
     },
     dropFrom(name, h) { const b = birds.find((q) => q.d.name === name); if (!b) return null; b.y = h; b.vy = 0; b.carrying = false; setAnim(b, 'fall', 99); return true; },
     hurtOf(name) { const b = birds.find((q) => q.d.name === name); return b ? !!b.d.hurt : null; },
     clickProp(k) { propClick(k); return true; },
+    // 제자리에 붙잡아 둔다 — 밀려나는지만 보려면 스스로 걸어가면 안 된다
+    // 커서를 쪼려면 닭이 어디에 서야 하는가 (바닥 그림자가 아니라 그보다 앞)
+    standFor(name) {
+      const b = birds.find((q) => q.d.name === name); if (!b) return null;
+      const st = cursorStand(height(b) * PECK_UP);
+      const gp2 = cursorSpot;
+      if (!st || !gp2) return null;
+      return { stand: { x: +st.x.toFixed(2), z: +st.z.toFixed(2) }, ground: { x: +gp2.x.toFixed(2), z: +gp2.z.toFixed(2) } };
+    },
+    holdStill(name, secs) {
+      const b = birds.find((q) => q.d.name === name); if (!b) return null;
+      b.targetX = null; b.targetZ = null; b.callTarget = null; b.goal = null;
+      setAnim(b, 'idle', secs || 6);
+      return true;
+    },
+    // 닭이 소품 속에 박혀 있는가 — '통과한다'를 숫자로 재려고
+    insideProp(name) {
+      const b = birds.find((q) => q.d.name === name); if (!b) return null;
+      const hm2 = home(); let worst = 0, which = '';
+      for (const k of PROP_NAMES) {
+        const r = PROP_SOLID[k]; if (!r || !propVisible(k)) continue;
+        const L = hm2[k]; if (!L) continue;
+        const d = Math.hypot(b.x - L.x, (b.z - L.z) * 1.35);
+        const over = (r + height(b) * 0.16) - d;
+        if (over > worst) { worst = over; which = k; }
+      }
+      return { over: +worst.toFixed(2), prop: which };
+    },
     warmSpot() { const w = warmSpot(); return w ? { x: +w.x.toFixed(2), z: +w.z.toFixed(2) } : null; },
     setMouse(px, py) { mouse.x = px; mouse.y = py; mouse.movedAt = now(); return { x: mouse.x, y: mouse.y }; },
-    peckNow(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; setAnim(b, 'peckat', 6); return true; },
+    peckNow(name) {
+      const b = birds.find((q) => q.d.name === name); if (!b) return null;
+      const st = cursorStand(height(b) * PECK_UP) || cursorSpot;
+      if (st) faceDir(b, st.x > b.x ? 1 : -1);          // 게임에서도 쪼기 전에 커서 쪽으로 돌아선다
+      setAnim(b, 'peckat', 6);
+      return true;
+    },
     perchState(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null;
       return { onPerch: !!b.onPerch, y: +b.y.toFixed(2), anim: b.anim, perchY: window.TP_WORLD.PERCH_Y }; },
     gpuName() {

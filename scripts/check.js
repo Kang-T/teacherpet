@@ -187,6 +187,20 @@ function connect(url) {
   if (!ready) die(2, '앱이 준비되지 않았습니다.\n페이지 오류: ' + cdp.logs.slice(0, 6).join('\n'));
   await new Promise((r) => setTimeout(r, 1500));          // 첫 장면이 자리를 잡게
 
+  // 5-a) 사진 모드 — 검사 대신 화면을 찍는다 (npm run shot)
+  //      프리뷰 탭은 배경이라 3D 행렬이 갱신되지 않아 거기서 찍은 그림은 믿을 수 없다.
+  if (process.env.TEACHERPET_SHOT) {
+    const setup = process.env.TEACHERPET_SETUP;
+    if (setup) {
+      try { await ev(setup, true); } catch (e) { die(2, '준비 코드 오류: ' + (e && e.message || e)); }
+    }
+    await new Promise((r) => setTimeout(r, Number(process.env.TEACHERPET_SHOT_WAIT || 1200)));
+    const shot = await S('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(process.env.TEACHERPET_SHOT, Buffer.from(shot.data, 'base64'));
+    console.log('사진: ' + process.env.TEACHERPET_SHOT);
+    clearTimeout(timer); cleanup(); process.exit(0);
+  }
+
   // 5) 검사 본체
   const code = fs.readFileSync(probeFile, 'utf8');
   let res;
