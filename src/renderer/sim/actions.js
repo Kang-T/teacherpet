@@ -58,6 +58,10 @@
     stretch:     { pose: 'stretch',priority: 1 },
     nuzzle:      { pose: 'nuzzle', priority: 2, stationary: 1 },
     brood:       { pose: 'brood',  priority: 4, stationary: 1 },
+    hover:       { pose: 'brood',  priority: 4, stationary: 1 },   // 암탉이 병아리를 품는다
+    gohover:     { pose: 'walk',   moving: 1, goal: 1, priority: 3 },
+    tuck:        { pose: 'huddle', priority: 4, stationary: 1 },   // 병아리가 어미 날개 밑으로
+    gotuck:      { pose: 'walk',   moving: 1, goal: 1, priority: 3 },
     crow:        { pose: 'crow',   priority: 3, stationary: 1 },
     roost:       { pose: 'roost',  priority: 2, stationary: 1 },
     squat:       { pose: 'squat',  priority: 2, stationary: 1 },   // submissive squat

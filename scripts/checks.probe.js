@@ -477,6 +477,32 @@
     ok('틀린 사료는 덜 배부르다', hun > 10 && hun < 10 + 4 * 30, `배부름 10 → ${Math.round(hun)} (맞으면 4번에 +140)`);
     T.setFeed('starter', 'grower');
 
+    // ── 22. 암탉이 갓 깬 병아리를 품는다 ──
+    // 알을 품던 그대로 새끼를 날개 밑에 품는다. 보온등은 원래 이것을 대신하는 물건이라,
+    // 품은 병아리는 등이 꺼져 있어도 따뜻해야 한다.
+    T.setWeather('cold');
+    T.setMouse(-1, -1);                        // 앞 검사가 켜 둔 커서를 끈다 (안 그러면 커서를 쫓는다)
+    D.lamp(0);                                 // 등을 끈다 — 어미만으로 따뜻해지는지 본다
+    const momName = T.addBird('hen', '어미');
+    const mom = momName ? { name: momName } : null;
+    if (mom) {
+      D.grow(NAME, 'chick');
+      T.makeMom(mom.name, NAME);
+      T.place(mom.name, 0, -8); T.place(NAME, 0.4, -7.7);
+      T.hoverNow(mom.name);
+      let tucked = false;
+      for (let i = 0; i < 26; i++) {
+        await wait(200);
+        const hs = T.hoverState(NAME);
+        if (hs && hs.tucked) { tucked = true; break; }
+      }
+      okMotion('병아리가 어미 날개 밑으로 든다', tucked, tucked ? '' : JSON.stringify(T.hoverState(NAME)));
+      const hs2 = T.hoverState(NAME);
+      okMotion('품긴 병아리는 보온등이 꺼져 있어도 따뜻하다',
+        !tucked || hs2.comfort === 'ok', `보온등 0 · 추운 날 · 상태 ${hs2 ? hs2.comfort : '-'}`);
+    }
+    T.setWeather('clear'); D.lamp(1);
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));

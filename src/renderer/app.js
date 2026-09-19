@@ -417,6 +417,9 @@
 
   // 이 닭이 지금 자리에서 느끼는 온도 (병아리만 의미가 있다)
   function comfortOf(b) {
+    // 어미 날개 밑에 든 병아리는 보온등이 없어도 따뜻하다.
+    // 보온등은 원래 어미를 대신하는 물건이다 — 이 놀이에서 그게 그대로 보인다.
+    if (b.tucked) return { state: 'ok', need: HLT.needC(b.d, daysCared(b)), actual: HLT.needC(b.d, daysCared(b)), diff: 0 };
     const ws = warmSpot();
     return HLT.comfort(b.d, daysCared(b), b.x, b.z, ws, ws ? (state.lampPower ?? 0.6) : 0);
   }
@@ -711,7 +714,9 @@
       goTo(b, fd2.L.x + (hm.flip ? -1 : 1) * rand(1.1, 1.6), 'gofeed', fd2.L.z + rand(-0.4, 0.4));
     });
     add('drink', ((100 - d.thirst) / 100) ** 1.5 * 2.2 * (waterOk ? 1 : 0), () => goTo(b, propVisible('waterer') ? hm.waterer.x + (hm.flip ? -1 : 1) * rand(1.1, 1.5) : b.x, 'gowater', propVisible('waterer') ? hm.waterer.z + rand(-0.4, 0.4) : undefined));
-    const sleepGate = M.sleepy > 0.6 || (d.stage === 'chick' && M.sleepy > 0.45);
+    // 어미가 품고 있으면 새끼는 혼자 자지 않는다 — 품에 들어가 잔다
+    const momHover = d.stage === 'chick' && !b.tucked && (momOf(b) || {}).hovering;
+    const sleepGate = !momHover && (M.sleepy > 0.6 || (d.stage === 'chick' && M.sleepy > 0.45));
     add('sleep', (sleepGate ? (M.sleepy ** 2) * 2.6 * (d.stage === 'chick' ? 1.8 : 1) * T.sleepy : 0) + (d.old && M.sleepy > 0.4 ? 0.3 : 0), () => {
       const ws = warmSpot();
       if (d.stage === 'chick' && ws) goTo(b, ws.x + rand(-0.9, 0.9), 'golamp-sleep', ws.z + rand(-0.6, 0.6));
@@ -737,6 +742,17 @@
       });
       // 어미 돌봄
       if (kids.length) add('care', 0.9 * T.sociable * (kids.some((k) => !near(k, b, 3)) ? 1 : 0.5), () => { const k = pick(kids); b.careKid = k.d.id; goTo(b, k.x + (b.x < k.x ? -1 : 1) * 1.1, 'gokid'); });
+      // 품기 — 알을 품던 그대로 갓 깬 병아리를 날개 밑에 품는다.
+      // 추워하거나 졸린 새끼가 있으면 어미가 먼저 자리를 잡고 앉는다.
+      const chicks = kids.filter((k) => k.d.stage === 'chick');
+      const needWarm = chicks.filter((k) => (k.comfort && k.comfort.state === 'cold') || moodOf(k).sleepy > 0.5 || k.newborn);
+      if (chicks.length && !b.hovering) {
+        add('hover', (needWarm.length ? 2.6 : 0.5) * T.sociable, () => {
+          const c0 = needWarm[0] || chicks[0];
+          if (gap2(b, c0) > 2.2) goTo(b, c0.x + rand(-0.6, 0.6), 'gohover', clampZ(c0.z + rand(-0.4, 0.4)));
+          else startHover(b);
+        });
+      }
     }
     // 선생님(커서)
     if (gp) {
@@ -829,6 +845,17 @@
     // ════ 단계별 고유 행동 ════
     const kidsNear = birds.filter((q) => q !== b && isYoungling(q) && eligible(q));
     // 온도 반응 — 숫자를 보지 않고 병아리의 모습으로 알 수 있게
+    // 어미가 품고 있으면 파고든다. 추울수록·졸릴수록 더.
+    if (d.stage === 'chick' && !b.tucked) {
+      const mom2 = momOf(b);
+      if (mom2 && mom2.hovering) {
+        const cold2 = b.comfort && b.comfort.state === 'cold' ? 2.2 : 0;
+        add('tuck', 2.0 + cold2 * 2.2 + M.sleepy * 4.0, () => {
+          if (gap2(b, mom2) > 1.1) goTo(b, mom2.x + rand(-0.5, 0.5), 'gotuck', clampZ(mom2.z + rand(-0.3, 0.3)));
+          else tuckUnder(b, mom2);
+        });
+      }
+    }
     if (d.stage === 'chick' && b.comfort) {
       const ws = warmSpot();
       if (b.comfort.state === 'cold') {
@@ -1083,6 +1110,7 @@
 
     for (const b of birds) {
       if (!eligible(b) || b.d.hurt) continue;
+      if (b.hovering || b.tucked) continue;        // 품는 중에는 커서에 반응하지 않는다
       // 거리는 '커서를 쪼려면 서야 할 자리'를 기준으로 잰다 (바닥 그림자가 아니라)
       const stand0 = cursorStand() || cursorSpot;
       const dx = stand0.x - b.x, d2 = Math.abs(dx), dz = Math.abs(b.z - stand0.z);
@@ -1096,9 +1124,22 @@
         if (Math.abs(b.z - stand0.z) > 0.4) b.z = clampZ(b.z + Math.sign(stand0.z - b.z) * spec(b).speed * 0.35 * dt);
         // 커서가 머리보다 한참 위면 뛰어서 닿으려 한다
         const head = world.project(b.x, height(b), b.z);
-        if (head && mouse.y < head.y - 26 && b.y === 0 && b.vy === 0 && Math.random() < 0.55) {
-          b.vy = rand(3.4, 5.2) * (mouse.y < head.y - 90 ? 1.25 : 1);
-          if (Math.random() < 0.35) showIcon(b, '✨', 700);
+        const high = head && mouse.y < head.y - 26;
+        if (high && b.y === 0 && b.vy === 0) {
+          const Tp = trait(b);
+          // 드센 수탉은 높이 있는 손에 날아오른다. 실제 수탉이 무리를 지키는 행동이다.
+          // (이 놀이에서는 다치게 하지 않는다 — 소리치고 날아올라 부리로 툭 건드릴 뿐)
+          const fierce = b.d.stage === 'rooster' && Tp.bold * Tp.stubborn >= 1.7 && b.d.aff < 75;
+          if (fierce && Math.random() < 0.5) {
+            b.vy = rand(7.0, 9.0);                      // 훌쩍 날아오른다
+            b.flyStrike = now();
+            showIcon(b, '💢', 1400);
+            crowSound();
+            if (Math.random() < 0.5) toast(`🐓 ${b.d.name}(이)가 날아올라요 — 무리를 지키는 거예요`, false, 4000);
+          } else if (Math.random() < 0.55) {
+            b.vy = rand(3.4, 5.2) * (mouse.y < head.y - 90 ? 1.25 : 1);
+            if (Math.random() < 0.35) showIcon(b, '✨', 700);
+          }
         }
         continue;
       }
@@ -1107,26 +1148,40 @@
       if (!still) continue;
 
       const T = trait(b);
-      // ① 눈앞이면 바로 쫀다
+      // ① 눈앞이면 바로 쫀다. 배고프면 쪼는 데서 그치지 않고 보챈다.
+      const hungry0 = Math.max(0, (40 - b.d.hunger) / 40);
       if (d2 < 1.6 && dz < 3.6) {
         if (!ACT.canInterrupt(b.anim, 'peckat') || b.d.stress > 60) continue;
-        if (Math.random() > 0.8 * T.curiosity) continue;
+        if (Math.random() > (0.8 + hungry0 * 0.6) * T.curiosity) continue;
         b.targetX = null; b.inCoop = false; setVisible(b, true);
         faceDir(b, dx > 0 ? 1 : -1);
+        // 배고프면 졸라댄다 — 폴짝 뛰고, 날개를 퍼덕이고, 참다 못해 발을 구른다.
+        // 실제로 배고픈 닭은 사람 발치까지 와서 보챈다. 성질부리는 게 아니라 조르는 것이다.
+        if (hungry0 > 0.35 && Math.random() < 0.5 + hungry0 * 0.4) {
+          const how = Math.random();
+          if (how < 0.45) { setAnim(b, 'beg', rand(0.8, 1.4)); if (b.y === 0) b.vy = 3.2 + hungry0 * 1.6; }
+          else if (how < 0.75) setAnim(b, 'flap', rand(0.7, 1.1));
+          else setAnim(b, 'stomp', rand(1.0, 1.8));                 // 참다 못해 발 구르기
+          if (now() > b.iconUntil) showIcon(b, hungry0 > 0.7 ? '😤' : '🌾', 1500);
+          b.d.boredom = clamp(b.d.boredom - 8, 0, 100);
+          continue;
+        }
         setAnim(b, 'peckat', rand(2.5, 5));
         b.d.boredom = clamp(b.d.boredom - 12, 0, 100);
         continue;
       }
       // ② 멀리 있어도, 커서가 오래 멈춰 있으면 궁금해서 보러 온다
-      const reach = 3.5 + cursorStill * 1.8;
+      // 배고프면 훨씬 멀리서도 달려온다. 사람 손을 먹이 주는 손으로 알기 때문이다.
+      const hungry = Math.max(0, (40 - b.d.hunger) / 40);          // 0~1
+      const reach = (3.5 + cursorStill * 1.8) * (1 + hungry * 1.6);
       if (d2 < reach && d2 >= 1.6 && ACT.canInterrupt(b.anim, 'gopeckat') && b.d.stress < 55) {
-        if (Math.random() > 0.45 * T.curiosity * T.approach) continue;
+        if (Math.random() > (0.45 + hungry * 0.5) * T.curiosity * T.approach) continue;
         b.curious = true;
         const stand = cursorStand() || cursorSpot;
         // 늘 같은 걸음으로 오면 심심하다. 성격과 그날 기분에 따라 두 가지로 온다.
         //  · 조심조심 — 조금 가다 멈춰 고개를 갸웃하고, 또 조금 (겁 많은 닭·낯선 사이)
         //  · 냅다 달려오기 — 한달음에 와서 쫀다 (대담한 닭·친한 사이·배고플 때)
-        const boldNow = T.bold * (0.6 + b.d.aff / 130) * (b.d.hunger < 45 ? 1.5 : 1) / Math.max(0.5, T.flee);
+        const boldNow = T.bold * (0.6 + b.d.aff / 130) * (1 + hungry * 1.4) / Math.max(0.5, T.flee);
         if (Math.random() < boldNow * 0.45) {
           b.dashTo = { x: stand.x - Math.sign(dx) * 0.7, z: stand.z };
           goTo(b, b.dashTo.x, 'gopeckat', b.dashTo.z);
@@ -1345,9 +1400,9 @@
     // 겹침 방지: 가까운 닭끼리 서로 살짝 밀어낸다 (알·품는 닭 제외)
     // 겹침: 느긋하게 있을 때만 서로 밀어낸다. 달리거나 도망칠 때는 그냥 스쳐 지나간다.
     const FAST = b.anim === 'chase' || b.frolicking || b.fleeing || b.anim === 'panic' || b.anim === 'spar';
-    if (b.d.stage !== 'egg' && !b.d.brooding && !b.inCoop && !isHigh(b) && !b.leap && !FAST) {
+    if (b.d.stage !== 'egg' && !b.d.brooding && !b.inCoop && !isHigh(b) && !b.leap && !FAST && !b.tucked && !b.hovering) {
       for (const o of birds) {
-        if (o === b || o.d.stage === 'egg' || o.inCoop || o.carrying || isHigh(o)) continue;
+        if (o === b || o.d.stage === 'egg' || o.inCoop || o.carrying || isHigh(o) || o.tucked || o.hovering) continue;
         if (o.anim === 'chase' || o.frolicking || o.fleeing || o.anim === 'panic') continue;   // 달려오는 놈은 통과시킨다
         const dx = b.x - o.x, dz = b.z - o.z, minD = 0.55 * (height(b) + height(o)) * 0.55;
         const dist = Math.hypot(dx, dz * 1.6);
@@ -1459,6 +1514,8 @@
         else if (b.anim === 'gowater') { b.goal = 'drink'; setAnim(b, 'drink', 2.5); }
         else if (b.anim === 'gocoop') { b.inCoop = true; setVisible(b, false); setAnim(b, 'sleep', rand(15, 30)); showIcon(b, '💤', 3000); }
         else if (b.anim === 'gonest') setAnim(b, 'brood', rand(8, 20));
+        else if (b.anim === 'gohover') startHover(b);
+        else if (b.anim === 'gotuck') { const m2 = momOf(b); if (m2 && m2.hovering) tuckUnder(b, m2); else decide(b); }
         else if (b.anim === 'gopeek') {
           setAnim(b, 'cock', rand(0.7, 1.3));                  // 멈춰 서서 고개를 갸웃한다
           later(b, 1000, () => {
@@ -1592,6 +1649,59 @@
   }
   // 부화: 톡톡(pip) → 빙 둘러 깨기(zip) → 뚜껑 열림 → 젖은 병아리가 마르며 일어선다
   const HATCH_SEC = 12;
+  // ── 품기 ──
+  // 실제 암탉은 알을 품던 그대로 갓 깬 병아리를 날개 밑에 품는다.
+  // 보온등은 원래 이것을 대신하는 물건이다 — 그래서 품은 병아리는 등이 없어도 따뜻하다.
+  function startHover(mom) {
+    mom.hovering = now();
+    mom.targetX = null; mom.targetZ = null;
+    setAnim(mom, 'hover', rand(14, 26));
+    showIcon(mom, '🪶', 2200);
+  }
+  function stopHover(mom) {
+    if (!mom.hovering) return;
+    mom.hovering = 0;
+    for (const k of birds) if (k.tuckedTo === mom.d.id) untuck(k);
+    decide(mom);
+  }
+  function tuckUnder(k, mom) {
+    k.tucked = now(); k.tuckedTo = mom.d.id;
+    k.targetX = null; k.targetZ = null; k.callTarget = null;
+    // 어미 품 안쪽에 자리를 잡는다 (앞뒤로 살짝 흩어져 앉는다)
+    k.x = clamp(mom.x + rand(-0.45, 0.45), world.xMin + XMARGIN, world.xMax - XMARGIN);
+    k.z = clampZ(mom.z + rand(0.1, 0.5));
+    setAnim(k, 'tuck', rand(10, 20));
+    if (Math.random() < 0.5) showIcon(k, '💛', 1800);
+    k.d.stress = clamp(k.d.stress - 25, 0, 100);
+    affect(k, 2);
+  }
+  function untuck(k) {
+    if (!k.tucked) return;
+    k.tucked = 0; k.tuckedTo = null;
+    setAnim(k, 'idle', rand(0.6, 1.2));
+  }
+  // 품기는 오래 가지 않는다. 어미가 일어나면 새끼들도 나온다.
+  function tickHover(dt) {
+    for (const b of birds) {
+      if (b.hovering) {
+        // 들어 올리거나 다치면 품기를 그만둔다
+        if (b.carrying || b.d.hurt || b.inCoop || isHigh(b)) { stopHover(b); continue; }
+        if (now() - b.hovering > 40000) { stopHover(b); continue; }
+        // 품는 동안에는 자리를 지킨다. 다른 판단이 끼어들어 일어서면 새끼가 파고들 틈이 없다.
+        if (b.anim !== 'hover' && b.anim !== 'gohover' && b.anim !== 'nuzzle') {
+          b.targetX = null; b.targetZ = null;
+          setAnim(b, 'hover', rand(10, 18));
+        }
+      }
+      if (b.tucked) {
+        const mom = birds.find((q) => q.d.id === b.tuckedTo);
+        if (!mom || !mom.hovering || b.carrying) { untuck(b); continue; }
+        // 어미 곁에 붙어 있게 (어미가 조금 움직여도 따라간다)
+        if (gap2(b, mom) > 1.2) { b.x = mom.x + rand(-0.4, 0.4); b.z = clampZ(mom.z + rand(0.1, 0.45)); }
+        if (now() - b.tucked > 22000) untuck(b);
+      }
+    }
+  }
   function startHatching(b) {
     b.hatching = 0; b.targetX = null; b.leap = null; b.inCoop = false; setVisible(b, true);
     setAnim(b, 'hatch', 99);
@@ -1611,6 +1721,8 @@
       mom.d.brooding = null; mom.d.children = (mom.d.children || 0) + 1; b.d.momId = mom.d.id;
       setAnim(mom, 'nuzzle', 3); showIcon(mom, '❤️', 3000);
       toast(`🐣 ${b.d.name}(이)가 태어났어요! 엄마는 ${mom.d.name}`, true, 10000);
+      // 갓 깬 병아리는 곧바로 어미 날개 밑으로 든다 — 실제로 그렇게 몸을 말린다
+      later(mom, 3200, () => { if (!mom.d.hurt && !mom.carrying) startHover(mom); });
     } else toast(`🐣 ${b.d.name}(이)가 태어났어요!`, true, 10000);
     chime(); peepSound();
     markDirty(); renderCoop();
@@ -1802,6 +1914,7 @@
       }
     }
     tickHygiene(dt);
+    tickHover(dt);
     tickCursorPeck(dt);
     if (visible) world.render();
   }
@@ -2810,6 +2923,26 @@
     dropFrom(name, h) { const b = birds.find((q) => q.d.name === name); if (!b) return null; b.y = h; b.vy = 0; b.carrying = false; setAnim(b, 'fall', 99); return true; },
     hurtOf(name) { const b = birds.find((q) => q.d.name === name); return b ? !!b.d.hurt : null; },
     clickProp(k) { propClick(k); return true; },
+    // 품기 검사용
+    addBird(stage, name) {
+      const d = newBird(stage || 'hen', { name: name || ('검사' + birds.length) });
+      state.flock.push(d);
+      const rt = makeRuntime(d);
+      rt.x = rand(world.xMin + 4, world.xMax - 4); rt.z = clampZ(rand(world.zMin + 5, world.zMax - 3));
+      birds.push(rt); renderCoop();
+      return d.name;
+    },
+    makeMom(momName, kidName) {
+      const m = birds.find((q) => q.d.name === momName), k = birds.find((q) => q.d.name === kidName);
+      if (!m || !k) return null;
+      k.d.momId = m.d.id; m.d.children = (m.d.children || 0) + 1;
+      return true;
+    },
+    hoverNow(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; startHover(b); return !!b.hovering; },
+    hoverState(name) {
+      const b = birds.find((q) => q.d.name === name); if (!b) return null;
+      return { hovering: !!b.hovering, tucked: !!b.tucked, anim: b.anim, comfort: b.comfort ? b.comfort.state : null };
+    },
     setFeed(a, b2) { state.feedType = a; if (b2) state.feedType2 = b2; renderCoop(); return { a: state.feedType, b: state.feedType2 }; },
     feederFor(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; const f = feederFor(b); return f ? f.key : null; },
     // 먹는 순간만 떼어 내 부른다 (걸어가는 시간을 기다리지 않고 사료 판정을 보려고)
