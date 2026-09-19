@@ -27,11 +27,12 @@
     SPEED: { egg: 0, chick: 1.6, young: 1.9, hen: 1.5, rooster: 1.8 },  // 유닛/초
     RANK: { rooster: 3, hen: 2, young: 1, chick: 0, egg: -1 },
     NAMES: ['삐약이', '노랑이', '콩콩', '햇살', '보리', '구름', '달걀이', '방울', '초코', '땅콩', '꼬꼬', '모카', '레몬', '솜이', '토리', '봄이'],
-    PROP_NAMES: ['coop', 'nest', 'feeder', 'waterer', 'basket', 'wormbucket', 'lamp', 'dustpit'],
+    PROP_NAMES: ['coop', 'nest', 'feeder', 'waterer', 'basket', 'wormbucket', 'lamp', 'dustpit', 'perch'],
     PROP_KO: {
       coop: '닭장 — 클릭하면 메뉴', nest: '둥지 — 클릭하면 알 품어주기', feeder: '모이통', waterer: '물통',
       basket: '달걀 바구니', wormbucket: '벌레통 — 끌어다 놓으면 닭들이 달려와요', lamp: '보온등 — 병아리들이 따뜻한 불빛 아래 모여요',
       dustpit: '모래밭 — 여기서 모래 목욕을 해요 (깃털이 깨끗해져요)',
+      perch: '횟대 — 닭은 높은 곳에서 자요. 졸리면 올라가요',
     },
     // 병아리 보온: 필요 온도 = 35 − 2.8 × (병아리 돌본 날)  (기획서 4-2)
     BROOD: { startC: 35, dropPerDay: 1.2, tolerance: 2, minC: 21 },   // 실제 '주당 2.8℃'를 돌본 날(=3일) 단위로 환산

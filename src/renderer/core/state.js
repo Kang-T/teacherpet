@@ -83,6 +83,10 @@
       s.farm = { placements, decos: [], coopSkin: 'red', ground: 'grass' };
       s.owned = { hat: [], coop: ['red'], deco: [], ground: ['grass'] };
       s.allowance = { day: '', streak: 0 };
+      // 횟대는 v7 에서 새로 생겼다. 이미 어린닭 이상을 키우던 농장이면 바로 놓아 준다.
+      const grown = (s.flock || []).some((d) => d.stage === 'young' || d.stage === 'hen' || d.stage === 'rooster');
+      s.settings = s.settings || {};
+      s.settings.propHidden = Object.assign({}, s.settings.propHidden, { perch: !grown });
       s.version = 7;
       return s;
     },

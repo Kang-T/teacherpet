@@ -39,15 +39,25 @@ function workArea() {
   return screen.getPrimaryDisplay().workArea;
 }
 
+const CHECKING = !!process.env.TEACHERPET_CHECK_FILE;
+
 function createWindow() {
   const wa = workArea();
+  // 자동 검사는 사람이 보는 창이 아니다. 화면 밖에 작게 띄운다 —
+  // 검사를 돌릴 때마다 일하던 화면을 덮어 버리면 안 된다.
+  // (show:false 로 아예 숨기면 rAF 가 멈춰서 움직임 검사가 돌지 않는다)
+  const box = CHECKING
+    ? { x: -2400, y: 0, width: 900, height: 1200 }
+    : { x: wa.x, y: wa.y, width: wa.width, height: wa.height };
   win = new BrowserWindow({
-    x: wa.x,
-    y: wa.y,
-    width: wa.width,
-    height: wa.height,
+    x: box.x,
+    y: box.y,
+    width: box.width,
+    height: box.height,
     resizable: true,
     show: false,
+    skipTaskbar: CHECKING,
+    focusable: !CHECKING,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -72,7 +82,8 @@ function createWindow() {
       }, 2500);
     });
   }
-  win.once('ready-to-show', () => win.show());
+  // 검사 중에는 초점을 빼앗지 않는다 (showInactive). 그래야 하던 일이 끊기지 않는다.
+  win.once('ready-to-show', () => { if (CHECKING) win.showInactive(); else win.show(); });
 
   // 디버그: 환경변수로 지정한 경로에 몇 초 뒤 화면을 저장 (맥에서 자동 검증용)
   const shot = process.env.TEACHERPET_SHOT;

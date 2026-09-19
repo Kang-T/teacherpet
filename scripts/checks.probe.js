@@ -14,6 +14,10 @@
   const SLOW = SOFT ? 4 : 1;
 
   try {
+    // 날씨가 마당 온도를 바꾼다(7단계). 날짜에 맡기면 온도 검사가 그날그날 결과가 달라진다.
+    // 그래서 검사 내내 '맑음'으로 못 박는다 — 날씨 자체를 보는 검사는 따로 있다.
+    T.setWeather('clear');
+
     // 준비: 병아리 한 마리
     if (D.birds().length === 0) T.giveChick();
     await wait(600);
@@ -291,6 +295,30 @@
       stuck.length >= 2 ? `"${stuck[0]}..." 에서 멈춤` : '끝까지 진행됨');
     ok('안내를 고르면 시작한 것으로 기록된다', T.onboarded(), '');
     ok('대화가 끝나도 닭이 그대로다', D.birds().length === hadBirds, `${hadBirds} → ${D.birds().length}마리`);
+
+    // ── 15. 횟대 ──
+    // 닭은 높은 데서 자는 새다. 올라갔으면 떠 있어야 하고, 내려오면 땅에 닿아야 한다.
+    T.showProp('perch', true);
+    D.grow(NAME, 'hen');                       // 병아리는 아직 못 오른다
+    D.set(NAME, 'energy', 4);                  // 졸려야 횟대에 머문다 (안 졸리면 바로 내려온다)
+    await wait(400);
+    T.perchUp(NAME);
+    const traj = [];
+    let best = null;
+    for (let i = 0; i < 14; i++) {
+      await wait(120);
+      const st2 = T.perchState(NAME);
+      traj.push(`${st2.y}/${st2.anim}${st2.onPerch ? '+' : '-'}`);
+      if (st2.onPerch && Math.abs(st2.y - st2.perchY) < 0.08) { best = st2; break; }
+    }
+    ok('횟대에 올라가면 그 높이에 선다', !!best,
+      best ? `y ${best.y} (횟대 ${best.perchY})` : traj.join(' '));
+    // 부르면 내려와야 한다 — 높은 데 있는 걸 잊고 부르면 공중을 걸어 다니게 된다
+    D.whistle();
+    await wait(2600);
+    const down = T.perchState(NAME);
+    ok('부르면 횟대에서 내려온다', down && !down.onPerch && down.y < 0.4,
+      down ? `y ${down.y} · ${down.anim}` : '없음');
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
   }

@@ -31,6 +31,7 @@
     golamp:      { pose: 'walk',   moving: 1, goal: 1, priority: 1 },
     'golamp-sleep': { pose: 'walk', moving: 1, goal: 1, priority: 1 },
     goroof:      { pose: 'walk',   moving: 1, goal: 1, priority: 1 },
+    goperch:     { pose: 'walk',   moving: 1, goal: 1, priority: 1 },   // 횟대로 가는 중
     godust:      { pose: 'walk',   moving: 1, goal: 1, priority: 1 },
     // --- 반응 ---
     chase:       { pose: 'walk',   moving: 1, priority: 4, playing: 1 },

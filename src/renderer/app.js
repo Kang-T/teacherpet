@@ -127,8 +127,10 @@
     // 모래 목욕터는 구석. 아이가 "여기가 자는 곳, 여기가 먹는 곳"으로 읽을 수 있게.
     const def = {
       coop: { x: bx(2.0), z: bz(0.06) }, nest: { x: bx(6.2), z: bz(0.20) }, lamp: { x: bx(4.0), z: bz(0.40) },
+      basket: { x: bx(7.8), z: bz(0.30) },                 // 달걀은 둥지에서 나온다 — 바구니도 그 옆에
+      perch: { x: bx(13.2), z: bz(0.18) },
       feeder: { x: bx(9.4), z: bz(0.62) }, waterer: { x: bx(12.6), z: bz(0.56) },
-      basket: { x: bx(16.0), z: bz(0.92) }, wormbucket: { x: bx(19.0), z: bz(0.86) },
+      wormbucket: { x: bx(19.0), z: bz(0.86) },
       dustpit: { x: bx(22.6), z: bz(0.30) },
     };
     const pos = (state.farm && state.farm.placements) || {}, hid = state.settings.propHidden || {};
@@ -457,7 +459,7 @@
   // 앞뒤 목표(z)까지 받는다. 예전에는 좌우로만 걸어간 뒤 도착하는 순간 z 를 툭 바꿔서,
   // 마당이 깊어지자 20칸을 순간이동하는 것처럼 보였다.
   function goTo(b, x, anim, z) {
-    if (b.onRoof) { leaveRoof(b); return; }
+    if (isHigh(b)) { leaveHigh(b); return; }
     b.inCoop = false; setVisible(b, true);
     b.targetX = clamp(x, world.xMin + XMARGIN, world.xMax - XMARGIN);
     b.targetZ = (z === undefined || z === null) ? null : clampZ(z);
@@ -538,7 +540,7 @@
     const mom = momOf(kid);
     if (!mom || !eligible(mom)) return null;
     mom.inCoop = false; setVisible(mom, true); mom.targetX = null; mom.leap = null;
-    if (mom.onRoof) leaveRoof(mom);
+    if (isHigh(mom)) leaveHigh(mom);
     mom.panicKid = kid.d.id;
     mom.d.stress = clamp(mom.d.stress + 45, 0, 100);
     goTo(mom, kid.x, 'panic');
@@ -557,7 +559,7 @@
   }
   function callFlock(x, z, except) {
     let n = 0;
-    for (const b of birds) { if (!eligible(b) || b === except) continue; if ((b.d.aff < 35 && Math.random() < 0.7) || (trait(b).stubborn >= 1.4 && Math.random() < 0.5)) { showIcon(b, '😒', 1500); continue; } b.callTarget = { x: clamp(x + rand(-1.6, 1.6), world.xMin + XMARGIN, world.xMax - XMARGIN), z: clamp(z + rand(-0.8, 0.8), -1.6, 1.6) }; b.inCoop = false; setVisible(b, true); setAnim(b, 'chase', 30); n++; }
+    for (const b of birds) { if (!eligible(b) || b === except) continue; if ((b.d.aff < 35 && Math.random() < 0.7) || (trait(b).stubborn >= 1.4 && Math.random() < 0.5)) { showIcon(b, '😒', 1500); continue; } if (isHigh(b)) leaveHigh(b); b.callTarget = { x: clamp(x + rand(-1.6, 1.6), world.xMin + XMARGIN, world.xMax - XMARGIN), z: clamp(z + rand(-0.8, 0.8), -1.6, 1.6) }; b.inCoop = false; setVisible(b, true); setAnim(b, 'chase', 30); n++; }
     return n;
   }
 
@@ -668,12 +670,25 @@
     // "저게 뭐지?" — 멀리서 커서가 얼쩡거리면 겁내면서도 조금씩 다가가 목을 빼고 본다
     if (d.stage === 'chick' && warmSpot()) { const ws = warmSpot(); add('warm', (gapTo(b, ws.x, ws.z) > 1.6 ? 0.55 : 0.1) * (1 + M.sleepy), () => goTo(b, ws.x + rand(-0.9, 0.9), 'golamp', ws.z + rand(-0.6, 0.6))); }
     // 수탉: 지붕에 올라가 울기
-    if (isAdult(b) && propVisible('coop') && !b.onRoof) {
+    if (isAdult(b) && propVisible('coop') && !isHigh(b)) {
       // 수탉은 울려고, 암탉은 졸릴 때 높은 곳으로 (서열이 높을수록 자주)
       const wantRoof = d.stage === 'rooster' ? 0.22 * T.noisy * T.bold : 0.18 * (M.sleepy > 0.45 ? 1.8 : 0.4) * T.bold;
       add('roof', wantRoof * (1 + rank(b) * 0.15), () => goTo(b, hm.coop.x + roostSlot(b), 'goroof', hm.coop.z + 1.2));
     }
     if (b.onRoof) { add('crowroof', 0.6 * T.noisy, () => { setAnim(b, 'crow', 2.4); crowSound(); startleKids(b); }); add('roost', 0.5, () => setAnim(b, 'roost', rand(6, 14))); add('down', 0.35, () => leaveRoof(b)); }
+    // 횟대 — 닭은 원래 나무 위에서 자는 새다. 졸릴수록 오르고 싶어 한다.
+    // 병아리는 아직 못 오른다 (날갯죽지가 여물지 않았다).
+    if (!b.onPerch && !b.onRoof && d.stage !== 'chick' && d.stage !== 'egg' && propVisible('perch') && !d.brooding) {
+      const p = hm.perch;
+      const near = gapTo(b, p.x, p.z) < 2.2;
+      add('perch', (0.25 + M.sleepy * 1.9) * T.bold * (near ? 1.5 : 1),
+        () => { if (near) jumpToPerch(b); else goTo(b, p.x + rand(-1, 1), 'goperch', p.z + rand(-0.4, 0.4)); });
+    }
+    if (b.onPerch) {
+      add('roostperch', 0.9 + M.sleepy, () => setAnim(b, 'roost', rand(6, 16)));
+      add('preenperch', 0.25 * T.tidy, () => setAnim(b, 'preen', rand(2.5, 4)));
+      add('downperch', 0.3 * (1 - M.sleepy), () => leavePerch(b));
+    }
     add('idle', 0.18, () => setAnim(b, 'idle', rand(1.5, 3.5)));
     // 기쁨 세기: 1(미소) → 2(폴짝·날개짓) → 3(신나서 뛰어다니기)
     const joy = M.valence > 0.25 ? (M.valence - 0.25) / 0.75 : 0;
@@ -816,6 +831,12 @@
     if (kind === 'ecstatic') showIcon(b, pick(['🎉', '✨', '💖']), 1500); else showIcon(b, '😭', 1500);
   }
   const world3dRoof = () => window.TP_WORLD.COOP_ROOF_Y;
+  const perchY = () => window.TP_WORLD.PERCH_Y;
+  // 그 닭에게 '바닥'이 어디인가. 지붕 위면 지붕, 횟대 위면 횟대.
+  const floorY = (b) => (b.onRoof ? world3dRoof() : b.onPerch ? perchY() : 0);
+  // 지붕이든 횟대든 '높은 데'에서 내려오게 한다. 부르는 쪽이 둘을 따로 챙기지 않게.
+  const isHigh = (b) => !!(b.onRoof || b.onPerch);
+  function leaveHigh(b) { if (b.onRoof) leaveRoof(b); else if (b.onPerch) leavePerch(b); }
   // 포물선 도약: 나는 동안 x·z를 함께 옮겨서 닭장을 통과하지 않는다
   function leapTo(b, x1, z1, vy, dur) { b.leap = { x0: b.x, z0: b.z, x1, z1, t: 0, dur }; b.vy = vy; }
   // 홰(지붕) 자리는 서열이 정한다. 1위가 용마루 한가운데, 아래로 갈수록 양쪽 끝.
@@ -834,6 +855,30 @@
     b.onRoof = true;
     leapTo(b, clamp(c.x + b.roostOffset, world.xMin + XMARGIN, world.xMax - XMARGIN), c.z, vy, dur);
     setAnim(b, 'jump', 2.2); showIcon(b, '⬆️', 900);
+  }
+  // 횟대 자리 — 서열이 높을수록 가운데. 지붕과 같은 규칙이다.
+  function perchSlot(b) {
+    const on = birds.filter((q) => q.onPerch || q.anim === 'goperch');
+    const order = on.concat(on.includes(b) ? [] : [b]).sort((x, y) => rank(y) - rank(x));
+    const i = Math.max(0, order.indexOf(b));
+    const side = i === 0 ? 0 : (i % 2 === 1 ? 1 : -1) * Math.ceil(i / 2);
+    return side * 1.0;
+  }
+  function jumpToPerch(b) {
+    const p = home().perch, h = perchY(), vy = Math.sqrt(2 * GRAV * h) + 1.0;
+    const dur = (vy + Math.sqrt(Math.max(0, vy * vy - 2 * GRAV * h))) / GRAV;
+    b.perchOffset = perchSlot(b);
+    b.onPerch = true;
+    leapTo(b, clamp(p.x + b.perchOffset, world.xMin + XMARGIN, world.xMax - XMARGIN), p.z, vy, dur);
+    setAnim(b, 'jump', 1.8); showIcon(b, '⬆️', 800);
+  }
+  function leavePerch(b) {
+    const p = home().perch, h = perchY(), vy = 1.6;
+    const dur = (vy + Math.sqrt(vy * vy + 2 * GRAV * h)) / GRAV;
+    b.onPerch = false; b.y = Math.max(b.y, h);
+    const side = b.x > p.x ? 1 : -1;
+    leapTo(b, clamp(p.x + side * rand(1.2, 1.9), world.xMin + XMARGIN, world.xMax - XMARGIN), clampZ(p.z + rand(1.4, 2.0)), vy, dur);
+    setAnim(b, 'fall', 99); showIcon(b, '⬇️', 600);
   }
   function leaveRoof(b) {
     const c = home().coop, h = world3dRoof(), vy = 2.2;
@@ -857,7 +902,7 @@
       if (Math.random() > 0.85 - T.bold * 0.3) continue;          // 대담한 성격은 안 놀란다
       b.d.stress = clamp(b.d.stress + (kind === 'aerial' ? 34 : 22) * T.flee, 0, 100);
       b.inCoop = false; setVisible(b, true); b.targetX = null; b.dustPhase = 0;
-      if (b.onRoof) { leaveRoof(b); continue; }
+      if (isHigh(b)) { leaveHigh(b); continue; }
       setAnim(b, kind === 'aerial' ? 'crouch' : 'alert', rand(1.0, 1.8));   // 짧게 놀라고 곧 흩어진다
       if (n === 0) showIcon(b, '❗', 1800);
       n++;
@@ -1096,8 +1141,8 @@
       if (Math.abs(b.leap.x1 - b.leap.x0) > 0.2) b.dir = b.leap.x1 > b.leap.x0 ? 1 : -1;
       if (k >= 1) b.leap = null;
     }
-    // 중력 (지붕 위면 지붕이 바닥)
-    const gY = b.onRoof ? world3dRoof() : 0;
+    // 중력 (지붕이나 횟대 위면 그것이 바닥)
+    const gY = floorY(b);
     if (b.y > gY || b.vy > 0) {
       const fluttering = b.anim === 'fall';
       b.vyPrev = b.vy;
@@ -1112,7 +1157,7 @@
           b.d.stress = clamp(b.d.stress + (isYoungling(b) ? 18 : 6), 0, 100);
           // 높은 데서 떨어지면 다친다. 어린 것일수록 쉽게 다친다.
           const hurtLine = isYoungling(b) ? 6.5 : 8.5;
-          if (hard > hurtLine && !b.onRoof) {
+          if (hard > hurtLine && !isHigh(b)) {
             b.d.hurt = { since: today(), heals: 1 };
             b.d.health = clamp(b.d.health - (isYoungling(b) ? 25 : 12), 0, 100);
             b.d.stress = clamp(b.d.stress + 25, 0, 100);
@@ -1123,18 +1168,18 @@
             markDirty(); renderCoop();
           } else {
             if (isYoungling(b)) showIcon(b, '😵', 1600);
-            setAnim(b, b.onRoof ? 'roost' : 'idle', rand(0.8, 1.6));
+            setAnim(b, isHigh(b) ? 'roost' : 'idle', rand(0.8, 1.6));
           }
-        } else if (b.anim === 'jump') setAnim(b, b.onRoof ? 'roost' : 'idle', rand(0.6, 1.5));
+        } else if (b.anim === 'jump') setAnim(b, isHigh(b) ? 'roost' : 'idle', rand(0.6, 1.5));
       }
     }
     if (b.anim === 'fall') return;
     // 겹침 방지: 가까운 닭끼리 서로 살짝 밀어낸다 (알·품는 닭 제외)
     // 겹침: 느긋하게 있을 때만 서로 밀어낸다. 달리거나 도망칠 때는 그냥 스쳐 지나간다.
     const FAST = b.anim === 'chase' || b.frolicking || b.fleeing || b.anim === 'panic' || b.anim === 'spar';
-    if (b.d.stage !== 'egg' && !b.d.brooding && !b.inCoop && !b.onRoof && !b.leap && !FAST) {
+    if (b.d.stage !== 'egg' && !b.d.brooding && !b.inCoop && !isHigh(b) && !b.leap && !FAST) {
       for (const o of birds) {
-        if (o === b || o.d.stage === 'egg' || o.inCoop || o.carrying || o.onRoof) continue;
+        if (o === b || o.d.stage === 'egg' || o.inCoop || o.carrying || isHigh(o)) continue;
         if (o.anim === 'chase' || o.frolicking || o.fleeing || o.anim === 'panic') continue;   // 달려오는 놈은 통과시킨다
         const dx = b.x - o.x, dz = b.z - o.z, minD = 0.55 * (height(b) + height(o)) * 0.55;
         const dist = Math.hypot(dx, dz * 1.6);
@@ -1153,7 +1198,7 @@
     const tgt = chaseTarget(b);
     if (tgt && eligible(b) && ACT.canInterrupt(b.anim, 'chase') && !(tgt.kind === 'call' && (b.anim === 'sleep' || b.inCoop) && b.d.aff < 60)) {
       b.inCoop = false; setVisible(b, true); b.targetX = null;
-      if (b.onRoof) { leaveRoof(b); return; }
+      if (isHigh(b)) { leaveHigh(b); return; }
       setAnim(b, 'chase', 30);
     }
     if (b.anim === 'chase') {
@@ -1240,6 +1285,7 @@
         else if (b.anim === 'golamp') { setAnim(b, Math.random() < 0.5 ? 'idle' : 'preen', rand(4, 9)); showIcon(b, '🔥', 1200); b.d.stress = clamp(b.d.stress - 10, 0, 100); }
         else if (b.anim === 'golamp-sleep') { setAnim(b, 'sleep', rand(20, 40)); showIcon(b, '💤', 2000); }
         else if (b.anim === 'goroof') jumpToRoof(b);
+        else if (b.anim === 'goperch') jumpToPerch(b);
         else if (b.anim === 'gomom-sleep') { setAnim(b, 'sleep', rand(15, 35)); const m = momOf(b); if (m && eligible(m) && (m.anim === 'idle' || m.anim === 'walk' || m.anim === 'preen')) { m.targetX = null; setAnim(m, 'brood', rand(15, 35)); } }
         else setAnim(b, 'idle', rand(1, 3));
         b.fleeing = false;
@@ -1325,6 +1371,13 @@
     } else if (b.d.stage === 'chick' && n >= RULE.daysChick) {
       advance(b, 'young'); jump(b, 280); chime(); later0(() => note('young', b), 700);
       toast(`${b.d.name}(이)가 어린닭이 됐어요. 볏이 자라서 ${b.d.sex === 'f' ? '암컷' : '수컷'}인 걸 알 수 있어요`, true, 8000);
+      if ((state.settings.propHidden || {}).perch) {
+        // 닭은 높은 데서 잔다. 어린닭이 되면 그 습성이 나오므로 그때 횟대를 준다.
+        state.settings.propHidden = Object.assign({}, state.settings.propHidden, { perch: false });
+        layoutHome(); markDirty();
+        later0(() => scene(['이제 높은 데서 자고 싶을 게다. 닭은 원래 나무 위에서 자는 새란다.',
+          '횟대를 놓아 주었으니, 졸리면 올라가 잘 게다.'], grannyHide, 'proud'), 2600);
+      }
       chapter(3);
     } else if (b.d.stage === 'young' && n >= RULE.daysYoung) {
       const sex = b.d.sex || (Math.random() < 0.5 ? 'f' : 'm');
@@ -2029,7 +2082,7 @@
     state.flock.push(d);
     const rt = makeRuntime(d); rt.x = cx; rt.z = cz; birds.push(rt);
     // 알을 받을 자리는 아직 필요 없다. 첫 암탉이 나오면 할머니가 가져다 주신다.
-    state.settings.propHidden = Object.assign({}, state.settings.propHidden, { nest: true, basket: true });
+    state.settings.propHidden = Object.assign({}, state.settings.propHidden, { nest: true, basket: true, perch: true });
     layoutHome();
     state.chapter = 1; state.onboarded = false; markDirty(); renderCoop(); closePanel();
     $('#gAsk').classList.remove('hidden');
@@ -2484,6 +2537,16 @@
     weather() { return { key: wx.key, name: wx.name, room: wx.room, dust: wx.dust, indoor: wx.indoor }; },
     weatherOn(day, klass) { const w = WX.of(day, klass); return w.key; },
     setClass(v) { state.classCode = WX.cleanClass(v); applyWeather(); return { code: state.classCode, wx: wx.key }; },
+    setWeather(key) {
+      const k = WX.KINDS[key];
+      if (!k) return null;
+      wx = Object.assign({ key }, k);
+      HLT.setRoom(wx.room);
+      world.scenery.setSkyTone(wx.sky[2], wx.haze);
+      world.scenery.setWind(wx.key === 'wind' ? 1 : 0);
+      for (const b of birds) decide(b);
+      return { key: wx.key, room: HLT.roomC() };
+    },
     roomC() { return HLT.roomC(); },
     cleanClass(v) { return WX.cleanClass(v); },
     brag() { return bragText(); },
@@ -2501,6 +2564,10 @@
     grannyOpen() { return !document.querySelector('#granny').classList.contains('hidden'); },
     grannyText() { const e = document.querySelector('#gSay'); return e ? e.textContent.trim() : ''; },
     onboarded() { return !!state.onboarded; },
+    showProp(k, on) { state.settings.propHidden = Object.assign({}, state.settings.propHidden, { [k]: !on }); layoutHome(); return propVisible(k); },
+    perchUp(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; jumpToPerch(b); return true; },
+    perchState(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null;
+      return { onPerch: !!b.onPerch, y: +b.y.toFixed(2), anim: b.anim, perchY: window.TP_WORLD.PERCH_Y }; },
     gpuName() {
       try {
         const gl = world.renderer.getContext();

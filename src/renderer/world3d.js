@@ -1,6 +1,7 @@
 // 티처펫 — 3D 무대 (three.js). 카메라 보정, 소품(닭장·둥지·모이통·물통·바구니), 알, 좌표 변환, 피킹.
 (function (global) {
   const THREE = global.THREE;
+  global.TP_WORLD_PERCH_Y = 0.95;      // 횟대 높이 (app.js 가 닭을 올릴 때 쓴다)
   const C = global.TP_CHICK3D;
 
   const STAGE_PRESET = {
@@ -401,6 +402,28 @@
       }
       return shadowed(g);
     }
+    // 횟대 — 닭은 높은 곳에서 잔다. 어린닭이 되면 할머니가 놓아 준다.
+    const PERCH_Y = global.TP_WORLD_PERCH_Y;
+    function makePerch() {
+      const g = new THREE.Group();
+      const wood = hard(0xC49A63), dark = hard(0x9B7A50);
+      for (const side of [-1, 1]) {
+        // A 자 다리
+        for (const lean of [-1, 1]) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, PERCH_Y * 1.12, 7), dark);
+          leg.position.set(side * 1.5, PERCH_Y / 2, lean * 0.3);
+          leg.rotation.x = lean * 0.28;
+          leg.castShadow = true; g.add(leg);
+        }
+      }
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.4, 10), wood);
+      bar.rotation.z = Math.PI / 2; bar.position.y = PERCH_Y;
+      bar.castShadow = true; g.add(bar);
+      // 아래 가로대 (흔들리지 않게 받치는 나무)
+      const brace = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.07, 0.07), dark);
+      brace.position.y = PERCH_Y * 0.42; g.add(brace);
+      return shadowed(g);
+    }
     function makeWormBucket() {
       const g = new THREE.Group();
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.45, 0.7, 24), hard(0x8FB8E8)); body.position.y = 0.35; g.add(body);
@@ -448,7 +471,7 @@
       }
     }
     function setProps(layout) { // layout: { coop:{x,z}, nest:{x,z}, ... , flip }
-      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket, lamp: makeLamp, dustpit: makeDustPit };
+      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket, lamp: makeLamp, dustpit: makeDustPit, perch: makePerch };
       for (const k of Object.keys(makers)) {
         if (!world.props[k]) { world.props[k] = makers[k](); world.props[k].userData.propName = k; scene.add(world.props[k]); }
         const p = world.props[k], L = layout[k];
@@ -655,5 +678,5 @@
 
     return world;
   }
-  global.TP_WORLD = { create, STAGE_PRESET, COOP_ROOF_Y: 3.35 };
+  global.TP_WORLD = { create, STAGE_PRESET, COOP_ROOF_Y: 3.35, PERCH_Y: 0.95 };
 })(typeof window !== 'undefined' ? window : module.exports);
