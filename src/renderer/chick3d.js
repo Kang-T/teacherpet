@@ -497,7 +497,12 @@
       for (const o of hatSlot.children) o.castShadow = true;
     }
 
-    return { group, update, land, setHat, state: st };
+    // 부리 끝이 실제로 어디에 있는가 (검사에서 '커서를 쪼는가'를 재는 데 쓴다)
+    function beakTip(out) {
+      beakTop.updateWorldMatrix(true, false);
+      return (out || new THREE.Vector3(0, 0, 0.22)).set(0, 0, 0.22).applyMatrix4(beakTop.matrixWorld);
+    }
+    return { group, update, land, setHat, beakTip, state: st };
   }
   global.TP_CHICK3D = { createChick };
 })(typeof window !== 'undefined' ? window : module.exports);

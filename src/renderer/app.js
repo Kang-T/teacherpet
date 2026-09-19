@@ -713,7 +713,14 @@
       if (b.comfort.state === 'cold') {
         add('gowarm', 3.2, () => {
           if (ws && gapTo(b, ws.x, ws.z) > 1.0) goTo(b, ws.x + rand(-0.7, 0.7), 'gowarm', ws.z + rand(-0.6, 0.6));
-          else { setAnim(b, 'huddle', rand(3, 6)); showIcon(b, '🥶', 2200); peepSound(); }   // 시끄럽게 삑삑
+          else {
+            setAnim(b, 'huddle', rand(3, 6));
+            // 판단이 3~6초마다 다시 돌아서, 그때마다 알리면 아이콘과 울음이 끝없이 도배된다.
+            // 춥다는 건 한 번 알면 되는 것이지 계속 소리칠 일이 아니다.
+            if (now() - (b.coldTold || 0) > 14000) {
+              b.coldTold = now(); showIcon(b, '🥶', 2200); peepSound();
+            }
+          }
         });
       } else if (b.comfort.state === 'hot') {
         add('gocool', 3.0, () => {
@@ -931,6 +938,22 @@
   }
   // 눈앞에 커서가 오면 쫀다. 닭은 눈에 띄는 건 일단 쪼아 본다.
   let peckScan = 0;
+  // 커서를 '그 자리에서' 쪼게 하려면, 닭이 커서의 바닥 그림자에 서면 안 된다.
+  // 그 자리에 서는 순간 커서는 정확히 닭의 발밑이 되어, 고개를 들 이유가 없어진다.
+  // 카메라 쪽으로 조금 앞에 세워야 커서가 머리 높이로 올라온다.
+  // (화면의 커서는 광선 하나다. 그 광선 위에서 높이가 머리만큼 되는 지점을 찾는다)
+  function cursorStand(headY) {
+    if (!cursorSpot || mouse.x < 0) return null;
+    const a = world.screenToPlaneZ(mouse.x, mouse.y, cursorSpot.z);           // 바닥점 — 높이 ≈ 0
+    const c = world.screenToPlaneZ(mouse.x, mouse.y, cursorSpot.z + 2);       // 조금 앞 — 높이 > 0
+    if (!a || !c) return null;
+    const dy = c.y - a.y;
+    if (Math.abs(dy) < 1e-4) return null;
+    const k = (headY - a.y) / dy;                                             // 몇 배만큼 앞으로
+    if (!isFinite(k) || k < 0 || k > 8) return null;
+    return { x: a.x + (c.x - a.x) * k, z: clampZ(cursorSpot.z + 2 * k) };
+  }
+
   function tickCursorPeck(dt) {
     peckScan -= dt; if (peckScan > 0) return; peckScan = 0.4;
     if (!cursorSpot) return;
@@ -938,13 +961,17 @@
 
     for (const b of birds) {
       if (!eligible(b) || b.d.hurt) continue;
-      const dx = cursorSpot.x - b.x, d2 = Math.abs(dx), dz = Math.abs(b.z - cursorSpot.z);
+      // 거리는 '커서를 쪼려면 서야 할 자리'를 기준으로 잰다 (바닥 그림자가 아니라)
+      const stand0 = cursorStand(height(b) * 0.82) || cursorSpot;
+      const dx = stand0.x - b.x, d2 = Math.abs(dx), dz = Math.abs(b.z - stand0.z);
 
       // 이미 쪼는 중 — 제자리에서 좌우로만 맞추고, 높으면 폴짝 뛰어 잡으려 한다
       if (b.anim === 'peckat') {
         if (!still || d2 > 2.8) { setAnim(b, 'idle', 0.6); continue; }
         faceDir(b, dx > 0 ? 1 : -1);
         if (d2 > 0.5) b.x = clamp(b.x + Math.sign(dx) * spec(b).speed * 0.45 * dt, world.xMin + XMARGIN, world.xMax - XMARGIN);
+        // 앞뒤도 슬금슬금 맞춘다 — 앞뒤가 어긋나면 커서가 옆으로 비껴 보인다
+        if (Math.abs(b.z - stand0.z) > 0.4) b.z = clampZ(b.z + Math.sign(stand0.z - b.z) * spec(b).speed * 0.35 * dt);
         // 커서가 머리보다 한참 위면 뛰어서 닿으려 한다
         const head = world.project(b.x, height(b), b.z);
         if (head && mouse.y < head.y - 26 && b.y === 0 && b.vy === 0 && Math.random() < 0.55) {
@@ -973,7 +1000,8 @@
       if (d2 < reach && d2 >= 1.6 && ACT.canInterrupt(b.anim, 'gopeckat') && b.d.stress < 55) {
         if (Math.random() > 0.45 * T.curiosity * T.approach) continue;
         b.curious = true;
-        goTo(b, cursorSpot.x - Math.sign(dx) * 0.7, 'gopeckat');
+        const stand = cursorStand(height(b) * 0.82) || cursorSpot;
+        goTo(b, stand.x - Math.sign(dx) * 0.7, 'gopeckat', stand.z);
         if (Math.random() < 0.35) showIcon(b, '👀', 1600);
       }
     }
@@ -1274,7 +1302,10 @@
             else { b.peekLeft = 0; decide(b); }
           });
         }
-        else if (b.anim === 'gowarm') { setAnim(b, 'huddle', rand(4, 8)); showIcon(b, '🥶', 2000); }
+        else if (b.anim === 'gowarm') {
+          setAnim(b, 'huddle', rand(4, 8));
+          if (now() - (b.coldTold || 0) > 14000) { b.coldTold = now(); showIcon(b, '🥶', 2000); }
+        }
         else if (b.anim === 'gocool') { setAnim(b, 'pant', rand(3, 6)); showIcon(b, '🥵', 2000); }
         else if (b.anim === 'gopeckat') setAnim(b, 'peckat', rand(2.5, 5));
         else if (b.anim === 'gohuddle') { setAnim(b, 'huddle', rand(4, 9)); b.d.stress = clamp(b.d.stress - 12, 0, 100); b.d.social = clamp(b.d.social - 25, 0, 100); }
@@ -2566,6 +2597,16 @@
     onboarded() { return !!state.onboarded; },
     showProp(k, on) { state.settings.propHidden = Object.assign({}, state.settings.propHidden, { [k]: !on }); layoutHome(); return propVisible(k); },
     perchUp(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; jumpToPerch(b); return true; },
+    // 부리 끝이 화면 어디에 찍히는가 — 커서와 얼마나 떨어졌는지 재려고
+    beakScreen(name) {
+      const b = birds.find((q) => q.d.name === name); if (!b) return null;
+      const m = b.b3 && b.b3.model; if (!m || !m.beakTip) return null;
+      const w = m.beakTip(); const s2 = world.project(w.x, w.y, w.z);
+      return { x: Math.round(s2.x), y: Math.round(s2.y), wy: +w.y.toFixed(2) };
+    },
+    warmSpot() { const w = warmSpot(); return w ? { x: +w.x.toFixed(2), z: +w.z.toFixed(2) } : null; },
+    setMouse(px, py) { mouse.x = px; mouse.y = py; mouse.movedAt = now(); return { x: mouse.x, y: mouse.y }; },
+    peckNow(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; setAnim(b, 'peckat', 6); return true; },
     perchState(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null;
       return { onPerch: !!b.onPerch, y: +b.y.toFixed(2), anim: b.anim, perchY: window.TP_WORLD.PERCH_Y }; },
     gpuName() {

@@ -19,12 +19,16 @@
   }
   // 어느 자리의 실제 온도
   function tempAt(x, z, lamp, lampPower) {
-    if (!lamp || !lampPower) return ROOM_C;
+    const shift = ROOM_C - BASE_ROOM_C;                   // 오늘 날씨가 올리고 내린 몫
+    if (!lamp || !lampPower) return BASE_ROOM_C + shift;
     // 마당이 깊어져 앞뒤 거리도 봐야 한다. 좌우만 보면 저 뒤에 있어도 따뜻하다고 나온다.
     const dz = (z === undefined || lamp.z === undefined) ? 0 : (z - lamp.z);
     const d = Math.hypot(x - lamp.x, dz);
     const fall = Math.max(0, 1 - (d / 4.5) ** 1.6);       // 유효 반경 4.5유닛
-    return ROOM_C + LAMP_MAX_C * lampPower * fall;
+    // 보온등 바로 아래는 날씨를 덜 탄다.
+    // 이게 없으면 추운 날(마당 −5℃)에 등을 최대로 켜도 35℃ 에 못 미쳐,
+    // 아이가 무엇을 해도 병아리가 계속 추워하게 된다. 그건 벌이지 배움이 아니다.
+    return BASE_ROOM_C + shift * (1 - fall * 0.85) + LAMP_MAX_C * lampPower * fall;
   }
   function comfort(bird, caredDays, x, z, lamp, lampPower) {
     const need = needC(bird, caredDays);

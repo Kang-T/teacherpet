@@ -95,6 +95,21 @@
     const coldFar = T.stateOf(NAME).comfort;
     ok('보온등 아래는 따뜻하다', warm === 'ok' || warm === 'hot', `상태 ${warm}`);
     ok('보온등에서 멀면 춥다', coldFar === 'cold', `상태 ${coldFar}`);
+    // 어떤 날씨에도, 등을 제대로 켜면 1일차 병아리가 따뜻해져야 한다.
+    // (7단계에서 날씨가 마당을 −5℃ 까지 내리자, 추운 날엔 등을 최대로 켜도
+    //  35℃ 에 못 미쳐 아이가 무엇을 해도 병아리가 계속 추워했다)
+    const badDays = [];
+    for (const k of ['clear', 'cloudy', 'rain', 'wind', 'hot', 'cold']) {
+      T.setWeather(k);
+      const ws2 = T.warmSpot();             // 따뜻한 자리는 기둥이 아니라 갓 아래다
+      T.place(NAME, ws2.x, ws2.z); D.lamp(1);
+      await wait(360);
+      const st3 = T.stateOf(NAME).comfort;
+      if (st3 === 'cold') badDays.push(k);
+    }
+    ok('어떤 날씨에도 등을 켜면 따뜻해진다', badDays.length === 0,
+      badDays.length ? `아직 추운 날씨: ${badDays.join(',')}` : '6가지 날씨 모두 ok');
+    T.setWeather('clear');
 
     // ── 6. 클릭이 닿는다 ──
     T.place(NAME, lamp.x + 1.2, lamp.z); await wait(400);
@@ -319,6 +334,29 @@
     const down = T.perchState(NAME);
     ok('부르면 횟대에서 내려온다', down && !down.onPerch && down.y < 0.4,
       down ? `y ${down.y} · ${down.anim}` : '없음');
+
+    // ── 16. 커서를 쪼는가, 커서 '밑'을 쪼는가 ──
+    // 닭이 커서의 바닥 그림자로 걸어가면, 그 자리에서 커서는 정확히 발밑이 된다.
+    // 그러면 고개를 들 이유가 없어 늘 땅을 쫀다.
+    // 실제 경로(궁금해서 다가감 → 쫌)를 그대로 태우고, 부리 끝이 화면에서
+    // 커서와 얼마나 떨어지는지로 잰다. '아쉽다'는 느낌을 숫자로 바꾼 것이다.
+    D.set(NAME, 'stress', 0); D.set(NAME, 'aff', 95); D.set(NAME, 'energy', 80);
+    T.place(NAME, -4, -7);
+    await wait(500);
+    // 커서는 닭에서 조금 떨어진 마당 위 한 점에 가만히 둔다
+    const target = T.screenOfPoint(1.5, 0, -7);
+    let bestPx = 1e9, bestAt = null;
+    for (let i = 0; i < 70; i++) {
+      T.setMouse(target.x, target.y);            // 커서를 계속 그 자리에 (멈춰 있어야 다가온다)
+      await wait(140);
+      const bk = T.beakScreen(NAME);
+      if (!bk) continue;
+      const dpx = Math.hypot(bk.x - target.x, bk.y - target.y);
+      if (dpx < bestPx) { bestPx = dpx; bestAt = bk; }
+      if (bestPx < 30) break;
+    }
+    ok('부리가 커서를 겨눈다 (발밑이 아니라)', bestPx < 45,
+      `가장 가까울 때 ${Math.round(bestPx)}px 차 · 그때 부리 높이 ${bestAt ? bestAt.wy : '-'} (기준 45px)`);
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
   }
