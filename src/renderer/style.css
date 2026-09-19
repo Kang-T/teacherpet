@@ -164,6 +164,13 @@ label { display: inline-flex; align-items: center; gap: 4px; }
   margin-bottom: 3px;
 }
 #granny p { margin: 0; font-size: clamp(14px, 1.5vw, 16px); line-height: 1.7; color: #2B2620; }
+/* 모이통이 둘일 때 — 어느 통 이야기인지 색으로 알 수 있게 */
+.feedRow { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
+.feedRow.hidden { display: none; }
+.feedDot { width: 13px; height: 13px; border-radius: 4px; border: 2px solid #2B1B0E; flex: none; }
+.feedDot.red { background: #E0524E; }
+.feedDot.blue { background: #6FA8DC; }
+
 /* 할머니의 가게 */
 .shopCard { width: min(560px, calc(100vw - 28px)); max-height: 84vh; display: flex; flex-direction: column; }
 .shopTabs { display: flex; gap: 6px; padding: 0 14px 8px; flex-wrap: wrap; }

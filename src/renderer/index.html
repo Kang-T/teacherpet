@@ -41,9 +41,14 @@
       <div class="row tiny"><span>💩 <b id="poopCount">0</b>개</span><button class="small" id="btnFindPoop">🔦 남은 곳 보기</button><span>🧺 달걀 <b id="basketCount">0</b>개</span><span>🪙 <b id="coinCount">0</b></span><button class="small" id="btnWhistle">🎵 휘파람</button></div>
       <div class="row tiny"><button class="linky" id="btnMore">⋯ 더 보기</button></div>
       <div id="moreBox" class="hidden">
-        <div class="stat"><b>사료</b><div class="lampDial">
-          <button data-feed="starter">스타터</button><button data-feed="grower">그로워</button><button data-feed="layer">레이어</button>
-        </div><span id="feedHint"></span></div>
+        <div class="stat"><b>사료</b>
+          <div class="feedRow"><span class="feedDot red"></span><div class="lampDial">
+            <button data-feed="starter">스타터</button><button data-feed="grower">그로워</button><button data-feed="layer">레이어</button>
+          </div></div>
+          <div class="feedRow hidden" id="feed2Row"><span class="feedDot blue"></span><div class="lampDial">
+            <button data-feed2="starter">스타터</button><button data-feed2="grower">그로워</button><button data-feed2="layer">레이어</button>
+          </div></div>
+          <span id="feedHint"></span></div>
         <div class="stat"><b>😷 공기</b><span class="say" id="ammLabel"></span></div>
         <div class="row tiny"><span>🪱 벌레 <b id="wormCount">0</b></span><button class="small" id="btnBuyWorm">🪱 1🪙</button><button class="small" id="btnBuyMed">💊 약 사기</button><button class="small" id="btnAlbum">📔 관찰일지</button><button class="small" id="btnShop">🧺 꾸미기</button></div>
         <div class="row tiny"><span class="label">🤝 품앗이</span><button class="small" id="btnSeedMake">씨알 코드 만들기</button><button class="small" id="btnSeedUse">친구 코드 넣기</button><span id="seedHint" class="hint"></span></div>

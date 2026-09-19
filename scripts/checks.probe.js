@@ -453,6 +453,30 @@
     okMotion('그래도 결국 잡는다', caughtCount >= 4, `6판 중 ${caughtCount}판 성공 (놓친 횟수 최대 ${maxEsc}) ` + (caughtCount >= 4 ? '' : trace.slice(-12).join(' ')));
     ok('벌레가 두 번 넘게 도망치지는 못한다', maxEsc <= 2, `최대 ${maxEsc}회 (기준 2)`);
 
+    // ── 21. 모이통 둘 ──
+    // 통이 하나면 병아리와 암탉이 같이 있을 때 한쪽은 반드시 틀린 사료를 먹는다.
+    // 아이가 제대로 할 방법이 없는 상태였다 — 그건 배움이 아니라 벌이다.
+    T.showProp('feeder2', true);
+    T.setFeed('starter', 'layer');
+    D.grow(NAME, 'chick');
+    const pickChick = T.feederFor(NAME);
+    D.grow(NAME, 'hen');
+    const pickHen = T.feederFor(NAME);
+    ok('닭마다 제 사료가 든 통으로 간다',
+      pickChick === 'feeder' && pickHen === 'feeder2',
+      `병아리 → ${pickChick} · 암탉 → ${pickHen}`);
+    // 틀린 사료를 먹어도 건강은 깎지 않는다 (덜 배부르기만)
+    T.setFeed('layer', 'layer');
+    D.grow(NAME, 'chick');
+    D.set(NAME, 'health', 100); D.set(NAME, 'hunger', 10);
+    const h0 = T.birdStats(NAME).health;
+    for (let i = 0; i < 4; i++) T.feedNow(NAME);
+    const h1 = T.birdStats(NAME).health;
+    ok('틀린 사료를 먹어도 건강은 깎이지 않는다', h1 >= h0, `건강 ${h0} → ${h1}`);
+    const hun = T.birdStats(NAME).hunger;
+    ok('틀린 사료는 덜 배부르다', hun > 10 && hun < 10 + 4 * 30, `배부름 10 → ${Math.round(hun)} (맞으면 4번에 +140)`);
+    T.setFeed('starter', 'grower');
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));

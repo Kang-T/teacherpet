@@ -130,7 +130,8 @@
       coop: { x: bx(2.0), z: bz(0.06) }, nest: { x: bx(6.2), z: bz(0.20) }, lamp: { x: bx(4.0), z: bz(0.40) },
       basket: { x: bx(7.8), z: bz(0.30) },                 // 달걀은 둥지에서 나온다 — 바구니도 그 옆에
       perch: { x: bx(13.2), z: bz(0.18) },
-      feeder: { x: bx(9.4), z: bz(0.62) }, waterer: { x: bx(12.6), z: bz(0.56) },
+      feeder: { x: bx(9.4), z: bz(0.62) }, feeder2: { x: bx(11.0), z: bz(0.86) },
+      waterer: { x: bx(13.8), z: bz(0.52) },
       wormbucket: { x: bx(19.0), z: bz(0.86) },
       dustpit: { x: bx(22.6), z: bz(0.30) },
     };
@@ -148,7 +149,7 @@
   // 먹고 마시려면 붙어서야 하므로 실제로 쓰는 자리보다 작게 잡는다.
   // 둥지(품는다)·모래밭(들어가 목욕한다)·횟대(올라탄다)는 닭이 겹쳐야 하는 물건이라 0 이다.
   const PROP_SOLID = {
-    coop: 1.65, nest: 0, feeder: 0.6, waterer: 0.6,
+    coop: 1.65, nest: 0, feeder: 0.6, feeder2: 0.6, waterer: 0.6,
     basket: 0.5, wormbucket: 0.45, lamp: 0.2, dustpit: 0, perch: 0,
   };
   // 소품은 언제나 끌어서 옮길 수 있다. 눌렀다 떼면 동작하고, 끌면 자리를 옮긴다.
@@ -438,6 +439,41 @@
     el.textContent = `· 🌡️ ${nowC}℃ (필요 ${need}℃)`;
     el.classList.toggle('warn', !!chick.comfort && chick.comfort.state !== 'ok');
   }
+  // 이 닭에게 맞는 모이통. 통이 둘이면 제 단계에 맞는 사료가 든 통으로 간다.
+  // (맞는 통이 없으면 가까운 통으로 — 그래야 굶지 않고, ⚠️ 로 아이에게 알려진다)
+  function feederFor(b) {
+    const hm = home();
+    const list = [];
+    if (propVisible('feeder')) list.push({ key: 'feeder', L: hm.feeder, type: state.feedType || 'starter' });
+    if (propVisible('feeder2')) list.push({ key: 'feeder2', L: hm.feeder2, type: state.feedType2 || 'grower' });
+    if (!list.length) return null;
+    const right = list.filter((f) => (C.FEED[f.type] || {}).ok?.includes(b.d.stage));
+    const pool = right.length ? right : list;
+    // 맞는 통이 여럿이면 가까운 쪽
+    return pool.reduce((a, c) => (gapTo(b, c.L.x, c.L.z) < gapTo(b, a.L.x, a.L.z) ? c : a));
+  }
+  // 한 입 먹는 순간. 어느 통에서 먹었는지(b.feederKey)로 사료를 정한다.
+  function eatTick(b) {
+    if (state.feed >= RULE.feedPerMeal) {
+      state.feed -= RULE.feedPerMeal; world.setSupplies(state.feed, state.water, state.basket);
+      const fkey = b.feederKey === 'feeder2' ? (state.feedType2 || 'grower') : (state.feedType || 'starter');
+      const fd = C.FEED[fkey];
+      const right = fd.ok.includes(b.d.stage);
+      b.d.hunger = clamp(b.d.hunger + (right ? 35 : 18), 0, 100);
+      b.d.happy = clamp(b.d.happy + (right ? 5 : 0), 0, 100);
+      if (!right) {
+        // 덜 배부른 것으로 끝낸다. 건강까지 깎으면, 통이 하나뿐이던 시절처럼
+        // 아이가 어쩔 수 없는 이유로 닭이 아파진다.
+        b.d.wrongFeed = (b.d.wrongFeed || 0) + 1;
+        showIcon(b, '⚠️', 2200);
+        if (b.d.wrongFeed === 3) toast(`⚠️ ${b.d.name}(이)에게 ${fd.name} 사료는 맞지 않아요 — ${STAGE_KO[b.d.stage]}에게 맞는 사료로 바꿔 주세요`, true, 10000);
+      } else b.d.wrongFeed = 0;
+      b.lastMeal = now(); careTick(b, 'ate');
+      HYG.poopAfterMeal(b, (ms, fn) => later(b, ms, () => { if (fn()) { showIcon(b, '💩', 1400); markDirty(); renderCoop(); } }));
+      markDirty(); renderCoop();
+    }
+    b.goal = null;
+  }
   function warmSpot() { if (!propVisible('lamp')) return null; const L = home().lamp; const f = home().flip ? -1 : 1; return { x: L.x + 1.2 * f, z: L.z }; }
   HYG.init(world, () => ({ min: world.xMin + XMARGIN, max: world.xMax - XMARGIN }));
   function layoutHome() { homeCache = null; world.setProps(home()); world.setLamp(propVisible('lamp') ? (state.lampPower ?? 0) : 0); world.setSupplies(state.feed, state.water, state.basket); world.setWormCount(state.worms); }
@@ -656,7 +692,7 @@
     const T = trait(b), d = b.d, M = moodOf(b);
     // 품는 암탉은 둥지에 머문다 (가끔 밥 먹으러)
     if (d.brooding && b.anim !== 'gofeed' && b.anim !== 'gowater') {
-      if (Math.random() < 0.15 && d.hunger < 60 && state.feed > 0) { goTo(b, hm.feeder.x + (hm.flip ? -1 : 1) * 1.3, 'gofeed', hm.feeder.z + rand(-0.4, 0.4)); return; }
+      if (Math.random() < 0.15 && d.hunger < 60 && state.feed > 0) { const fd3 = feederFor(b); b.feederKey = fd3 ? fd3.key : null; const L3 = fd3 ? fd3.L : hm.feeder; goTo(b, L3.x + (hm.flip ? -1 : 1) * 1.3, 'gofeed', L3.z + rand(-0.4, 0.4)); return; }
       if (gapTo(b, hm.nest.x, hm.nest.z) > 0.2) { goTo(b, hm.nest.x, 'gonest', hm.nest.z); return; }
       setAnim(b, 'brood', rand(8, 20)); return;
     }
@@ -668,7 +704,12 @@
     const add = (name, score, run) => { if (score > 0) cands.push({ name, score, run }); };
     const feedOk = state.feed >= RULE.feedPerMeal && now() - b.lastMeal > 60000, waterOk = state.water >= RULE.waterPerDrink && now() - b.lastDrink > 60000;
     // 생리 욕구
-    add('eat', ((100 - d.hunger) / 100) ** 1.5 * 2.2 * T.appetite * (feedOk ? 1 : 0) * (d.stress > 60 ? 0.3 : 1), () => goTo(b, propVisible('feeder') ? hm.feeder.x + (hm.flip ? -1 : 1) * rand(1.1, 1.6) : b.x, 'gofeed', propVisible('feeder') ? hm.feeder.z + rand(-0.4, 0.4) : undefined));
+    add('eat', ((100 - d.hunger) / 100) ** 1.5 * 2.2 * T.appetite * (feedOk ? 1 : 0) * (d.stress > 60 ? 0.3 : 1), () => {
+      const fd2 = feederFor(b);
+      b.feederKey = fd2 ? fd2.key : null;                 // 어느 통에서 먹었는지 기억한다
+      if (!fd2) { goTo(b, b.x, 'gofeed'); return; }
+      goTo(b, fd2.L.x + (hm.flip ? -1 : 1) * rand(1.1, 1.6), 'gofeed', fd2.L.z + rand(-0.4, 0.4));
+    });
     add('drink', ((100 - d.thirst) / 100) ** 1.5 * 2.2 * (waterOk ? 1 : 0), () => goTo(b, propVisible('waterer') ? hm.waterer.x + (hm.flip ? -1 : 1) * rand(1.1, 1.5) : b.x, 'gowater', propVisible('waterer') ? hm.waterer.z + rand(-0.4, 0.4) : undefined));
     const sleepGate = M.sleepy > 0.6 || (d.stage === 'chick' && M.sleepy > 0.45);
     add('sleep', (sleepGate ? (M.sleepy ** 2) * 2.6 * (d.stage === 'chick' ? 1.8 : 1) * T.sleepy : 0) + (d.old && M.sleepy > 0.4 ? 0.3 : 0), () => {
@@ -1459,24 +1500,7 @@
       if (b.anim === 'eat' && b.goal === 'treat') {
         b.d.happy = clamp(b.d.happy + 15, 0, 100); b.d.hunger = clamp(b.d.hunger + 8, 0, 100); b.goal = null; affect(b, 6 * trait(b).affGain); careTick(b, 'ate'); markDirty(); renderCoop(); if (moodOf(b).valence > 0.55) burst(b, 'ecstatic'); else jump(b, 260); showIcon(b, '❤️', 1500);
       } else if (b.anim === 'eat' && b.goal === 'eat') {
-        if (state.feed >= RULE.feedPerMeal) {
-          state.feed -= RULE.feedPerMeal; world.setSupplies(state.feed, state.water, state.basket);
-          const fd = C.FEED[state.feedType || 'starter'];
-          const right = fd.ok.includes(b.d.stage);
-          b.d.hunger = clamp(b.d.hunger + (right ? 35 : 18), 0, 100);
-          b.d.happy = clamp(b.d.happy + (right ? 5 : 0), 0, 100);
-          if (!right) {
-            b.d.wrongFeed = (b.d.wrongFeed || 0) + 1;
-            showIcon(b, '⚠️', 2200);
-            // 어린 것에게 칼슘 많은 레이어 사료는 몸에 부담이 된다
-            if (state.feedType === 'layer' && isYoungling(b)) b.d.health = clamp(b.d.health - 3, 0, 100);
-            if (b.d.wrongFeed === 3) toast(`⚠️ ${b.d.name}(이)에게 ${fd.name} 사료는 맞지 않아요 — ${STAGE_KO[b.d.stage]}에게 맞는 사료로 바꿔 주세요`, true, 10000);
-          } else b.d.wrongFeed = 0;
-          b.lastMeal = now(); careTick(b, 'ate');
-          HYG.poopAfterMeal(b, (ms, fn) => later(b, ms, () => { if (fn()) { showIcon(b, '💩', 1400); markDirty(); renderCoop(); } }));
-          markDirty(); renderCoop();
-        }
-        b.goal = null;
+        eatTick(b);
       } else if (b.anim === 'drink' && b.goal === 'drink') {
         if (state.water >= RULE.waterPerDrink) { state.water -= RULE.waterPerDrink; world.setSupplies(state.feed, state.water, state.basket); b.d.thirst = clamp(b.d.thirst + 40, 0, 100); b.lastDrink = now(); careTick(b, 'drank'); later(b, 200, () => { if (b.anim === 'drink' || b.anim === 'idle') setAnim(b, 'shake', 1.0); });
           if (Math.random() < 0.45) HYG.poopAfterMeal(b, (ms, fn) => later(b, ms, () => { if (fn()) { showIcon(b, '💩', 1400); markDirty(); renderCoop(); } }));
@@ -1535,6 +1559,16 @@
         layoutHome(); markDirty();
         later0(() => scene(['이제 높은 데서 자고 싶을 게다. 닭은 원래 나무 위에서 자는 새란다.',
           '횟대를 놓아 주었으니, 졸리면 올라가 잘 게다.'], grannyHide, 'proud'), 2600);
+      }
+      // 단계가 섞이면 먹는 것이 달라진다. 통이 하나면 한쪽은 반드시 틀린 사료를 먹게 된다.
+      if ((state.settings.propHidden || {}).feeder2 && birds.some((q) => q !== b && q.d.stage === 'chick')) {
+        state.settings.propHidden = Object.assign({}, state.settings.propHidden, { feeder2: false });
+        state.feedType2 = 'grower';
+        layoutHome(); markDirty(); renderCoop();
+        later0(() => scene([
+          '이젠 먹는 것이 달라진단다. 병아리와 어린닭은 필요한 것이 다르거든.',
+          '통을 하나 더 놓아 주었으니, 파란 통에는 어린닭 사료를 담으렴.',
+        ], grannyHide, 'proud'), 5200);
       }
       chapter(3);
     } else if (b.d.stage === 'young' && n >= RULE.daysYoung) {
@@ -1822,7 +1856,7 @@
   }
   function propClick(name) {
     const hm = home();
-    if (name === 'feeder') { if (now() - state.lastFeedRefill < RULE.refillCooldownMin * 60000) { toast(`모이는 ${Math.ceil((RULE.refillCooldownMin * 60000 - (now() - state.lastFeedRefill)) / 60000)}분 후에 다시 채울 수 있어요`); return; } $('#btnFeed').click(); }
+    if (name === 'feeder' || name === 'feeder2') { if (now() - state.lastFeedRefill < RULE.refillCooldownMin * 60000) { toast(`모이는 ${Math.ceil((RULE.refillCooldownMin * 60000 - (now() - state.lastFeedRefill)) / 60000)}분 후에 다시 채울 수 있어요`); return; } $('#btnFeed').click(); }
     else if (name === 'waterer') { if (now() - state.lastWaterRefill < RULE.refillCooldownMin * 60000) { toast(`물은 ${Math.ceil((RULE.refillCooldownMin * 60000 - (now() - state.lastWaterRefill)) / 60000)}분 후에 다시 채울 수 있어요`); return; } $('#btnWater').click(); }
     else if (name === 'nest') {
       const eggs = birds.filter((b) => b.d.stage === 'egg' && !ST.caredToday(b.d));
@@ -2188,9 +2222,18 @@
     $('#ammLabel').textContent = HYG.LABEL[lv] + (detailOn() ? ` (${Math.round(state.ammonia || 0)}ppm)` : '');
     $('#ammLabel').className = 'say ' + (lv === 'ok' ? '' : lv);
     const fd = C.FEED[state.feedType || 'starter'];
+    const fd2 = C.FEED[state.feedType2 || 'grower'];
+    const has2 = propVisible('feeder2');
     $$('[data-feed]').forEach((x) => x.classList.toggle('primary', x.dataset.feed === (state.feedType || 'starter')));
-    const wrong = birds.filter((q) => q.d.stage !== 'egg' && !fd.ok.includes(q.d.stage));
-    $('#feedHint').textContent = wrong.length ? `⚠️ ${wrong.map((q) => STAGE_KO[q.d.stage]).filter((v, i, a) => a.indexOf(v) === i).join('·')}에게는 안 맞아요` : `✅ ${fd.protein}`;
+    $$('[data-feed2]').forEach((x) => x.classList.toggle('primary', x.dataset.feed2 === (state.feedType2 || 'grower')));
+    $('#feed2Row').classList.toggle('hidden', !has2);
+    // 통이 둘이면 '둘 중 어느 것도 맞지 않는 닭'만 경고한다.
+    // 통이 하나뿐이던 시절의 경고를 그대로 두면, 통을 제대로 나눠 놓고도 계속 혼난다.
+    const okFor = (q) => fd.ok.includes(q.d.stage) || (has2 && fd2.ok.includes(q.d.stage));
+    const wrong = birds.filter((q) => q.d.stage !== 'egg' && !okFor(q));
+    $('#feedHint').textContent = wrong.length
+      ? `⚠️ ${wrong.map((q) => STAGE_KO[q.d.stage]).filter((v, i, a) => a.indexOf(v) === i).join('·')}에게 맞는 사료가 없어요`
+      : (has2 ? `✅ ${fd.protein} · ${fd2.protein}` : `✅ ${fd.protein}`);
     $$('[data-lamp]').forEach((x) => x.classList.toggle('primary', Math.abs(+x.dataset.lamp - (state.lampPower ?? 0.6)) < 0.02));
     const chicks = birds.filter((q) => q.d.stage === 'chick');
     const cold = chicks.filter((q) => q.comfort && q.comfort.state === 'cold').length;
@@ -2258,7 +2301,7 @@
     state.flock.push(d);
     const rt = makeRuntime(d); rt.x = cx; rt.z = cz; birds.push(rt);
     // 알을 받을 자리는 아직 필요 없다. 첫 암탉이 나오면 할머니가 가져다 주신다.
-    state.settings.propHidden = Object.assign({}, state.settings.propHidden, { nest: true, basket: true, perch: true });
+    state.settings.propHidden = Object.assign({}, state.settings.propHidden, { nest: true, basket: true, perch: true, feeder2: true });
     layoutHome();
     state.chapter = 1; state.onboarded = false; markDirty(); renderCoop(); closePanel();
     $('#gAsk').classList.remove('hidden');
@@ -2271,7 +2314,13 @@
     state.feedType = x.dataset.feed; for (const q of birds) q.d.wrongFeed = 0;
     markDirty(); renderCoop();
     const f = C.FEED[state.feedType];
-    toast(`🌾 모이통에 ${f.name} 사료를 넣었어요 — ${f.desc}`, false, 4500);
+    toast(`🌾 빨간 통에 ${f.name} 사료를 넣었어요 — ${f.desc}`, false, 4500);
+  }));
+  $$('[data-feed2]').forEach((x) => x.addEventListener('click', () => {
+    state.feedType2 = x.dataset.feed2; for (const q of birds) q.d.wrongFeed = 0;
+    markDirty(); renderCoop();
+    const f = C.FEED[state.feedType2];
+    toast(`🌾 파란 통에 ${f.name} 사료를 넣었어요 — ${f.desc}`, false, 4500);
   }));
   $$('[data-lamp]').forEach((x) => x.addEventListener('click', () => { setTimeout(checkStep, 60); lampEffect(+x.dataset.lamp);
     state.lampPower = +x.dataset.lamp; markDirty(); renderCoop(); world.setLamp(state.lampPower);
@@ -2761,6 +2810,16 @@
     dropFrom(name, h) { const b = birds.find((q) => q.d.name === name); if (!b) return null; b.y = h; b.vy = 0; b.carrying = false; setAnim(b, 'fall', 99); return true; },
     hurtOf(name) { const b = birds.find((q) => q.d.name === name); return b ? !!b.d.hurt : null; },
     clickProp(k) { propClick(k); return true; },
+    setFeed(a, b2) { state.feedType = a; if (b2) state.feedType2 = b2; renderCoop(); return { a: state.feedType, b: state.feedType2 }; },
+    feederFor(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; const f = feederFor(b); return f ? f.key : null; },
+    // 먹는 순간만 떼어 내 부른다 (걸어가는 시간을 기다리지 않고 사료 판정을 보려고)
+    feedNow(name) {
+      const b = birds.find((q) => q.d.name === name); if (!b) return null;
+      const f = feederFor(b); b.feederKey = f ? f.key : null;
+      state.feed = 100; b.goal = 'eat'; setAnim(b, 'eat', 3);
+      eatTick(b);
+      return true;
+    },
     // 제자리에 붙잡아 둔다 — 밀려나는지만 보려면 스스로 걸어가면 안 된다
     // 커서를 쪼려면 닭이 어디에 서야 하는가 (바닥 그림자가 아니라 그보다 앞)
     standFor(name) {

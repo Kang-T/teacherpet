@@ -15,7 +15,8 @@
       poops: [],                        // { id, x, z, cecal, born }
       ammonia: 0,                       // ppm
       inventory: { grit: 0 },
-      feedType: 'starter',            // 모이통에 넣은 사료 종류
+      feedType: 'starter',            // 첫 모이통에 넣은 사료
+      feedType2: 'grower',            // 두 번째 모이통 (단계가 섞이면 할머니가 놓아 준다)
       equipment: { lamp: null, vacuum: false, autofeeder: false },
       lampPower: 1,                     // 보온등 출력 0~1 (1주차 35℃로 시작해 자라면 낮춘다)
       freezes: C.RULE.careFreezePerTerm,
@@ -87,6 +88,11 @@
       const grown = (s.flock || []).some((d) => d.stage === 'young' || d.stage === 'hen' || d.stage === 'rooster');
       s.settings = s.settings || {};
       s.settings.propHidden = Object.assign({}, s.settings.propHidden, { perch: !grown });
+      // 두 번째 모이통도 v7 에서 새로 생겼다. 단계가 섞여 있으면 바로 놓아 준다.
+      const stages = new Set((s.flock || []).filter((d) => d.stage !== 'egg').map((d) => d.stage));
+      const mixed = stages.size > 1;
+      s.settings.propHidden.feeder2 = !mixed;
+      s.feedType2 = s.feedType2 || 'grower';
       s.version = 7;
       return s;
     },

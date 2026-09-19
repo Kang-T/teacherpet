@@ -336,13 +336,15 @@
       for (let i = 0; i < 14; i++) { const s = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.7, 6), hard(0xE8C888)); const a = i / 14 * Math.PI * 2; s.position.set(Math.cos(a) * 0.8, 0.32, Math.sin(a) * 0.8); s.rotation.set(Math.random() * 0.6, a, Math.PI / 2 + (Math.random() - 0.5) * 0.6); g.add(s); }
       return shadowed(g);
     }
-    function makeFeeder() {
+    function makeFeeder(tint) {
       const g = new THREE.Group();
-      const tray = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.75, 0.35, 32), hard(0xE0524E)); tray.position.y = 0.18; g.add(tray);
+      const body = hard(tint === undefined ? 0xE0524E : tint);
+      const tray = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.75, 0.35, 32), body); tray.position.y = 0.18; g.add(tray);
       const grain = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.12, 32), hard(0xF0C070, { roughness: 1 })); grain.position.y = 0.4; g.add(grain); g.userData.grain = grain;
-      const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 1.0, 24), hard(0xE0524E)); tower.position.y = 0.85; g.add(tower);
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 1.0, 24), body); tower.position.y = 0.85; g.add(tower);
       return shadowed(g);
     }
+    const makeFeeder2 = () => makeFeeder(0x6FA8DC);      // 두 번째 통은 파랑 — 한눈에 구별되게
     function makeWaterer() {
       const g = new THREE.Group();
       const base = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.7, 0.3, 32), hard(0xE0524E)); base.position.y = 0.15; g.add(base);
@@ -471,7 +473,7 @@
       }
     }
     function setProps(layout) { // layout: { coop:{x,z}, nest:{x,z}, ... , flip }
-      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket, lamp: makeLamp, dustpit: makeDustPit, perch: makePerch };
+      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, feeder2: makeFeeder2, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket, lamp: makeLamp, dustpit: makeDustPit, perch: makePerch };
       for (const k of Object.keys(makers)) {
         if (!world.props[k]) { world.props[k] = makers[k](); world.props[k].userData.propName = k; scene.add(world.props[k]); }
         const p = world.props[k], L = layout[k];
@@ -579,8 +581,14 @@
       c.userData.roofMats[1].color.setHex(spec.ridge);
     }
     function setSupplies(feed, water, basketCount) {
-      const f = world.props.feeder, w = world.props.waterer, b = world.props.basket;
-      if (f) { f.userData.grain.visible = feed > 5; f.userData.grain.scale.set(0.4 + feed / 100 * 0.6, 1, 0.4 + feed / 100 * 0.6); }
+      const f = world.props.feeder, f2 = world.props.feeder2, w = world.props.waterer, b = world.props.basket;
+      // 모이는 농장에 한 통치만 있다. 통이 둘이어도 같이 차고 같이 준다 —
+      // 이 놀이에서 배울 것은 '얼마나'가 아니라 '어떤 사료인가'다.
+      for (const fx of [f, f2]) {
+        if (!fx) continue;
+        fx.userData.grain.visible = feed > 5;
+        fx.userData.grain.scale.set(0.4 + feed / 100 * 0.6, 1, 0.4 + feed / 100 * 0.6);
+      }
       if (w) { w.userData.water.visible = water > 5; w.userData.water.scale.set(0.5 + water / 200, 1, 0.5 + water / 200); }
       if (b) {
         const eggs = b.userData.eggs; const n = Math.min(6, basketCount);
