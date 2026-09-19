@@ -198,6 +198,9 @@ label { display: inline-flex; align-items: center; gap: 4px; }
 #wxBadge #wxIcon { font-size: 1.25em; line-height: 1; }
 #wxBadge b { font-weight: 700; color: #7A5A20; }
 #wxBadge b:empty { display: none; }
+#wxBadge #wxTemp { color: #7A6A50; }
+#wxBadge #wxTemp:empty { display: none; }
+#wxBadge #wxTemp.warn { color: #C2571F; font-weight: 700; }
 #wxBadge.hidden { display: none; }
 body.uiIdle #wxBadge { opacity: .4; }
 

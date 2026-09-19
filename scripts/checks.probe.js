@@ -357,6 +357,25 @@
     }
     ok('부리가 커서를 겨눈다 (발밑이 아니라)', bestPx < 45,
       `가장 가까울 때 ${Math.round(bestPx)}px 차 · 그때 부리 높이 ${bestAt ? bestAt.wy : '-'} (기준 45px)`);
+
+    // ── 17. 어른 닭은 날개가 있다 ──
+    // 높은 데서 내려도 다치지 않아야 한다. 병아리는 다친다 — 그게 조심해야 할 이유다.
+    D.grow(NAME, 'hen');
+    D.set(NAME, 'hurt', null); D.set(NAME, 'health', 100);
+    await wait(300);
+    T.dropFrom(NAME, 7);
+    await wait(2600);
+    const adultHurt = T.stateOf(NAME);
+    ok('어른 닭은 떨어뜨려도 안 다친다', !T.hurtOf(NAME), T.hurtOf(NAME) ? '다침' : '멀쩡');
+
+    // ── 18. 보온등 단계 ──
+    // 껐다 켰다만 되면 '온도를 맞춘다'가 메뉴 속에 숨는다. 눌러서 한 칸씩 돌아야 한다.
+    const seq = [];
+    D.lamp(0);
+    for (let i = 0; i < 5; i++) { T.clickProp('lamp'); await wait(160); seq.push(D.lamp()); }
+    ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
+      seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
+      seq.join(' → '));
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
   }

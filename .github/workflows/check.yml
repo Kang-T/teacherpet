@@ -1,4 +1,4 @@
-# 닭이 제대로 움직이는지 자동으로 확인한다.
+# 아이들이 실제로 쓰는 web/ 빌드를 헤드리스 크롬으로 열어 확인한다.
 # 배포(pages.yml)를 막지는 않는다 — 화면 검사는 이따금 불안정할 수 있어서,
 # 실패하면 알려만 주고 사이트는 계속 나간다.
 name: check
@@ -17,9 +17,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Electron 준비
-        run: npm install --no-save electron@33 three@0.170.0
-      - name: 화면 없는 리눅스용 도구
-        run: sudo apt-get update && sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64
+      # three.js 는 저장소에 들어 있고(src/renderer/vendor), 크롬은 러너에 이미 있다.
+      # 그래서 설치 단계가 하나도 없다. xvfb 도 Electron 도 필요 없다.
+      - name: 크롬 확인
+        run: google-chrome --version
       - name: 행동 검사
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" node scripts/check.js
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node scripts/check.js
