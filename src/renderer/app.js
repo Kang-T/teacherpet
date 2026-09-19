@@ -577,6 +577,25 @@
   function eatWorm(b) {
     removeWorm(); b.goal = 'treat'; setAnim(b, 'eat', 1.6); showIcon(b, '😋', 2000);
   }
+  // 벌레를 부리로 찍는다 — 단번에 물리지 않는다.
+  // 닿자마자 물면 '잡았다'는 느낌이 없다. 한두 번 놓쳐야 쫓는 맛이 난다.
+  // 다만 놓치는 횟수는 벌레마다 두 번까지다(WORM_ESCAPE_MAX). 영영 못 잡으면 아이가 지친다.
+  function stabWorm(b) {
+    if (!worm || worm.carrier) return;
+    faceDir(b, worm.x > b.x ? 1 : -1);
+    const T = trait(b);
+    // 큰 닭일수록, 대담할수록 한 번에 잘 문다. 병아리는 자주 놓친다.
+    const skill = (b.d.stage === 'chick' ? 0.32 : b.d.stage === 'young' ? 0.5 : 0.66) * (0.8 + T.bold * 0.25);
+    if (worm.escapes >= WORM_ESCAPE_MAX || Math.random() < skill) { grabWorm(b); return; }
+    // 헛챘다 — 벌레가 쏙 빠져나간다
+    worm.escapes += 1;
+    worm.dartUntil = now() + rand(420, 800);
+    worm.dir = Math.atan2(worm.z - b.z, worm.x - b.x) + rand(-0.6, 0.6);
+    setAnim(b, 'peckat', rand(0.45, 0.8));
+    b.d.boredom = clamp(b.d.boredom - 8, 0, 100);
+    if (Math.random() < 0.5) showIcon(b, '💢', 900);
+    later(b, 500, () => { if (b.anim === 'peckat' && worm && !worm.carrier) setAnim(b, 'chase', 30); });
+  }
   // 물고 달아나기(worm running) — 실제 닭의 놀이 행동. 한 마리가 물고 뛰면 나머지가 전원 추격한다.
   function grabWorm(b) {
     if (!worm || worm.carrier) return;
@@ -633,7 +652,7 @@
   function decide(b) {
     const hm = home();
     if (b.d.stage === 'egg') { setAnim(b, 'egg', rand(3, 6)); return; }
-    b.fleeing = false; b.curious = false;
+    b.fleeing = false; b.curious = false; b.dashing = false;
     const T = trait(b), d = b.d, M = moodOf(b);
     // 품는 암탉은 둥지에 머문다 (가끔 밥 먹으러)
     if (d.brooding && b.anim !== 'gofeed' && b.anim !== 'gowater') {
@@ -1063,8 +1082,22 @@
         if (Math.random() > 0.45 * T.curiosity * T.approach) continue;
         b.curious = true;
         const stand = cursorStand() || cursorSpot;
-        goTo(b, stand.x - Math.sign(dx) * 0.7, 'gopeckat', stand.z);
-        if (Math.random() < 0.35) showIcon(b, '👀', 1600);
+        // 늘 같은 걸음으로 오면 심심하다. 성격과 그날 기분에 따라 두 가지로 온다.
+        //  · 조심조심 — 조금 가다 멈춰 고개를 갸웃하고, 또 조금 (겁 많은 닭·낯선 사이)
+        //  · 냅다 달려오기 — 한달음에 와서 쫀다 (대담한 닭·친한 사이·배고플 때)
+        const boldNow = T.bold * (0.6 + b.d.aff / 130) * (b.d.hunger < 45 ? 1.5 : 1) / Math.max(0.5, T.flee);
+        if (Math.random() < boldNow * 0.45) {
+          b.dashTo = { x: stand.x - Math.sign(dx) * 0.7, z: stand.z };
+          goTo(b, b.dashTo.x, 'gopeckat', b.dashTo.z);
+          b.dashing = true;                                   // 달리는 걸음 (draw 에서 속도를 올린다)
+          if (Math.random() < 0.4) showIcon(b, '❗', 1200);
+        } else {
+          b.dashing = false;
+          lure.x = stand.x; lure.z = stand.z; lure.at = now();
+          b.peekLeft = Math.round(rand(2, 4));
+          peek(b);                                            // 조심스러운 접근 (멈췄다 보고 또 간다)
+          if (Math.random() < 0.35) showIcon(b, '👀', 1600);
+        }
       }
     }
   }
@@ -1328,7 +1361,14 @@
           tgt.z = worm.z - 0.3 - Math.sin(ang) * 1.5;
           reach = 0.35;
         } else {
-          tgt.x = worm.x; tgt.z = worm.z;            // 바닥의 벌레는 정확히 그 자리로
+          // 바닥의 벌레도 여럿이면 빙 둘러선다. 한 점에 겹쳐 서면 서로 밀기만 한다.
+          const crowd = birds.filter((q) => q.anim === 'chase' || q.anim === 'beg');
+          const i = Math.max(0, crowd.indexOf(b)), n = Math.max(1, crowd.length);
+          if (n > 1) {
+            const ang = (i / n) * Math.PI * 2;
+            tgt.x = worm.x + Math.cos(ang) * 0.6;
+            tgt.z = worm.z + Math.sin(ang) * 0.4;
+          } else { tgt.x = worm.x; tgt.z = worm.z; }
           reach = 0.22 + 0.06 * height(b);
         }
       }
@@ -1345,7 +1385,7 @@
       } else if (tgt.kind === 'worm') {
         const car = wormCarrier();
         if (car && car !== b) { if (Math.random() < 0.45) stealWorm(car, b); else { setAnim(b, 'beg', rand(0.4, 0.8)); if (b.y === 0) b.vy = 3.2; } return; }
-        if (!worm.held && worm.y <= 0.35 && !worm.carrier) { grabWorm(b); return; }
+        if (!worm.held && worm.y <= 0.35 && !worm.carrier) { stabWorm(b); return; }
         setAnim(b, 'beg', rand(0.6, 1.2)); if (Math.random() < 0.35) { b.vy = 3.5; }
       } else { const wasPlay = !!b.callTarget.follow; b.callTarget = null; jump(b, 240); if (wasPlay) { b.d.boredom = clamp(b.d.boredom - 40, 0, 100); const o = birds.find((q) => q.playFlee === b.d.id); if (o) { o.playFlee = null; o.d.boredom = clamp(o.d.boredom - 40, 0, 100); showIcon(o, '😆', 1200); } showIcon(b, '😆', 1200); } else showIcon(b, '❤️', 1500); return; }
       b.animT += dt; if (b.animT > b.animDur) { b.callTarget = null; decide(b); }
@@ -1360,7 +1400,7 @@
       return;
     }
     if (ACT.isGoal(b.anim) && b.targetX !== null) {
-      const speed = s.speed * (b.d.old ? 0.6 : 1) * (b.fleeing ? 2 : 1) * (b.d.hurt ? 0.45 : 1) * (b.d.sick ? 0.55 : 1);
+      const speed = s.speed * (b.d.old ? 0.6 : 1) * (b.fleeing ? 2 : 1) * (b.dashing ? 2.1 : 1) * (b.d.hurt ? 0.45 : 1) * (b.d.sick ? 0.55 : 1);
       const tz = (b.targetZ !== null && b.targetZ !== undefined) ? b.targetZ
         : (b.walkZ !== undefined ? b.walkZ : b.z);
       const gx = b.targetX - b.x, gz = tz - b.z;
@@ -1371,6 +1411,7 @@
         if (Math.abs(gx) > 0.05) faceDir(b, gx > 0 ? 1 : -1);
       }
       if (gd <= 0.08) {
+        b.dashing = false;
         b.x = b.targetX; if (b.targetZ !== null && b.targetZ !== undefined) b.z = b.targetZ;
         b.targetX = null; b.targetZ = null; b.walkZ = undefined;
         if (b.anim === 'gofeed') { b.goal = 'eat'; setAnim(b, 'eat', 3); }
@@ -1701,7 +1742,7 @@
       if (Math.hypot(mdx, mdz) > 0.004) { b.heading = Math.atan2(mdx, mdz); b.headAt = now(); }
       else if (now() - (b.headAt || 0) > 350) b.heading = undefined;   // 멈추면 원래 자세로
       b.lastX = b.x; b.lastZ = b.z;
-      m.model.update(dt, { anim, moving, dir: b.dir, heading: b.heading, jumpY: b.y, lookTarget: b.look, curious: true, wobble: b.f === 1, hatch: b.hatching || 0, phase: b.dustPhase || 0, holdWorm: !!(worm && worm.carrier === b.d.id), sick: !!b.d.sick, hurt: !!b.d.hurt, dull: Math.max(0, (C.CLEAN.dullBelow - (b.d.clean ?? 85)) / C.CLEAN.dullBelow), speed: b.anim === 'chase' || b.fleeing ? 2.2 : 1, mood: b.d.stage === 'egg' ? null : moodOf(b) });
+      m.model.update(dt, { anim, moving, dir: b.dir, heading: b.heading, jumpY: b.y, lookTarget: b.look, curious: true, wobble: b.f === 1, hatch: b.hatching || 0, phase: b.dustPhase || 0, holdWorm: !!(worm && worm.carrier === b.d.id), sick: !!b.d.sick, hurt: !!b.d.hurt, dull: Math.max(0, (C.CLEAN.dullBelow - (b.d.clean ?? 85)) / C.CLEAN.dullBelow), speed: (b.anim === 'chase' || b.fleeing) ? 2.2 : b.dashing ? 2.0 : 1, mood: b.d.stage === 'egg' ? null : moodOf(b) });
       if (b.f === 1 && b.d.stage === 'egg' && t > (b.wobbleUntil || 0)) b.f = 0;
       // 오버레이(아이콘·이름표) 위치
       const top = world.project(b.x, height(b) + b.y + 0.2, b.z);
@@ -2658,7 +2699,15 @@
     screenOfBird(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; const s = world.project(b.x, height(b) * 0.5, b.z); return { x: Math.round(s.x), y: Math.round(s.y) }; },
     screenOfPoint(x, y, z) { const s = world.project(x, y, z); return { x: Math.round(s.x), y: Math.round(s.y) }; },
     poopsRaw() { return HYG.serialize(); },
-    wormState() { return worm ? { x: +worm.x.toFixed(2), y: +worm.y.toFixed(2), z: +worm.z.toFixed(2), held: !!worm.held, carrier: worm.carrier || null } : null; },
+    wormState() { return worm ? { x: +worm.x.toFixed(2), y: +worm.y.toFixed(2), z: +worm.z.toFixed(2), held: !!worm.held, carrier: worm.carrier || null, escapes: worm.escapes || 0 } : null; },
+    dropWormAt(x, z) {
+      if (worm) removeWorm();
+      state.worms = Math.max(1, state.worms);
+      const sp = world.project(x, 0, z);
+      if (!spawnWorm(sp.x, sp.y)) return null;
+      worm.held = false; worm.y = 0; worm.vy = 0; worm.x = x; worm.z = clampZ(z);
+      return { x: worm.x, z: worm.z };
+    },
     props() { const out = {}; for (const k of PROP_NAMES) { const p = world.props[k]; if (p) out[k] = { x: +p.position.x.toFixed(3), z: +p.position.z.toFixed(3) }; } return out; },
     view() { return { zoom: +world.view.zoom.toFixed(3), elev: +world.view.elev.toFixed(2), tx: +world.view.tx.toFixed(3), tz: +world.view.tz.toFixed(3) }; },
     setView(zoom, elev) { if (zoom !== undefined) state.settings.zoom = zoom; if (elev !== undefined) state.settings.elev = elev; resize(); },

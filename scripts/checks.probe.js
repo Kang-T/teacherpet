@@ -425,6 +425,34 @@
     okMotion('밀려나도 모이통에 닿는 거리에 남는다', gapFeeder < 2.2,
       `모이통에서 ${gapFeeder.toFixed(2)} (기준 2.2)`);
 
+    // ── 20. 벌레를 한 번에 물지 않는다 ──
+    // 닿자마자 물면 '잡았다'는 느낌이 없다. 한두 번 놓쳐야 쫓는 맛이 난다.
+    // 다만 영영 못 잡으면 아이가 지치므로, 놓치는 횟수는 두 번까지여야 한다.
+    D.grow(NAME, 'chick');                     // 병아리가 가장 자주 놓친다
+    D.set(NAME, 'hunger', 40); D.set(NAME, 'stress', 0);
+    let sawEscape = false, caught = false, maxEsc = 0; const trace = [];
+    let caughtCount = 0;
+    for (let round = 0; round < 6; round++) {
+      T.place(NAME, 2, -6);
+      const wp = T.dropWormAt(3.2, -6);
+      if (!wp) break;
+      for (let i = 0; i < 60; i++) {
+        await wait(90);
+        const w2 = T.wormState();
+        if (!w2) { caught = true; caughtCount++; break; }      // 물고 바로 먹어치운 것
+        maxEsc = Math.max(maxEsc, w2.escapes);
+        if (w2.escapes > 0) sawEscape = true;
+        if (w2.carrier) { caught = true; caughtCount++; break; }
+        if (i % 6 === 0) {
+          const bb2 = D.birds().find((q) => q.name === NAME);
+          trace.push(`${bb2 ? bb2.anim : '-'}/${Math.hypot((bb2 ? bb2.x : 0) - w2.x, (bb2 ? bb2.z : 0) - w2.z).toFixed(1)}/e${w2.escapes}`);
+        }
+      }
+    }
+    okMotion('벌레를 한 번에 물지 않고 놓치기도 한다', sawEscape, `놓친 횟수 최대 ${maxEsc}`);
+    okMotion('그래도 결국 잡는다', caughtCount >= 4, `6판 중 ${caughtCount}판 성공 (놓친 횟수 최대 ${maxEsc}) ` + (caughtCount >= 4 ? '' : trace.slice(-12).join(' ')));
+    ok('벌레가 두 번 넘게 도망치지는 못한다', maxEsc <= 2, `최대 ${maxEsc}회 (기준 2)`);
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));
