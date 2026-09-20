@@ -2,7 +2,7 @@
   "name": "teacherpet",
   "productName": "티처펫",
   "version": "0.1.0",
-  "description": "선생님 바탕화면에서 함께 자라는 작은 친구 — 교사용 데스크톱 펫",
+  "description": "병아리를 부탁해 — 초등학생이 닭의 한살이를 배우는 웹 게임 (개인정보 0 수집)",
   "main": "src/main.js",
   "author": "Kang-T",
   "license": "MIT",

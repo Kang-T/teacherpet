@@ -1,0 +1,38 @@
+name: 이상해요
+description: 게임이 이상하게 동작하거나 버튼이 안 먹을 때
+labels: ["이상해요"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        알려 주셔서 고맙습니다. 아이 이름·학교 같은 개인정보는 적지 말아 주세요.
+  - type: textarea
+    id: what
+    attributes:
+      label: 무엇이 이상한가요?
+      placeholder: 예) 보온등을 켰는데 병아리가 계속 춥다고 해요
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 어떻게 하면 똑같이 되나요?
+      placeholder: |
+        1. 병아리를 보온등 아래로 옮겼다
+        2. 30초쯤 기다렸다
+        3. 머리 위에 🥶 가 계속 뜬다
+  - type: dropdown
+    id: device
+    attributes:
+      label: 어떤 기기에서요?
+      options:
+        - 크롬북
+        - 윈도우 컴퓨터
+        - 맥
+        - 태블릿·휴대폰
+        - 기타
+  - type: textarea
+    id: shot
+    attributes:
+      label: 화면 캡처 (있으면)
+      description: 그림 파일을 이 칸에 끌어다 놓으면 붙습니다.

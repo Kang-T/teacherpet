@@ -1,0 +1,15 @@
+name: 이런 게 있으면 좋겠어요
+description: 새 기능, 바꿨으면 하는 점
+labels: ["아이디어"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: 어떤 것이 있으면 좋을까요?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 왜 필요한가요? (교실에서 어떤 장면이었나요?)
+      placeholder: 예) 아이들이 병아리가 왜 우는지 몰라서 자꾸 물어봐요

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 이야기 나누기 (토론 게시판)
+    url: https://github.com/Kang-T/teacherpet/discussions
+    about: 질문, 수업 사례, 가벼운 아이디어는 여기에 남겨 주세요.
