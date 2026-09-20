@@ -496,12 +496,52 @@
         const hs = T.hoverState(NAME);
         if (hs && hs.tucked) { tucked = true; break; }
       }
-      okMotion('병아리가 어미 날개 밑으로 든다', tucked, tucked ? '' : JSON.stringify(T.hoverState(NAME)));
+      okMotion('병아리가 어미 날개 밑으로 든다', tucked,
+        tucked ? '' : `새끼 ${JSON.stringify(T.hoverState(NAME))} · 어미 ${JSON.stringify(T.hoverState(mom.name))}`);
       const hs2 = T.hoverState(NAME);
       okMotion('품긴 병아리는 보온등이 꺼져 있어도 따뜻하다',
         !tucked || hs2.comfort === 'ok', `보온등 0 · 추운 날 · 상태 ${hs2 ? hs2.comfort : '-'}`);
     }
     T.setWeather('clear'); D.lamp(1);
+
+    // ── 23. 모이통은 따로 찬다 ──
+    // 어느 통을 눌러도 둘 다 차면, 통을 둘로 나눈 뜻이 없다 (사료를 따로 쓰려고 나눈 것이다).
+    T.showProp('feeder2', true);
+    T.setFeedAmounts(0, 0);
+    T.fillFeeder('feeder');
+    const fa = T.feedAmounts();
+    ok('한 통을 채워도 다른 통은 그대로', fa.a > 90 && fa.b === 0, `빨강 ${fa.a}% · 파랑 ${fa.b}%`);
+    T.fillFeeder('feeder2');
+    const fb = T.feedAmounts();
+    ok('다른 통도 따로 채워진다', fb.a > 90 && fb.b > 90, `빨강 ${fb.a}% · 파랑 ${fb.b}%`);
+    // 오른쪽 버튼으로 사료 바꾸기
+    T.setFeed('starter', 'grower');
+    const cy = T.cycleFeed('feeder');
+    ok('오른쪽 버튼으로 사료가 바뀐다', cy.a === 'grower' && cy.b === 'grower', `빨강 starter → ${cy.a}`);
+    T.setFeed('starter', 'grower');
+
+    // ── 24. 달걀은 팔아야 코인이 된다 ──
+    // 예전에는 낳는 순간 코인이 들어와서, 바구니가 그냥 숫자판이었다.
+    const e0 = T.eggs();
+    T.setEggs(3);
+    const e1 = T.eggs();
+    ok('알을 낳아도 코인이 저절로 늘지 않는다', e1.coins === e0.coins, `코인 ${e0.coins} → ${e1.coins}`);
+    T.sellEggs();
+    const e2 = T.eggs();
+    ok('바구니를 누르면 달걀이 코인이 된다', e2.basket === 0 && e2.coins === e1.coins + 3,
+      `달걀 3개 → 코인 ${e1.coins} → ${e2.coins}`);
+
+    // ── 25. 커서에 질린다 ──
+    // 가만히 둔 커서를 끝없이 쪼아 대던 것. 한 번 쪼면 커서가 움직여야 다시 쫀다.
+    ok('커서가 오래 멈춰 있으면 흥미를 잃는다', T.cursorBored() > 2 && T.cursorBored() < 30,
+      `${T.cursorBored()}초 뒤 흥미를 잃음`);
+
+    // ── 26. 땅을 두 번 누르면 휘파람 ──
+    T.place(NAME, -6, -10);
+    D.set(NAME, 'aff', 95); D.set(NAME, 'stress', 0);
+    const wpt = T.screenOfPoint(5, 0, -5);
+    const called = T.whistleAt(wpt.x, wpt.y);
+    ok('땅을 두 번 누르면 닭을 부른다', called > 0, `${called}마리가 달려옴`);
 
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,

@@ -580,14 +580,13 @@
       c.userData.roofMats[0].color.setHex(spec.roof);
       c.userData.roofMats[1].color.setHex(spec.ridge);
     }
-    function setSupplies(feed, water, basketCount) {
+    function setSupplies(feed, water, basketCount, feed2) {
       const f = world.props.feeder, f2 = world.props.feeder2, w = world.props.waterer, b = world.props.basket;
-      // 모이는 농장에 한 통치만 있다. 통이 둘이어도 같이 차고 같이 준다 —
-      // 이 놀이에서 배울 것은 '얼마나'가 아니라 '어떤 사료인가'다.
-      for (const fx of [f, f2]) {
+      // 통마다 따로 찬다 — 하나를 채웠는데 둘 다 차면 통이 둘인 뜻이 없다
+      for (const [fx, amt] of [[f, feed], [f2, feed2 === undefined ? feed : feed2]]) {
         if (!fx) continue;
-        fx.userData.grain.visible = feed > 5;
-        fx.userData.grain.scale.set(0.4 + feed / 100 * 0.6, 1, 0.4 + feed / 100 * 0.6);
+        fx.userData.grain.visible = amt > 5;
+        fx.userData.grain.scale.set(0.4 + amt / 100 * 0.6, 1, 0.4 + amt / 100 * 0.6);
       }
       if (w) { w.userData.water.visible = water > 5; w.userData.water.scale.set(0.5 + water / 200, 1, 0.5 + water / 200); }
       if (b) {

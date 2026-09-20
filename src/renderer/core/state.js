@@ -9,7 +9,7 @@
     return {
       version: VERSION,
       flock: [], basket: 0, coins: 0, album: [], away: [],   // away = 떠났지만 돌아올 수 있는 닭
-      feed: 60, water: 60, lastFeedRefill: 0, lastWaterRefill: 0,
+      feed: 60, feed2: 60, water: 60, lastFeedRefill: 0, lastFeedRefill2: 0, lastWaterRefill: 0,
       worms: 3, lastWormGift: '',
       bedding: 100,                     // 깔짚 신선도 0~100
       poops: [],                        // { id, x, z, cecal, born }

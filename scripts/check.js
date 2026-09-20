@@ -62,7 +62,7 @@ function serve(dir) {
 function connect(url) {
   return new Promise((res, rej) => {
     const sock = new WebSocket(url);
-    let id = 0; const waiting = new Map(); const logs = [];
+    let id = 0; const waiting = new Map(); const logs = []; let dialogFn = null;
     sock.addEventListener('message', (e) => {
       const m = JSON.parse(e.data);
       if (m.id && waiting.has(m.id)) {
@@ -78,10 +78,12 @@ function connect(url) {
       if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') {
         logs.push((m.params.args || []).map((a) => a.description || a.value).join(' '));
       }
+      if (m.method === 'Page.javascriptDialogOpening' && dialogFn) dialogFn(true);
     });
     sock.addEventListener('error', rej);
     sock.addEventListener('open', () => res({
       logs,
+      onDialog: (sid, fn) => { dialogFn = fn; },
       send: (method, params, sessionId) => new Promise((r2, j2) => {
         const n = ++id; waiting.set(n, { res: r2, rej: j2 });
         sock.send(JSON.stringify({ id: n, method, params: params || {}, sessionId }));
@@ -144,6 +146,9 @@ function connect(url) {
   const S = (m, p) => cdp.send(m, p, sessionId);
   await S('Runtime.enable');
   await S('Page.enable');
+  // confirm/alert 이 뜨면 누를 사람이 없어 검사가 통째로 멈춘다 (실제로 그렇게 300초를 날렸다).
+  // 자동으로 '예'를 눌러 준다 — 검사가 보려는 것은 되묻는 창이 아니라 그 뒤의 결과다.
+  cdp.onDialog(sessionId, (accept) => S('Page.handleJavaScriptDialog', { accept, promptText: '' }));
 
   // 3) 깨끗한 상태로 시작한다 — 환영 카드를 건너뛰고, 안내는 '혼자 할래요'
   await S('Page.addScriptToEvaluateOnNewDocument', {
