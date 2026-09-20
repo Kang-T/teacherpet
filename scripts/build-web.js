@@ -16,10 +16,14 @@ function must(html, needle, replacement, what) {
   return html.replace(needle, replacement);
 }
 
+// 맥이 폴더마다 만드는 .DS_Store 같은 부스러기는 빌드에 넣지 않는다.
+// (서비스 워커의 캐시 목록에까지 들어가 있었다)
+const JUNK = /^(\.DS_Store|Thumbs\.db|\._.*)$/;
+
 function copyDir(from, to, skip = []) {
   fs.mkdirSync(to, { recursive: true });
   for (const e of fs.readdirSync(from, { withFileTypes: true })) {
-    if (skip.includes(e.name)) continue;
+    if (skip.includes(e.name) || JUNK.test(e.name)) continue;
     const a = path.join(from, e.name), b = path.join(to, e.name);
     if (e.isDirectory()) copyDir(a, b, skip); else fs.copyFileSync(a, b);
   }
@@ -93,15 +97,41 @@ fs.writeFileSync(path.join(OUT, 'sw-reg.js'), `// 새 배포가 올라오면 한
 // 이걸 안 하면 이미 방문한 기기가 옛 앱을 계속 쓴다 — 학교 기기에서는 치명적이다.
 if ('serviceWorker' in navigator) {
   let refreshing = false;
+  // 첫 방문에는 새로고침할 이유가 없다 — 갈아 끼울 옛 앱이 없기 때문이다.
+  // 그런데 clients.claim() 은 첫 방문에도 controllerchange 를 일으킨다.
+  // 그대로 두면 처음 열 때마다 화면이 두 번 뜨는 것처럼 보인다.
+  var hadOld = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return; refreshing = true; location.reload();
+    if (!hadOld || refreshing) return;
+    refreshing = true; location.reload();
   });
   addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 `);
+// confirm/prompt/alert 은 미리보기·내장 브라우저에서 막힌다. 막히면 false/null 이 돌아와
+// 버튼이 조용히 죽는다 — 실제로 '새로 시작'이 그래서 안 먹었다.
+// 다시 들어오지 못하게 여기서 막는다. 물어볼 일은 화면 안에서 묻는다(askText·grannySay).
+{
+  const DIALOG = /(^|[^.\w])(confirm|prompt|alert)\s*\(/;
+  const bad = [];
+  for (const f of ['app.js', 'web-ui.js']) {
+    const t = fs.readFileSync(path.join(OUT, f), 'utf8');
+    t.split('\n').forEach((line, i) => {
+      const code = line.replace(/\/\/.*$/, '');
+      if (DIALOG.test(code)) bad.push(`${f}:${i + 1}  ${line.trim().slice(0, 90)}`);
+    });
+  }
+  if (bad.length) {
+    console.error('브라우저 대화상자(confirm/prompt/alert)는 쓰지 않습니다 — 내장 브라우저에서 막혀 버튼이 죽습니다.');
+    console.error('화면 안에서 묻는 askText() 나 grannySay() 를 쓰세요.\n' + bad.join('\n'));
+    process.exit(1);
+  }
+}
+
 const files = [];
 (function walk(dir, base = '') {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (JUNK.test(e.name)) continue;
     const rel = base ? base + '/' + e.name : e.name;
     if (e.isDirectory()) walk(path.join(dir, e.name), rel); else files.push('./' + rel);
   }

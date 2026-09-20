@@ -171,6 +171,15 @@ label { display: inline-flex; align-items: center; gap: 4px; }
 .feedDot.red { background: #E0524E; }
 .feedDot.blue { background: #6FA8DC; }
 
+/* 화면 안에서 묻기 — prompt() 는 미리보기·내장 브라우저에서 막힌다 */
+.askCard { width: min(380px, calc(100vw - 32px)); padding: 16px; }
+.askCard p { margin: 0 0 10px; font-size: 14px; line-height: 1.6; color: #2B2620; white-space: pre-line; }
+.askCard input {
+  width: 100%; box-sizing: border-box; padding: 9px 11px; font-size: 15px;
+  border: 2px solid #2B1B0E; border-radius: 10px; background: #FFFDF5; color: #2B2620;
+}
+.askCard .btnRow { margin-top: 12px; justify-content: flex-end; }
+
 /* 할머니의 가게 */
 .shopCard { width: min(560px, calc(100vw - 28px)); max-height: 84vh; display: flex; flex-direction: column; }
 .shopTabs { display: flex; gap: 6px; padding: 0 14px 8px; flex-wrap: wrap; }

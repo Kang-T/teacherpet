@@ -13,8 +13,21 @@
   // 개인정보보호법 제30조의 '삭제 요구' 절차를 버튼 하나로 갈음한다.
   // 되돌릴 수 없으므로 두 번 묻고, 먼저 내보내기를 권한다.
   $('#wbWipe').addEventListener('click', () => {
-    if (!confirm('이 기기에 저장된 닭과 기록을 모두 지웁니다.\n되돌릴 수 없어요.\n\n먼저 [내보내기]로 저장해 두시겠어요?\n\n확인 = 계속 진행, 취소 = 그만두기')) return;
-    if (!confirm('정말 지울까요?\n\n닭, 이름, 돌본 기록, 설정이 모두 사라집니다.')) return;
+    // confirm() 은 미리보기·내장 브라우저에서 막히는 일이 있다. 막히면 false 가 돌아와
+    // 버튼이 통째로 죽는다. 버튼 자리에서 직접 두 번 묻는다.
+    const btn = $('#wbWipe');
+    if (btn.dataset.step === '1') {
+      btn.dataset.step = '2';
+      btn.textContent = '정말 지울까요? 한 번 더';
+      setTimeout(() => { if (btn.dataset.step === '2') { btn.dataset.step = ''; btn.textContent = '🗑️ 모두 지우기'; } }, 6000);
+      return;
+    }
+    if (btn.dataset.step !== '2') {
+      btn.dataset.step = '1';
+      btn.textContent = '먼저 [내보내기] 하셨나요? 누르면 계속';
+      setTimeout(() => { if (btn.dataset.step === '1') { btn.dataset.step = ''; btn.textContent = '🗑️ 모두 지우기'; } }, 8000);
+      return;
+    }
     try {
       for (const k of Object.keys(localStorage)) if (k.startsWith('teacherpet.')) localStorage.removeItem(k);
     } catch (e) { /* 저장이 막힌 브라우저 — 지울 것도 없다 */ }
@@ -67,12 +80,24 @@
       </div>`;
     $('#wbResume').addEventListener('click', () => { remember(); begin(); });
     $('#wbFresh').addEventListener('click', () => {
-      if (!confirm(`지난 농장의 닭 ${prev.n}마리가 사라집니다.\n정말 새로 시작할까요?`)) return;
-      // 지우는 일은 앱이 한다. 여기서 지우고 새로고침하면, 새로고침이 끝나기 전에
-      // 앱의 3초 자동 저장이 한 번 더 돌아 방금 지운 농장이 되살아난다.
-      if (window.__tpWipe) { window.__tpWipe(); return; }
-      try { for (const k of Object.keys(localStorage)) if (k.startsWith('teacherpet.')) localStorage.removeItem(k); } catch (e) {}
-      location.reload();
+      // 한 번 더 묻는다. confirm() 은 미리보기·내장 브라우저에서 막히는 일이 있고,
+      // 막히면 false 가 돌아와 버튼을 눌러도 아무 일이 없다. 카드 안에서 묻는 편이 확실하다.
+      const row = $('#wbFresh').parentElement;
+      row.innerHTML = '';
+      const back = document.createElement('button');
+      back.textContent = '아니요';
+      back.addEventListener('click', () => location.reload());
+      const go = document.createElement('button');
+      go.className = 'primary danger';
+      go.textContent = `네, ${prev.n}마리를 지울게요`;
+      go.addEventListener('click', () => {
+        // 지우는 일은 앱이 한다. 여기서 지우고 새로고침하면, 새로고침이 끝나기 전에
+        // 앱의 3초 자동 저장이 한 번 더 돌아 방금 지운 농장이 되살아난다.
+        if (window.__tpWipe) { window.__tpWipe(); return; }
+        try { for (const k of Object.keys(localStorage)) if (k.startsWith('teacherpet.')) localStorage.removeItem(k); } catch (e) {}
+        location.reload();
+      });
+      row.appendChild(go); row.appendChild(back);
     });
   } else if (seen || !card) {
     // 환영 카드가 사라지는 순간 = 할머니 이야기가 시작되는 순간.

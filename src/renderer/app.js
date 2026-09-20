@@ -512,14 +512,23 @@
   // 낳는 순간 코인이 들어오던 예전 방식은 바구니를 숫자판으로 만들었다.
   // 모았다가 파는 일이 아이 손에 있어야 '모으는 재미'가 생긴다.
   const EGG_PRICE = 1;
-  function sellEggs() {
+  function doSellEggs() {
     const n = state.basket | 0;
-    if (!n) { toast('🧺 아직 달걀이 없어요. 암탉이 낳으면 여기 모여요', false, 5000); return false; }
+    if (!n) return false;
     const pay = n * EGG_PRICE;
-    if (!confirm(`달걀 ${n}개를 팔까요?\n🪙 ${pay}코인을 받아요.`)) return false;
     state.basket = 0; state.coins += pay;
     markDirty(); renderCoop(); syncSupplies();
     toast(`🪙 달걀 ${n}개를 팔아 ${pay}코인을 받았어요`, true, 6000);
+    return true;
+  }
+  function sellEggs() {
+    const n = state.basket | 0;
+    if (!n) { toast('🧺 아직 달걀이 없어요. 암탉이 낳으면 여기 모여요', false, 5000); return false; }
+    // 할머니가 묻는다. confirm() 은 미리보기·내장 브라우저에서 막히는 일이 있어
+    // 버튼을 눌러도 아무 일이 없는 것처럼 보인다.
+    grannySay(`달걀이 ${n}개 모였구나. 장에 내다 팔까?\n🪙 ${n * EGG_PRICE}코인을 받는단다.`,
+      [{ label: '팔게요', primary: true, fn: () => { grannyHide(); doSellEggs(); } },
+       { label: '더 모을래요', fn: grannyHide }], 'smile');
     return true;
   }
   // 휘파람 — 화면의 한 점으로 닭들을 부른다. 메뉴 버튼과 땅 더블클릭이 같은 곳을 쓴다.
@@ -531,6 +540,33 @@
     if (gp) world.sparkle(x, z, 0.5);
     toast(n ? '🎵 휘익~ 닭들이 달려와요' : '🎵 부를 닭이 없어요');
     return n;
+  }
+  // 화면 안에서 묻는다. prompt() 는 미리보기·내장 브라우저에서 막히는 일이 있고,
+  // 막히면 null 이 돌아와 '눌러도 아무 일이 없는' 것처럼 보인다.
+  function askText(question, initial) {
+    return new Promise((res) => {
+      const box = $('#askModal'), inp = $('#askInput');
+      $('#askQ').textContent = question;
+      inp.value = initial === undefined || initial === null ? '' : String(initial);
+      box.classList.remove('hidden');
+      setTimeout(() => { inp.focus(); inp.select(); }, 30);
+      const done = (v) => {
+        box.classList.add('hidden');
+        $('#askOk').removeEventListener('click', ok);
+        $('#askNo').removeEventListener('click', no);
+        inp.removeEventListener('keydown', key);
+        box.removeEventListener('click', bg);
+        res(v);
+      };
+      const ok = () => done(inp.value);
+      const no = () => done(null);
+      const key = (e) => { if (e.key === 'Enter') ok(); else if (e.key === 'Escape') no(); };
+      const bg = (e) => { if (e.target === box) no(); };
+      $('#askOk').addEventListener('click', ok);
+      $('#askNo').addEventListener('click', no);
+      inp.addEventListener('keydown', key);
+      box.addEventListener('click', bg);
+    });
   }
   function warmSpot() { if (!propVisible('lamp')) return null; const L = home().lamp; const f = home().flip ? -1 : 1; return { x: L.x + 1.2 * f, z: L.z }; }
   HYG.init(world, () => ({ min: world.xMin + XMARGIN, max: world.xMax - XMARGIN }));
@@ -2200,10 +2236,14 @@
       // 끌지 않고 눌렀다 떼면 '치울까?' 하고 묻는다 (마당에서 빼는 유일한 길)
       if (!drag.moved) {
         const d0 = drag.deco, it = SHOP.get('deco', d0.kind);
-        if (confirm(`${it ? it.icon + ' ' + it.name : '장식'}을(를) 마당에서 치울까요?\n(코인은 돌려받지 못해요)`)) {
-          state.farm.decos = state.farm.decos.filter((q) => q.uid !== d0.uid);
-          world.setDecos(state.farm.decos); markDirty(); toast('🧹 마당에서 치웠어요');
-        }
+        // 할머니가 묻는다 — confirm() 은 내장 브라우저에서 막히면 '아니요'가 되어 버린다
+        grannySay(`${it ? it.icon + ' ' + it.name : '장식'}을(를) 마당에서 치울까?\n코인은 돌려받지 못한단다.`,
+          [{ label: '치울래요', primary: true, fn: () => {
+            grannyHide();
+            state.farm.decos = state.farm.decos.filter((q) => q.uid !== d0.uid);
+            world.setDecos(state.farm.decos); markDirty(); toast('🧹 마당에서 치웠어요');
+          } },
+           { label: '그냥 둘래요', fn: grannyHide }], 'think');
       } else toast('📦 자리를 옮겼어요');
       drag = null; canvas.style.cursor = 'default'; return;
     }
@@ -2464,7 +2504,7 @@
       card.addEventListener('click', (e) => {
         const act = e.target.dataset && e.target.dataset.act; selectedId = b.d.id;
         if (act === 'brood') { broodTick(b); b.f = 1; b.wobbleUntil = performance.now() / 1000 + 1; setAnim(b, 'egg', 1.5); showIcon(b, '✨'); }
-        else if (act === 'rename') { const nm = prompt('새 이름을 정해 주세요', b.d.name); if (nm && nm.trim()) { b.d.name = nm.trim().slice(0, 12); markDirty(); } }
+        else if (act === 'rename') { askText('새 이름을 정해 주세요', b.d.name).then((nm) => { if (nm && nm.trim()) { b.d.name = nm.trim().slice(0, 12); markDirty(); renderCoop(); } }); }
         else if (act === 'find') { b.inCoop = false; setVisible(b, true); if (b.d.stage !== 'egg') jump(b, 300); followBird(b); closePanel(); }
         else if (act === 'hat') { openShop('hat', b); return; }
         else if (act === 'release') { if (e.target.dataset.confirm) depart(b, 'retire'); else { e.target.dataset.confirm = '1'; e.target.textContent = '정말요? 한 번 더'; return; } }
@@ -2737,16 +2777,26 @@
     for (const b of birds) { b.x = rand(world.xMin + 4, world.xMax - 4); b.z = clampZ(rand(world.zMin + 4, world.zMax - 2)); decide(b); }
     markDirty(); renderCoop();
   }
-  $('#btnCodeUse').addEventListener('click', () => {
-    const inp = prompt('농장 코드를 넣어 주세요', '');
+  $('#btnCodeUse').addEventListener('click', async () => {
+    const inp = await askText('농장 코드를 넣어 주세요', '');
     if (!inp) return;
     const r = FC.read(inp);
     if (r.error) { toast(r.error, false, 7000); return; }
-    if (birds.length && !confirm(`지금 있는 닭 ${birds.length}마리를 두고, 코드 속 ${r.birds.length}마리로 바꿀까요?\n되돌릴 수 없어요.`)) return;
+    if (birds.length) {
+      // 되돌릴 수 없는 일이라 한 번 더 묻는다. 할머니가 묻는 편이 확실하다 —
+      // confirm() 은 내장 브라우저에서 막히면 '아니요'로 처리된다.
+      grannySay(`지금 마당에 있는 ${birds.length}마리는 사라지고, 코드 속 ${r.birds.length}마리가 온단다.\n되돌릴 수 없어. 그래도 할까?`,
+        [{ label: '네, 바꿀래요', primary: true, fn: () => { grannyHide(); applyFarmCode(r); welcomeArrivals(r); } },
+         { label: '아니요', fn: grannyHide }], 'think');
+      return;
+    }
     applyFarmCode(r);
+    welcomeArrivals(r);
+  });
+  function welcomeArrivals(r) {
     grannySay(`${r.birds.length}마리가 도착했구나. ${r.birds.map((b) => b.name).join(', ')}.`,
       [{ label: '반가워요', primary: true, fn: grannyHide }], 'smile');
-  });
+  }
   $('#btnMore').addEventListener('click', () => {
     const hidden = $('#moreBox').classList.toggle('hidden');
     $('#btnMore').textContent = hidden ? '⋯ 더 보기' : '⋯ 접기';
@@ -2767,8 +2817,8 @@
       [{ label: '복사하기', primary: true, fn: () => { try { navigator.clipboard.writeText(code); toast('📋 코드를 복사했어요'); } catch (e) { toast('코드를 손으로 적어 주세요'); } } },
        { label: '닫기', fn: grannyHide }]);
   });
-  $('#btnSeedUse').addEventListener('click', () => {
-    const inp = prompt('친구에게 받은 씨알 코드를 넣어 주세요 (예: 우렁-A3F7)', '');
+  $('#btnSeedUse').addEventListener('click', async () => {
+    const inp = await askText('친구에게 받은 씨알 코드를 넣어 주세요 (예: 우렁-A3F7)', '');
     if (!inp) return;
     const s = readSeedCode(inp);
     if (!s) { toast('코드가 조금 다른 것 같아요. 한 글자씩 다시 확인해 볼까요?', false, 7000); return; }
@@ -2785,17 +2835,17 @@
     toast(e.target.checked ? '🗓️ 학사일정을 씁니다 — 주말·공휴일·방학엔 시간이 멈춰요' : '🗓️ 학사일정을 끕니다 — 매일 시간이 흘러요', false, 7000);
   });
   $('#pauseWeekends').addEventListener('change', (e) => { state.settings.pauseWeekends = e.target.checked; markDirty(); });
-  $('#vacationOn').addEventListener('change', (e) => {
+  $('#vacationOn').addEventListener('change', async (e) => {
     if (e.target.checked) {
-      const from = prompt('방학 시작일 (예: 2026-12-24)', today());
-      const to = from ? prompt('방학 끝나는 날 (예: 2027-02-28)', from) : null;
+      const from = await askText('방학 시작일 (예: 2026-12-24)', today());
+      const to = from ? await askText('방학 끝나는 날 (예: 2027-02-28)', from) : null;
       if (from && to) { state.settings.vacation = { from, to }; toast(`🏖️ ${from} ~ ${to} 은 시간이 멈춰요`, true, 8000); }
       else e.target.checked = false;
     } else state.settings.vacation = null;
     markDirty(); renderSettings();
   });
-  $('#btnAddHoliday').addEventListener('click', () => {
-    const d = prompt('쉬는 날을 추가해요 (예: 2026-10-05)', today());
+  $('#btnAddHoliday').addEventListener('click', async () => {
+    const d = await askText('쉬는 날을 추가해요 (예: 2026-10-05)', today());
     if (!d) return;
     state.settings.holidays = (state.settings.holidays || []).concat([d]);
     markDirty(); renderSettings(); toast(`🗓️ ${d} 을(를) 쉬는 날로 저장했어요`, false, 6000);
@@ -3032,6 +3082,7 @@
     eggs() { return { basket: state.basket, coins: state.coins }; },
     setEggs(n) { state.basket = n; renderCoop(); return state.basket; },
     sellEggs() { return sellEggs(); },
+    decideNow(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; b.animT = 999; decide(b); return b.anim; },
     whistleAt(px, py) { return whistleAt(px, py); },
     cursorBored() { return CURSOR_BORED; },
     setFeed(a, b2) { state.feedType = a; if (b2) state.feedType2 = b2; renderCoop(); return { a: state.feedType, b: state.feedType2 }; },

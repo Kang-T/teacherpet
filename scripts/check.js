@@ -151,8 +151,14 @@ function connect(url) {
   cdp.onDialog(sessionId, (accept) => S('Page.handleJavaScriptDialog', { accept, promptText: '' }));
 
   // 3) 깨끗한 상태로 시작한다 — 환영 카드를 건너뛰고, 안내는 '혼자 할래요'
+  const seedOverride = process.env.TEACHERPET_SEED;
   await S('Page.addScriptToEvaluateOnNewDocument', {
-    source: `
+    source: seedOverride ? `
+      try {
+        localStorage.setItem('teacherpet.welcomed', '1');
+        localStorage.setItem('teacherpet.state.v1', ${JSON.stringify(seedOverride)});
+      } catch (e) {}
+    ` : `
       try {
         localStorage.setItem('teacherpet.welcomed', '1');
         localStorage.setItem('teacherpet.state.v1', JSON.stringify({
@@ -197,7 +203,10 @@ function connect(url) {
   if (process.env.TEACHERPET_SHOT) {
     const setup = process.env.TEACHERPET_SETUP;
     if (setup) {
-      try { await ev(setup, true); } catch (e) { die(2, '준비 코드 오류: ' + (e && e.message || e)); }
+      try {
+        const out = await ev(setup, true);
+        if (out !== undefined && out !== null) console.log('준비 결과: ' + (typeof out === 'string' ? out : JSON.stringify(out)));
+      } catch (e) { die(2, '준비 코드 오류: ' + (e && e.message || e)); }
     }
     await new Promise((r) => setTimeout(r, Number(process.env.TEACHERPET_SHOT_WAIT || 1200)));
     const shot = await S('Page.captureScreenshot', { format: 'png' });

@@ -492,6 +492,9 @@
       T.hoverNow(mom.name);
       let tucked = false;
       for (let i = 0; i < 26; i++) {
+        // 앞 검사가 걸어 둔 holdStill 때문에 병아리가 한참 판단을 안 한다.
+        // 그 상태로 기다리면 품기가 아니라 '기다림'을 재게 된다.
+        T.decideNow(NAME);
         await wait(200);
         const hs = T.hoverState(NAME);
         if (hs && hs.tucked) { tucked = true; break; }
@@ -526,7 +529,11 @@
     T.setEggs(3);
     const e1 = T.eggs();
     ok('알을 낳아도 코인이 저절로 늘지 않는다', e1.coins === e0.coins, `코인 ${e0.coins} → ${e1.coins}`);
-    T.sellEggs();
+    T.sellEggs();                              // 할머니가 묻는다
+    // 할머니 말은 한 글자씩 찍히고, 다 찍혀야 버튼이 생긴다.
+    for (let i = 0; i < 20 && !T.grannyButtons().length; i++) await wait(150);
+    T.clickGranny(0);                          // '팔게요'
+    await wait(400);
     const e2 = T.eggs();
     ok('바구니를 누르면 달걀이 코인이 된다', e2.basket === 0 && e2.coins === e1.coins + 3,
       `달걀 3개 → 코인 ${e1.coins} → ${e2.coins}`);
