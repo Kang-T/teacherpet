@@ -531,9 +531,10 @@
     ok('알을 낳아도 코인이 저절로 늘지 않는다', e1.coins === e0.coins, `코인 ${e0.coins} → ${e1.coins}`);
     T.sellEggs();                              // 할머니가 묻는다
     // 할머니 말은 한 글자씩 찍히고, 다 찍혀야 버튼이 생긴다.
-    for (let i = 0; i < 20 && !T.grannyButtons().length; i++) await wait(150);
+    // 글자는 프레임마다 찍히므로 소프트웨어 렌더링(CI 3fps)에서는 몇 배 느리다 — 시간으로 넉넉히 기다린다.
+    for (let i = 0; i < 100 && !T.grannyButtons().length; i++) await wait(150);
     T.clickGranny(0);                          // '팔게요'
-    await wait(400);
+    for (let i = 0; i < 30 && T.eggs().basket !== 0; i++) await wait(150);
     const e2 = T.eggs();
     ok('바구니를 누르면 달걀이 코인이 된다', e2.basket === 0 && e2.coins === e1.coins + 3,
       `달걀 3개 → 코인 ${e1.coins} → ${e2.coins}`);
