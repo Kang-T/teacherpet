@@ -550,6 +550,22 @@
     const wpt = T.screenOfPoint(5, 0, -5);
     const called = T.whistleAt(wpt.x, wpt.y);
     ok('땅을 두 번 누르면 닭을 부른다', called > 0, `${called}마리가 달려옴`);
+    // 누른 곳으로 와야 한다. 예전에는 앞뒤 위치가 -1.6~1.6 에 묶여 있어서(바탕화면 펫 시절의 흔적)
+    // 마당 어디를 눌러도 맨 앞줄로 모였다.
+    {
+      const far = T.screenOfPoint(-4, 0, -20);
+      let tgt = null;
+      for (let i = 0; i < 5 && !tgt; i++) {
+        D.set(NAME, 'aff', 95);
+        T.whistleAt(far.x, far.y);
+        tgt = T.callTargetOf(NAME);
+      }
+      ok('부르면 누른 자리로 온다 (맨 앞줄이 아니라)', !!tgt && Math.abs(tgt.z - (-20)) < 1.5, tgt ? `누른 곳 z -20 · 가는 곳 z ${tgt.z}` : '부름에 안 옴');
+      const lk = T.lookSpot();
+      let t2 = null;
+      for (let i = 0; i < 5 && !t2; i++) { D.set(NAME, 'aff', 95); T.whistleAt(-1, -1); t2 = T.callTargetOf(NAME); }
+      ok('휘파람 단추는 보고 있는 곳으로 부른다', !!t2 && Math.abs(t2.z - lk.z) < 1.5, t2 ? `화면 가운데 z ${lk.z.toFixed(1)} · 가는 곳 z ${t2.z}` : '부름에 안 옴');
+    }
 
     // ── 27. 이름 바꾸기 창이 실제로 화면에 보인다 ──
     // prompt() 를 걷어내고 화면 안 입력창으로 바꾸면서 CSS 를 빠뜨려,

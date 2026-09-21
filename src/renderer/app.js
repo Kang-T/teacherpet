@@ -532,10 +532,14 @@
     return true;
   }
   // 휘파람 — 화면의 한 점으로 닭들을 부른다. 메뉴 버튼과 땅 더블클릭이 같은 곳을 쓴다.
+  // 화면 가운데가 보고 있는 마당의 한 점
+  function lookSpot() { return { x: clamp(world.view.tx, world.xMin + 2, world.xMax - 2), z: clampZ(world.view.tz) }; }
   function whistleAt(px, py) {
     const gp = (px >= 0 && py >= 0) ? world.screenToGround(px, py) : null;
-    const x = gp ? clamp(gp.x, world.xMin + 2, world.xMax - 2) : (world.xMin + world.xMax) / 2;
-    const z = gp ? clampZ(gp.z) : 0.5;
+    // 누른 곳이 없으면(메뉴의 휘파람 단추) 아이가 지금 보고 있는 곳으로 부른다
+    const look = lookSpot();
+    const x = gp ? clamp(gp.x, world.xMin + 2, world.xMax - 2) : look.x;
+    const z = gp ? clampZ(gp.z) : look.z;
     const n = callFlock(x, z, null);
     if (gp) world.sparkle(x, z, 0.5);
     toast(n ? '🎵 휘익~ 닭들이 달려와요' : '🎵 부를 닭이 없어요');
@@ -801,7 +805,7 @@
   }
   function callFlock(x, z, except) {
     let n = 0;
-    for (const b of birds) { if (!eligible(b) || b === except) continue; if ((b.d.aff < 35 && Math.random() < 0.7) || (trait(b).stubborn >= 1.4 && Math.random() < 0.5)) { showIcon(b, '😒', 1500); continue; } if (isHigh(b)) leaveHigh(b); b.callTarget = { x: clamp(x + rand(-1.6, 1.6), world.xMin + XMARGIN, world.xMax - XMARGIN), z: clamp(z + rand(-0.8, 0.8), -1.6, 1.6) }; b.inCoop = false; setVisible(b, true); setAnim(b, 'chase', 30); n++; }
+    for (const b of birds) { if (!eligible(b) || b === except) continue; if ((b.d.aff < 35 && Math.random() < 0.7) || (trait(b).stubborn >= 1.4 && Math.random() < 0.5)) { showIcon(b, '😒', 1500); continue; } if (isHigh(b)) leaveHigh(b); b.callTarget = { x: clamp(x + rand(-1.6, 1.6), world.xMin + XMARGIN, world.xMax - XMARGIN), z: clampZ(z + rand(-0.8, 0.8)) }; b.inCoop = false; setVisible(b, true); setAnim(b, 'chase', 30); n++; }
     return n;
   }
 
@@ -3176,7 +3180,7 @@
     }
 
     setTimeout(morningCrow, 2500);
-    setTimeout(() => { const fans = birds.filter((b) => eligible(b) && b.d.aff >= 70); if (fans.length) { const cx = (world.xMin + world.xMax) / 2; for (const b of fans) { b.callTarget = { x: cx + rand(-2, 2), z: rand(-0.5, 1) }; setAnim(b, 'chase', 30); } toast('❤️ 닭들이 선생님을 반기러 달려와요'); } }, 1800);
+    setTimeout(() => { const fans = birds.filter((b) => eligible(b) && b.d.aff >= 70); if (fans.length) { const lk = lookSpot(); for (const b of fans) { b.callTarget = { x: clamp(lk.x + rand(-2, 2), world.xMin + XMARGIN, world.xMax - XMARGIN), z: clampZ(lk.z + rand(-1, 1)) }; setAnim(b, 'chase', 30); } toast('❤️ 닭들이 선생님을 반기러 달려와요'); } }, 1800);
     setCur('open', true);
     requestAnimationFrame(loop);
   }
@@ -3248,6 +3252,8 @@
     setCursorKind(k) { setCur(k, true); return canvas.style.cursor; },
     peckHand() { handPecked(null, 0); return true; },
     plainCursor(on) { state.settings.plainCursor = !!on; setCur(curKind, true); return canvas.style.cursor; },
+    callTargetOf(name) { const b = birds.find((q) => q.d.name === name); return b && b.callTarget ? { x: +b.callTarget.x.toFixed(2), z: +b.callTarget.z.toFixed(2) } : null; },
+    lookSpot() { return lookSpot(); },
     openMenu(tab) { openPanel(tab || 'coop'); return !document.querySelector('#panel').classList.contains('hidden'); },
     closeMenu() { closePanel(); return true; },
     grannyOpen() { return !document.querySelector('#granny').classList.contains('hidden'); },
