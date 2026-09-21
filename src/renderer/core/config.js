@@ -2,9 +2,10 @@
 (function (g) {
   const TP = (g.TP = g.TP || {});
 
-  // 1 "돌본 날" = 실제 3일. (기획서 4-1)
+  // 수업용으로 빠르게: 하루 돌보면 1 "돌본 날". 알 2 → 병아리 4 → 어린닭 6일이면 어른이 된다.
+  // (기획서 4-1 의 원래 값은 알7·병아리14·어린닭28·성계40·노년20, 1 돌본 날 = 실제 3일)
   const DAY_SCALE = 3;
-  const STAGE_DAYS = { egg: 7, chick: 14, young: 28, adult: 40, old: 20 };
+  const STAGE_DAYS = { egg: 2, chick: 4, young: 6, adult: 14, old: 6 };
 
   TP.config = {
     DAY_SCALE,
@@ -36,7 +37,7 @@
       feeder2: '두 번째 모이통 — 단계가 다른 닭에게 맞는 사료를 담아요',
     },
     // 병아리 보온: 필요 온도 = 35 − 2.8 × (병아리 돌본 날)  (기획서 4-2)
-    BROOD: { startC: 35, dropPerDay: 1.2, tolerance: 2, minC: 21 },   // 실제 '주당 2.8℃'를 돌본 날(=3일) 단위로 환산
+    BROOD: { startC: 35, dropPerDay: 3, tolerance: 2, minC: 21 },   // 병아리 4일 동안 35℃ → 26℃로 내려간다 (성장이 빨라진 만큼 가파르게)
     // 사료 3단계: 단계에 맞는 사료를 줘야 잘 자란다
     FEED: {
       starter: { name: '스타터', protein: '18~20%', ok: ['chick'], desc: '0~6주. 단백질이 높아요' },

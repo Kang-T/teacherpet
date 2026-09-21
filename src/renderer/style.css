@@ -354,3 +354,13 @@ body.menuOpen #dim { display: block; }
 }
 .sw input:checked + i { background: #7FBF5A; }
 .sw input:checked + i::after { transform: translateX(18px); }
+
+/* 미션 카드 — 지금 할 일을 화면에 계속 보여 준다 */
+#quest { position: fixed; top: 64px; left: 14px; z-index: 30; max-width: min(320px, calc(100vw - 28px)); cursor: pointer;
+  background: rgba(255,253,245,.96); border: 2px solid #2B1B0E; border-radius: 14px; padding: 10px 14px; box-shadow: 0 3px 0 rgba(43,27,14,.2); font-size: 18px; line-height: 1.4; }
+#quest.hidden { display: none; }
+#quest .qHead { font-size: 14px; color: #6b5a44; }
+#quest .qTitle { font-weight: 700; }
+#quest .qHint { font-size: 16px; color: #4a3a28; }
+#quest.done { background: #FFE9A8; }
+body.uiIdle #quest { opacity: .55; }

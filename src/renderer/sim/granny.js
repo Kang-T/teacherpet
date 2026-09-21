@@ -24,6 +24,19 @@
     { id: 'again', say: '잘했다. 이제 하루에 한 번씩 들러서 모이와 물만 챙겨 주면 된단다.', done: () => false, last: true },
   ];
 
+  // 미션 — 화면에 늘 떠 있는 '지금 할 일'. 순서대로 하나씩 보여 준다.
+  // when: 이 조건이 처음 참이 될 때 나타난다(없으면 처음부터). done: 이 조건이 참이면 완료.
+  // ctx = { s: state, birds, poops, caredToday }
+  const QUESTS = [
+    { id: 'feed',  icon: '🌾', title: '모이통 채우기',       hint: '마당의 모이통을 눌러 보세요',                 done: (c) => c.s.feed >= 90 },
+    { id: 'water', icon: '💧', title: '물통 채우기',         hint: '마당의 물통을 눌러 보세요',                   done: (c) => c.s.water >= 90 },
+    { id: 'warm',  icon: '🔥', title: '보온등 켜기',         hint: '보온등을 눌러 불을 켜 주세요. 병아리는 추위를 타요', done: (c) => (c.s.lampPower ?? 0) > 0.3 },
+    { id: 'meal',  icon: '🐥', title: '병아리가 먹고 마시게 하기', hint: '병아리가 모이통·물통으로 가서 먹을 때까지 기다려 보세요', done: (c) => c.birds.some((b) => b.d.stage !== 'egg' && c.caredToday(b.d)) },
+    { id: 'poop',  icon: '🧹', title: '똥 치우기',           hint: '마당의 똥을 눌러 치우세요. 안 치우면 냄새가 나요', when: (c) => c.poops >= 2, done: (c) => c.poops === 0 },
+    { id: 'young', icon: '🌱', title: '병아리를 어린닭으로 키우기', hint: '매일 모이와 물을 챙기면 며칠 뒤 어린닭이 돼요', done: (c) => c.birds.some((b) => ['young', 'hen', 'rooster'].includes(b.d.stage)) },
+    { id: 'adult', icon: '🐔', title: '어른 닭으로 키우기',   hint: '어린닭도 매일 돌보면 암탉·수탉이 돼요',          done: (c) => c.birds.some((b) => ['hen', 'rooster'].includes(b.d.stage)) },
+  ];
+
   // 장 — 한살이를 따라간다
   const CHAPTERS = {
     1: { title: '병아리를 받다',  say: '이 아이는 네가 맡아 보렴. 갓 나서 아직 아무것도 모른단다.' },
@@ -61,5 +74,5 @@
     return '오늘은 별일 없구나. 가만히 보고 있는 것도 돌보는 거란다.';
   }
 
-  TP.granny = { GUIDE, INTRO, STEPS, CHAPTERS, advise };
+  TP.granny = { GUIDE, INTRO, STEPS, QUESTS, CHAPTERS, advise };
 })(typeof window !== 'undefined' ? window : module.exports);

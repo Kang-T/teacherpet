@@ -317,6 +317,42 @@
     if (s && s.done(state)) { stepIdx += 1; showStep(); }
   }
 
+  // ── 미션 카드 — '지금 할 일'을 화면에 계속 보여 준다 ──
+  // 순서대로 하나씩. 끝낸 것은 state.quest.done 에 남겨 다시 나타나지 않게 한다.
+  let questInit = false, questCur = null;
+  function questTick() {
+    const card = $('#quest');
+    if (!card) return;
+    if (!birds.length || !state.settings.guide || state.settings.guide === 'alone') { card.classList.add('hidden'); return; }
+    const Q = state.quest = state.quest || { done: [], seen: [] };
+    const ctx = { s: state, birds, poops: HYG.count(), caredToday: (d) => ST.caredToday(d) };
+    const fresh = [];
+    for (const q of GR.QUESTS) {
+      if (Q.done.includes(q.id)) continue;
+      if (q.when && !Q.seen.includes(q.id) && q.when(ctx)) Q.seen.push(q.id);
+      if ((!q.when || Q.seen.includes(q.id)) && q.done(ctx)) { Q.done.push(q.id); fresh.push(q); }
+    }
+    if (fresh.length) {
+      markDirty();
+      if (questInit) {                           // 처음 켤 때 이미 끝난 것들은 조용히 넘긴다
+        const q = fresh[fresh.length - 1];
+        toast(`✅ 미션 완료! ${q.title}`, true, 5000); chime();
+        card.classList.add('done'); setTimeout(() => card.classList.remove('done'), 1500);
+      }
+    }
+    questInit = true;
+    questCur = GR.QUESTS.find((q) => !Q.done.includes(q.id) && (!q.when || Q.seen.includes(q.id))) || null;
+    if (!questCur) { card.classList.add('hidden'); return; }   // 다 끝냈거나, 나타날 때가 아직 안 됐다
+    card.classList.remove('hidden');
+    $('#qCount').textContent = `${Q.done.length + 1}/${GR.QUESTS.length}`;
+    $('#qIcon').textContent = questCur.icon; $('#qTitle').textContent = questCur.title; $('#qHint').textContent = questCur.hint;
+  }
+  $('#quest').addEventListener('click', () => {
+    if (!questCur) return;
+    grannySay(`${questCur.title}.\n${questCur.hint}`,[{ label: '알겠어요', primary: true, fn: grannyHide }], 'smile');
+  });
+  setInterval(questTick, 1000);
+
   // ── 대사 장면 — 한 줄씩 넘긴다 (게임 NPC 대화처럼) ──
   function scene(lines, then, mood) {
     let i = 0;
