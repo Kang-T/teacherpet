@@ -300,6 +300,7 @@ body.menuOpen #dim { display: block; }
 }
 
 /* 온도 챌린지 */
+#chalModal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.25); }
 #chalHud { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 40; background: #FFFDF5; border: 3px solid #2B1B0E;
   border-radius: 14px; padding: 8px 16px; box-shadow: 3px 3px 0 #2B1B0E; font-size: 18px; text-align: center; max-width: calc(100vw - 28px); }
 #chalHud b { font-size: 22px; }
