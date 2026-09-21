@@ -668,13 +668,17 @@
       }
       if (ground) { mv('mousemove', ground.x, ground.y); await wait(60); }
       ok('빈 땅 위에서는 편 손', /cursor\/open\.png/.test(T.cursor().css), T.cursor().css.slice(0, 60));
-      T.holdStill(NAME, 3);
-      T.place(NAME, 0, -8);
-      // 옮긴 자리가 화면에 그려져야 집을 수 있다 — 소프트웨어 렌더링(CI 3fps)에서는 한 프레임이 300ms 넘게 걸린다
-      await wait(400 * SLOW);
-      const bs = T.screenOfBird(NAME);
-      if (bs) { mv('mousemove', bs.x, bs.y); await wait(60); }
-      ok('닭 위에서는 쓰다듬는 손', /cursor\/pet\.png/.test(T.cursor().css), `${T.cursor().kind} · 닭 화면 ${bs ? bs.x + ',' + bs.y : '-'}`);
+      // 닭은 스스로 움직인다(닭장에 들어가기도 한다). 한 시점의 좌표로 재지 말고, 닭이 있는 곳을 따라가며 확인한다.
+      const guest = T.addBird('hen', '손님');
+      let petSeen = false, bs = null;
+      const tp = Date.now();
+      while (Date.now() - tp < 3000 * SLOW) {
+        T.holdStill(guest, 4);
+        bs = T.screenOfBird(guest);
+        if (bs) { mv('mousemove', bs.x, bs.y); await wait(80); if (T.cursor().kind === 'pet') { petSeen = true; break; } }
+        await wait(200);
+      }
+      ok('닭 위에서는 쓰다듬는 손', petSeen, `${T.cursor().kind} · 닭 화면 ${bs ? bs.x + ',' + bs.y : '-'}`);
       const fs = D.screenOf('feeder');
       if (fs) { mv('mousemove', fs.x, fs.y); await wait(60); }
       ok('기구 위에서는 가리키는 손', /cursor\/point\.png/.test(T.cursor().css), T.cursor().kind);
