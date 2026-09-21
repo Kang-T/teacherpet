@@ -653,6 +653,52 @@
     const gb = T.grannyButtons();
     if (gb.length) T.clickGranny(gb.length - 1);
 
+    // ── 32. 손 커서 ──
+    // 모양이 곧 '여기서 무엇을 할 수 있는지'다. 진짜 마우스 움직임으로 바뀌는지 본다.
+    {
+      const cvs = document.querySelector('#stageHost canvas');
+      const mv = (type, x, y) => (type === 'mouseup' ? window : cvs).dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }));
+      const img = await new Promise((res) => { const im = new Image(); im.onload = () => res(im.naturalWidth); im.onerror = () => res(0); im.src = 'cursor/open@2x.png'; });
+      ok('손 커서 그림이 웹에 실려 있다', img === 64, `open@2x.png 폭 ${img}px`);
+      T.plainCursor(false);
+      let ground = null;
+      for (const [gx, gz] of [[5, -6], [-5, -6], [6, 2], [-6, 2], [0, 4], [8, -12], [-8, -12]]) {
+        const sp = T.screenOfPoint(gx, 0, gz); const hit = sp && T.pickAt(sp.x, sp.y);
+        if (sp && (!hit || hit.type === 'ground')) { ground = sp; break; }
+      }
+      if (ground) { mv('mousemove', ground.x, ground.y); await wait(60); }
+      ok('빈 땅 위에서는 편 손', /cursor\/open\.png/.test(T.cursor().css), T.cursor().css.slice(0, 60));
+      T.holdStill(NAME, 3);
+      T.place(NAME, 0, -8);
+      await wait(200);
+      const bs = T.screenOfBird(NAME);
+      if (bs) { mv('mousemove', bs.x, bs.y); await wait(60); }
+      ok('닭 위에서는 쓰다듬는 손', /cursor\/pet\.png/.test(T.cursor().css), `${T.cursor().kind} · 닭 화면 ${bs ? bs.x + ',' + bs.y : '-'}`);
+      const fs = D.screenOf('feeder');
+      if (fs) { mv('mousemove', fs.x, fs.y); await wait(60); }
+      ok('기구 위에서는 가리키는 손', /cursor\/point\.png/.test(T.cursor().css), T.cursor().kind);
+      if (ground) {
+        T.clearWorm();
+        mv('mousemove', ground.x, ground.y); await wait(60);
+        mv('mousedown', ground.x, ground.y);
+        await wait(450 * SLOW + 150);
+        const during = T.cursor().kind;
+        mv('mouseup', ground.x, ground.y);
+        await wait(100);
+        ok('땅을 꾹 누르면 호미 쥔 손', during === 'hoe' && T.cursor().kind !== 'hoe', `누르는 중 ${during} → 뗀 뒤 ${T.cursor().kind}`);
+        T.clearWorm();
+      }
+      T.setCursorKind('open');
+      T.peckHand();
+      await wait(80);
+      const mid = T.cursor().kind;
+      await wait(500);
+      ok('닭이 쪼면 손이 잠깐 움찔한다', mid === 'flinch' && T.cursor().kind === 'open', `${mid} → ${T.cursor().kind}`);
+      const plain = T.plainCursor(true);
+      ok('설정에서 기본 화살표로 돌릴 수 있다', plain === 'default', plain);
+      T.plainCursor(false);
+    }
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));

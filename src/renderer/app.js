@@ -606,6 +606,33 @@
   const sexKnown = (d) => d.stage === 'young' || d.stage === 'hen' || d.stage === 'rooster';
   const sexMark = (d) => (sexKnown(d) ? (d.sex === 'f' ? ' ♀' : ' ♂') : '');
 
+  // ── 손 커서 ──
+  // 닭은 커서를 '무언가'로 대한다 (다가오고, 한 번 쪼고, 가만히 두면 흥미를 잃는다).
+  // 화살표보다 손이어야 "닭이 내 손을 쪼았다"가 된다. 모양이 곧 '여기서 무엇을 할 수 있는지'다.
+  // 브라우저가 그리는 진짜 커서 모양만 바꾼다 — 그림을 직접 따라다니게 하면 느린 크롬북에서 손이 늦게 따라온다.
+  const CUR_HOT = TP.cursorHot || {};
+  const CUR_NATIVE = { open: 'default', pet: 'grab', grab: 'grabbing', point: 'pointer', hoe: 'crosshair', flinch: 'default' };
+  let curKind = 'open', curHold = 0;        // curHold: 이 시각까지는 움찔 모양을 유지한다
+  function setCur(kind, force) {
+    if (!force && now() < curHold) { curKind = kind; return; }
+    curKind = kind;
+    const nat = CUR_NATIVE[kind] || 'default';
+    if (state.settings.plainCursor || !CUR_HOT[kind]) { canvas.style.cursor = nat; return; }
+    const [hx, hy] = CUR_HOT[kind];
+    // 먼저 1배 그림을 넣고, 고해상도 판을 덧씌운다. 브라우저가 image-set 을 모르면 두 번째는 무시되고 첫 번째가 남는다.
+    canvas.style.cursor = `url(cursor/${kind}.png) ${hx} ${hy}, ${nat}`;
+    canvas.style.cursor = `-webkit-image-set(url(cursor/${kind}.png) 1x, url(cursor/${kind}@2x.png) 2x) ${hx} ${hy}, ${nat}`;
+  }
+  // 닭이 커서를 쪼는 순간 — 손이 움찔한다. 아프다는 표현은 없다, "앗" 정도.
+  function handPecked(b, delay) {
+    // 멀리 있는 닭이 허공을 쫀 것까지 손이 움찔하면 이상하다 — 부리가 커서 가까이 있을 때만
+    if (b) { const hp = world.project(b.x, height(b) * 0.6, b.z); if (!hp || Math.hypot(mouse.x - hp.x, mouse.y - hp.y) > 140) return; }
+    setTimeout(() => {
+      const back = curKind;
+      setCur('flinch', true); curHold = now() + 300;
+      setTimeout(() => { curHold = 0; setCur(curKind === 'flinch' ? back : curKind, true); }, 300);
+    }, delay ?? 250);
+  }
   function setAnim(b, anim, dur) {
     if (b.anim !== anim) { b.prevAnim = b.anim; b.prevAnimAt = now(); }   // 행동 도감: 방금 끝난 행동도 잠깐 봐준다
     b.anim = anim; b.animT = 0; b.animDur = dur;
@@ -1277,6 +1304,7 @@
         // (예전에는 2.5~5초 동안 계속 쪼아 대서, 가만히 둬도 끝없이 쪼았다)
         b.peckedFor = mouse.movedAt;
         setAnim(b, 'peckat', rand(0.7, 1.1));
+        handPecked(b);
         b.d.boredom = clamp(b.d.boredom - 12, 0, 100);
         continue;
       }
@@ -1632,7 +1660,7 @@
             if (b.anim !== 'cock') return;
             const gap = gapTo(b, lure.x, lure.z);
             // 충분히 가까워졌으면 이제 부리로 쪼아 본다
-            if (gap < 2.0) { faceDir(b, lure.x > b.x ? 1 : -1); setAnim(b, 'peckat', rand(2.5, 5)); b.d.boredom = clamp(b.d.boredom - 12, 0, 100); return; }
+            if (gap < 2.0) { faceDir(b, lure.x > b.x ? 1 : -1); setAnim(b, 'peckat', rand(2.5, 5)); handPecked(b); b.d.boredom = clamp(b.d.boredom - 12, 0, 100); return; }
             if ((b.peekLeft || 0) > 0 && lure.active > 0.3 && now() - lure.at < 4000) peek(b);
             else { b.peekLeft = 0; decide(b); }
           });
@@ -2195,7 +2223,7 @@
     if (hoverPoop) { const e2 = ENT.get(hit.id); propTag.textContent = e2 && e2.cecal ? '💩 맹장 똥 — 흐물흐물하고 냄새가 나지만 정상이에요 (클릭·드래그로 치우기)' : '💩 똥 — 클릭하거나 드래그해서 치우세요'; propTag.style.display = ''; propTag.style.left = e.clientX + 'px'; propTag.style.top = (e.clientY - 14) + 'px'; }
     else if (hoverProp) { propTag.textContent = propLabel(hoverProp); propTag.style.display = ''; propTag.style.left = e.clientX + 'px'; propTag.style.top = (e.clientY - 14) + 'px'; }
     else propTag.style.display = 'none';
-    canvas.style.cursor = b ? 'grab' : (hoverProp || hoverPoop) ? 'pointer' : 'default';
+    setCur(b ? 'pet' : (hoverProp || hoverPoop) ? 'point' : 'open');
   });
   setInterval(() => { if (rub.id && now() - rub.lastT > 700) rubEnd(); }, 300);
   setInterval(() => { if (birds.length && state.onboarded) nudge(); }, 20000);
@@ -2209,25 +2237,25 @@
     if (e.button === 2) return;
     if (!b) {
       const pp = poopAt(e.clientX, e.clientY);
-      if (pp) { sweep(pp); drag = { sweeping: true, sx: e.clientX, sy: e.clientY }; canvas.style.cursor = 'grabbing'; return; }
+      if (pp) { sweep(pp); drag = { sweeping: true, sx: e.clientX, sy: e.clientY }; setCur('grab'); return; }
       const dc = world.pick(e.clientX, e.clientY);
       if (dc && dc.type === 'deco') {
         const d0 = state.farm.decos.find((q) => q.uid === dc.uid);
         const gp0 = world.screenToGround(e.clientX, e.clientY);
-        if (d0) { drag = { deco: d0, sx: e.clientX, sy: e.clientY, offX: gp0 ? gp0.x - d0.x : 0, offZ: gp0 ? gp0.z - d0.z : 0, moved: false }; canvas.style.cursor = 'grabbing'; return; }
+        if (d0) { drag = { deco: d0, sx: e.clientX, sy: e.clientY, offX: gp0 ? gp0.x - d0.x : 0, offZ: gp0 ? gp0.z - d0.z : 0, moved: false }; setCur('grab'); return; }
       }
       const pr = propAt(e.clientX, e.clientY);
       if (pr === 'wormbucket' && propPartAt(e.clientX, e.clientY) === 'worms') {
         // 통 위의 벌레를 집으면 그대로 끌고 다닌다. 통 몸통을 잡으면 통이 움직인다.
-        if (spawnWorm(e.clientX, e.clientY)) { drag = { worm: true, sx: e.clientX, sy: e.clientY }; canvas.style.cursor = 'grabbing'; }
+        if (spawnWorm(e.clientX, e.clientY)) { drag = { worm: true, sx: e.clientX, sy: e.clientY }; setCur('grab'); }
       }
-      else if (pr) { const gp = world.screenToGround(e.clientX, e.clientY), L = home()[pr]; drag = { prop: pr, sx: e.clientX, sy: e.clientY, offX: gp ? gp.x - L.x : 0, offZ: gp ? gp.z - L.z : 0, moved: false }; canvas.style.cursor = 'grabbing'; }
+      else if (pr) { const gp = world.screenToGround(e.clientX, e.clientY), L = home()[pr]; drag = { prop: pr, sx: e.clientX, sy: e.clientY, offX: gp ? gp.x - L.x : 0, offZ: gp ? gp.z - L.z : 0, moved: false }; setCur('grab'); }
       else {
         // 빈 땅을 끌면 화면이 따라온다 — 확대했을 때만. 다 보이는 상태에서 밀면 오히려 헷갈린다.
         // 누르기만 하고 놓으면 예전처럼 메뉴가 닫힌다 (mouseup 에서 moved 를 본다).
         const gp = world.view.zoom > 1.05 ? world.screenToGround(e.clientX, e.clientY) : null;
         startDig(e.clientX, e.clientY);          // 꾹 누르고 있으면 판다 — 움직이면 취소되고 화면 옮기기가 된다
-        if (gp) { drag = { pan: true, sx: e.clientX, sy: e.clientY, gx: gp.x, gz: gp.z, moved: false }; canvas.style.cursor = 'grabbing'; }
+        if (gp) { drag = { pan: true, sx: e.clientX, sy: e.clientY, gx: gp.x, gz: gp.z, moved: false }; setCur('grab'); }
         else closePanel();
       }
       return;
@@ -2235,12 +2263,12 @@
     const p = world.screenToPlaneZ(e.clientX, e.clientY, b.z);
     const g0 = world.screenToGround(e.clientX, e.clientY);
     drag = { b, offX: p ? p.x - b.x : 0, offZ: g0 ? g0.z - b.z : 0, sx: e.clientX, sy: e.clientY, moved: false };
-    canvas.style.cursor = 'grabbing';
+    setCur('grab');
   });
   addEventListener('mouseup', (e) => {
     if (!drag) return;
-    if (drag.sweeping) { drag = null; canvas.style.cursor = 'default'; return; }
-    if (drag.pan) { if (!drag.moved) closePanel(); else markDirty(); drag = null; canvas.style.cursor = 'default'; return; }
+    if (drag.sweeping) { drag = null; setCur('open'); return; }
+    if (drag.pan) { if (!drag.moved) closePanel(); else markDirty(); drag = null; setCur('open'); return; }
     if (drag.deco) {
       // 끌지 않고 눌렀다 떼면 '치울까?' 하고 묻는다 (마당에서 빼는 유일한 길)
       if (!drag.moved) {
@@ -2254,14 +2282,14 @@
           } },
            { label: '그냥 둘래요', fn: grannyHide }], 'think');
       } else toast('📦 자리를 옮겼어요');
-      drag = null; canvas.style.cursor = 'default'; return;
+      drag = null; setCur('open'); return;
     }
-    if (drag.worm) { if (worm) worm.held = false; drag = null; canvas.style.cursor = 'default'; return; }
+    if (drag.worm) { if (worm) worm.held = false; drag = null; setCur('open'); return; }
     if (drag.prop) {
       // 벌레통은 눌렀다 떼면 벌레가 나오고, 끌면 통이 움직인다
       if (!drag.moved) { if (drag.prop === 'wormbucket') toast('🪱 통 위의 벌레를 집어서 끌어다 놓으세요', false, 5000); else propClick(drag.prop); }
       else toast('📦 자리를 옮겼어요');
-      drag = null; canvas.style.cursor = 'pointer'; return;
+      drag = null; setCur('point'); return;
     }
     const b = drag.b;
     if (drag.moved) {
@@ -2271,7 +2299,7 @@
       markDirty();
     }
     else touch(b);
-    drag = null; canvas.style.cursor = 'grab';
+    drag = null; setCur('pet');
   });
   // ── 찾기: 그 아이에게 화면을 옮기고 잠시 따라다닌다 ──
   let follow = null;
@@ -2402,12 +2430,13 @@
     digging = { px, py, x: g.x, z: g.z, t0: now(), lastPuff: 0 };
     return true;
   }
-  function cancelDig() { digging = null; }
+  function cancelDig() { if (digging && digging.hoe && curKind === 'hoe') setCur('open'); digging = null; }
   function tickDig() {
     if (!digging) return;
     const t = now() - digging.t0;
+    if (t > 250 && !digging.hoe) { digging.hoe = true; setCur('hoe'); }
     if (t > 250 && now() - digging.lastPuff > 170) { world.puff(digging.x, digging.z, 3, 0.3, 0x9A7A55); digging.lastPuff = now(); }
-    if (t >= DIG_HOLD) { const d = digging; digging = null; digAt(d.x, d.z); }
+    if (t >= DIG_HOLD) { const d = digging; digging = null; digAt(d.x, d.z); setTimeout(() => { if (curKind === 'hoe') setCur('open'); }, 350); }
   }
   function digToday() {
     if (state.dig.day !== today()) state.dig = { day: today(), found: 0, tries: 0, miss: 0 };
@@ -2791,6 +2820,7 @@
     $('#classCode').value = state.classCode || '';
     $('#wxLine').textContent = `${wx.icon} ${wx.name}${state.classCode ? ' · ' + state.classCode + '반' : ''}`;
     $('#soundOn').checked = state.settings.sound;
+    $('#plainCursor').checked = !!state.settings.plainCursor;
     const cal = !!state.settings.useCalendar;
     $('#useCalendar').checked = cal;
     $('#pauseWeekends').checked = state.settings.pauseWeekends !== false;
@@ -3016,6 +3046,7 @@
     markDirty(); renderSettings(); toast(`🗓️ ${d} 을(를) 쉬는 날로 저장했어요`, false, 6000);
   });
   $('#soundOn').addEventListener('change', (e) => { state.settings.sound = e.target.checked; markDirty(); if (e.target.checked) chime(); });
+  $('#plainCursor').addEventListener('change', (e) => { state.settings.plainCursor = e.target.checked; markDirty(); setCur(curKind, true); });
   $('#autostart').addEventListener('change', (e) => api.setAutostart(e.target.checked));
   $('#btnQuit').addEventListener('click', async () => { await persist(); api.quit(); });
 
@@ -3146,6 +3177,7 @@
 
     setTimeout(morningCrow, 2500);
     setTimeout(() => { const fans = birds.filter((b) => eligible(b) && b.d.aff >= 70); if (fans.length) { const cx = (world.xMin + world.xMax) / 2; for (const b of fans) { b.callTarget = { x: cx + rand(-2, 2), z: rand(-0.5, 1) }; setAnim(b, 'chase', 30); } toast('❤️ 닭들이 선생님을 반기러 달려와요'); } }, 1800);
+    setCur('open', true);
     requestAnimationFrame(loop);
   }
   // 디버그 훅 (자동 캡처용)
@@ -3212,7 +3244,11 @@
     quizState() { return Object.assign({}, quizToday(), { done: quizToday().done.length }); },
     told() { return Object.assign({}, state.told); },
     tellOnce() { tellOnce(); return Object.assign({}, state.told); },
-        openMenu(tab) { openPanel(tab || 'coop'); return !document.querySelector('#panel').classList.contains('hidden'); },
+        cursor() { return { kind: curKind, css: canvas.style.cursor }; },
+    setCursorKind(k) { setCur(k, true); return canvas.style.cursor; },
+    peckHand() { handPecked(null, 0); return true; },
+    plainCursor(on) { state.settings.plainCursor = !!on; setCur(curKind, true); return canvas.style.cursor; },
+    openMenu(tab) { openPanel(tab || 'coop'); return !document.querySelector('#panel').classList.contains('hidden'); },
     closeMenu() { closePanel(); return true; },
     grannyOpen() { return !document.querySelector('#granny').classList.contains('hidden'); },
     grannyText() { const e = document.querySelector('#gSay'); return e ? e.textContent.trim() : ''; },
