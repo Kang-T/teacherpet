@@ -20,7 +20,7 @@
   const STEPS = [
     { id: 'feed',  say: '먼저 모이통을 채워 주렴. 마당에 있는 모이통을 눌러 보렴.', done: (s) => s.feed >= 90 },
     { id: 'water', say: '물도 있어야지. 물통을 눌러 채워 주고.',                  done: (s) => s.water >= 90 },
-    { id: 'warm',  say: '갓 난 병아리는 춥단다. 보온등을 켜 두면 그 아래로 모여들 거야.', done: (s) => (s.lampPower ?? 0) > 0.3 },
+    { id: 'warm',  say: '보온등은 이미 켜 두었단다. 갓 난 병아리는 추워서, 이 불빛 아래로 모여들 거야.', next: true, done: () => false },
     { id: 'again', say: '잘했다. 이제 하루에 한 번씩 들러서 모이와 물만 챙겨 주면 된단다.', done: () => false, last: true },
   ];
 
@@ -30,7 +30,7 @@
   const QUESTS = [
     { id: 'feed',  icon: '🌾', title: '모이통 채우기',       hint: '마당의 모이통을 눌러 보세요',                 done: (c) => c.s.feed >= 90 },
     { id: 'water', icon: '💧', title: '물통 채우기',         hint: '마당의 물통을 눌러 보세요',                   done: (c) => c.s.water >= 90 },
-    { id: 'warm',  icon: '🔥', title: '보온등 켜기',         hint: '보온등을 눌러 불을 켜 주세요. 병아리는 추위를 타요', done: (c) => (c.s.lampPower ?? 0) > 0.3 },
+    { id: 'warm',  icon: '🔥', title: '보온등 세기 바꿔 보기', hint: '보온등을 눌러 세기를 바꿔 보세요. 병아리는 추위를 타니 끄지는 마세요', done: (c) => !!((c.s.quest || {}).acts || {}).lamp },
     { id: 'worm',  icon: '🐛', title: '병아리에게 벌레 주기', hint: '벌레통에서 벌레를 끌어다 병아리 앞에 놓아 보세요', done: (c) => !!((c.s.quest || {}).acts || {}).worm },
     { id: 'pet',   icon: '🤚', title: '병아리 쓰다듬기',     hint: '병아리를 마우스로 살살 문질러 보세요',          done: (c) => !!((c.s.quest || {}).acts || {}).pet },
     { id: 'poop',  icon: '🧹', title: '똥 치우기',           hint: '마당의 똥을 눌러 치우세요. 안 치우면 냄새가 나요', when: (c) => c.poops >= 2, done: (c) => c.poops === 0 },

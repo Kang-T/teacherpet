@@ -51,7 +51,7 @@
           </div></div>
           <span id="feedHint"></span></div>
         <div class="stat"><b>😷 공기</b><span class="say" id="ammLabel"></span></div>
-        <div class="row tiny"><span>🪱 벌레 <b id="wormCount">0</b></span><button class="small" id="btnBuyWorm">🪱 1🪙</button><button class="small" id="btnBuyMed">💊 약 사기</button><button class="small" id="btnAlbum">📔 관찰일지</button><button class="small" id="btnShop">🧺 꾸미기</button></div>
+        <div class="row tiny"><span>🪱 벌레 <b id="wormCount">0</b></span><button class="small" id="btnBuyWorm">🪱 1🪙</button><button class="small" id="btnBuyMed">💊 약 사기</button><button class="small" id="btnAlbum">📔 관찰일지</button><button class="small" id="btnShop">🧺 꾸미기</button><button class="small primary" id="btnChal">🌡️ 온도 챌린지 (5분)</button></div>
         <div class="row tiny"><span class="label">🤝 품앗이</span><button class="small" id="btnSeedMake">씨알 코드 만들기</button><button class="small" id="btnSeedUse">친구 코드 넣기</button><span id="seedHint" class="hint"></span></div>
         <div class="row tiny"><span class="label">✉️ 편지</span><button class="small" id="btnLetter">할머니께 편지 쓰기</button><span class="hint">고치고 싶은 것을 알려 주세요</span></div>
         <div class="row tiny"><label class="chk"><input type="checkbox" id="chkDetail"> 숫자로 자세히 보기</label></div>
@@ -157,6 +157,28 @@
   <p id="askQ"></p>
   <input id="askInput" type="text" autocomplete="off">
   <div class="btnRow"><button class="primary" id="askOk">확인</button><button id="askNo">취소</button></div>
+</div></div>
+
+<div id="chalHud" class="hidden"></div>
+<div id="chalModal" class="ui hidden"><div class="modalCard jCard">
+  <div class="jHead">
+    <h3>🌡️ 온도 챌린지 결과</h3>
+    <div class="jActs"><button class="small" id="btnChalPrint">🖨️ 인쇄</button><button class="small" id="btnChalClose">닫기</button></div>
+  </div>
+  <div id="chalBody"></div>
+  <div class="chalWrite">
+    <label for="chalName">이름</label> <input id="chalName" maxlength="12">
+    <label for="chalNote">✏️ 오늘 알게 된 것 한 줄</label>
+    <textarea id="chalNote" rows="3" placeholder="예) 병아리는 추우면 ○○하고, 더우면 ○○해요."></textarea>
+  </div>
+  <details class="chalTeacher"><summary>🧑‍🏫 선생님용 — 함께 생각해 볼 질문과 예상 답</summary>
+    <ol>
+      <li><b>병아리가 보온등 아래로 뭉쳤을 때는 어떤 상태였을까요?</b><br>→ 추운 상태입니다. 모여서 서로의 체온으로 몸을 데우려고 합니다.</li>
+      <li><b>더워졌을 때 병아리는 어떻게 행동했나요? 그때 보온등은 어떻게 해야 했나요?</b><br>→ 가장자리로 흩어지고 헐떡입니다. 보온등 세기를 낮춥니다.</li>
+      <li><b>병아리가 자랄수록 필요한 온도가 낮아지는 까닭은?</b><br>→ 솜털이 깃털로 바뀌어 스스로 체온을 지킬 수 있게 되기 때문입니다.</li>
+      <li><b>어미닭이 있으면 보온등이 왜 필요 없을까요?</b><br>→ 병아리가 어미 날개 밑에서 체온을 나눠 받기 때문입니다.</li>
+    </ol>
+  </details>
 </div></div>
 
 <div id="journalModal" class="ui hidden"><div class="modalCard jCard">
