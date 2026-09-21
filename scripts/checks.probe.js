@@ -551,6 +551,32 @@
     const called = T.whistleAt(wpt.x, wpt.y);
     ok('땅을 두 번 누르면 닭을 부른다', called > 0, `${called}마리가 달려옴`);
 
+    // ── 27. 이름 바꾸기 창이 실제로 화면에 보인다 ──
+    // prompt() 를 걷어내고 화면 안 입력창으로 바꾸면서 CSS 를 빠뜨려,
+    // 버튼은 멀쩡한데 창이 화면 밖에 그려져 이름을 못 바꾸는 일이 있었다.
+    // '보이는가'는 좌표로 본다 — 숨김 여부만 보면 또 놓친다.
+    T.openMenu('coop');
+    await wait(400);
+    const pen = document.querySelector('#flockList [data-act="rename"]');
+    ok('닭장 카드에 이름 바꾸기 단추가 있다', !!pen, pen ? '' : '✏️ 단추를 못 찾음');
+    if (pen) {
+      pen.click();
+      await wait(300);
+      const card = document.querySelector('.askCard');
+      const r = card.getBoundingClientRect();
+      const cx = Math.round(r.left + r.width / 2), cy = Math.round(r.top + r.height / 2);
+      const onTop = card.contains(document.elementFromPoint(cx, cy));
+      ok('이름 바꾸기 창이 화면 안에 보인다',
+        r.width > 100 && r.height > 60 && r.top >= 0 && r.left >= 0
+        && r.bottom <= innerHeight && r.right <= innerWidth && onTop,
+        `창 위치 ${Math.round(r.left)},${Math.round(r.top)} 크기 ${Math.round(r.width)}×${Math.round(r.height)} · 화면 ${innerWidth}×${innerHeight} · 맨 앞 ${onTop}`);
+      document.querySelector('#askInput').value = '깜별이';
+      document.querySelector('#askOk').click();
+      await wait(400);
+      ok('이름이 실제로 바뀐다', !!T.stateOf('깜별이'), '새 이름으로 찾은 닭: ' + (T.stateOf('깜별이') ? '있음' : '없음'));
+    }
+    T.closeMenu();
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));

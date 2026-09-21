@@ -3035,6 +3035,8 @@
     askGuide() { askGuide(); return true; },
     grannyButtons() { return [...document.querySelectorAll('#gBtns button')].map((b) => b.textContent); },
     clickGranny(i) { const b = document.querySelectorAll('#gBtns button')[i || 0]; if (!b) return false; b.click(); return true; },
+    openMenu(tab) { openPanel(tab || 'coop'); return !document.querySelector('#panel').classList.contains('hidden'); },
+    closeMenu() { closePanel(); return true; },
     grannyOpen() { return !document.querySelector('#granny').classList.contains('hidden'); },
     grannyText() { const e = document.querySelector('#gSay'); return e ? e.textContent.trim() : ''; },
     onboarded() { return !!state.onboarded; },
