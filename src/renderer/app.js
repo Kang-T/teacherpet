@@ -65,8 +65,8 @@
   // ---- 오늘의 날씨 ----
   // 날짜와 '우리 반'만으로 정해진다. 저장하지 않는다 — 언제 물어도 같은 답이 나오기 때문이다.
   let wx = WX.of(today(), '');
-  function applyWeather() {
-    wx = WX.of(today(), state.classCode);
+  function applyWeather(forceKey) {
+    wx = forceKey ? Object.assign({ key: forceKey }, WX.KINDS[forceKey]) : WX.of(today(), state.classCode);
     HLT.setRoom(wx.room);                       // 추운 날은 마당 전체가 춥다 → 병아리가 보온등을 찾는다
     const r = document.documentElement.style;
     r.setProperty('--sky1', wx.sky[0]);
@@ -3018,11 +3018,7 @@
     setWeather(key) {
       const k = WX.KINDS[key];
       if (!k) return null;
-      wx = Object.assign({ key }, k);
-      HLT.setRoom(wx.room);
-      world.scenery.setSkyTone(wx.sky[2], wx.haze);
-      world.scenery.setWind(wx.key === 'wind' ? 1 : 0);
-      for (const b of birds) decide(b);
+      applyWeather(key);                        // 배지·하늘·구름까지 함께 바뀌어야 화면과 규칙이 어긋나지 않는다
       return { key: wx.key, room: HLT.roomC() };
     },
     roomC() { return HLT.roomC(); },

@@ -9,6 +9,13 @@
 
 설치도, 회원가입도, 로그인도 없습니다. 크롬북·집 컴퓨터의 크롬에서 주소만 열면 됩니다.
 
+| | |
+|---|---|
+| <img src="docs/images/hen-and-chicks.png" width="400"> | <img src="docs/images/granny.png" width="400"> |
+| 엄마 닭이 깨어난 병아리를 날개 밑에 품습니다 | 달걀은 할머니께 팔아 용돈이 됩니다 |
+| <img src="docs/images/decorated.png" width="400"> | <img src="docs/images/closeup.png" width="400"> |
+| 돌본 날이 쌓이면 마당을 꾸밉니다 | 가까이 보면 표정이 보입니다 |
+
 ---
 
 ## 무엇을 하나요

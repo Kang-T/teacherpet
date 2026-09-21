@@ -201,6 +201,13 @@ function connect(url) {
   // 5-a) 사진 모드 — 검사 대신 화면을 찍는다 (npm run shot)
   //      프리뷰 탭은 배경이라 3D 행렬이 갱신되지 않아 거기서 찍은 그림은 믿을 수 없다.
   if (process.env.TEACHERPET_SHOT) {
+    // TEACHERPET_SHOT_SIZE=1080x1080 — 홍보 이미지처럼 크기를 정해 찍을 때
+    const size = /^(\d+)x(\d+)$/.exec(process.env.TEACHERPET_SHOT_SIZE || '');
+    if (size) {
+      await S('Emulation.setDeviceMetricsOverride', { width: +size[1], height: +size[2], deviceScaleFactor: 1, mobile: false });
+      await ev('window.dispatchEvent(new Event("resize"))');
+      await new Promise((r) => setTimeout(r, 800));
+    }
     const setup = process.env.TEACHERPET_SETUP;
     if (setup) {
       try {
