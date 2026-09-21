@@ -670,7 +670,8 @@
       ok('빈 땅 위에서는 편 손', /cursor\/open\.png/.test(T.cursor().css), T.cursor().css.slice(0, 60));
       T.holdStill(NAME, 3);
       T.place(NAME, 0, -8);
-      await wait(200);
+      // 옮긴 자리가 화면에 그려져야 집을 수 있다 — 소프트웨어 렌더링(CI 3fps)에서는 한 프레임이 300ms 넘게 걸린다
+      await wait(400 * SLOW);
       const bs = T.screenOfBird(NAME);
       if (bs) { mv('mousemove', bs.x, bs.y); await wait(60); }
       ok('닭 위에서는 쓰다듬는 손', /cursor\/pet\.png/.test(T.cursor().css), `${T.cursor().kind} · 닭 화면 ${bs ? bs.x + ',' + bs.y : '-'}`);
@@ -681,8 +682,10 @@
         T.clearWorm();
         mv('mousemove', ground.x, ground.y); await wait(60);
         mv('mousedown', ground.x, ground.y);
-        await wait(450 * SLOW + 150);
-        const during = T.cursor().kind;
+        // 누르는 동안(0.25~1.1초) 한 번이라도 호미가 되는지 본다 — 한 시점만 보면 느린 기계에서 이미 다 판 뒤일 수 있다
+        let during = 'open';
+        const t0h = Date.now();
+        while (Date.now() - t0h < 1000) { if (T.cursor().kind === 'hoe') { during = 'hoe'; break; } await wait(40); }
         mv('mouseup', ground.x, ground.y);
         await wait(100);
         ok('땅을 꾹 누르면 호미 쥔 손', during === 'hoe' && T.cursor().kind !== 'hoe', `누르는 중 ${during} → 뗀 뒤 ${T.cursor().kind}`);
