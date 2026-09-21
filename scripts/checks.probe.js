@@ -641,7 +641,7 @@
     T.openMenu('coop');
     await wait(200);
     const qb = document.querySelector('#btnQuiz');
-    ok('퀴즈 단추는 검토 전에는 안 보인다', T.quizReady() ? !qb.classList.contains('hidden') : qb.classList.contains('hidden'), `READY ${T.quizReady()}`);
+    ok('퀴즈 단추는 켜졌을 때만 보인다', T.quizReady() ? !qb.classList.contains('hidden') : qb.classList.contains('hidden'), `READY ${T.quizReady()}`);
     T.closeMenu();
     const qid = T.quizAsk();
     for (let i = 0; i < 100 && T.grannyButtons().length < 4; i++) await wait(150);
