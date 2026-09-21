@@ -320,6 +320,8 @@
   // ── 미션 카드 — '지금 할 일'을 화면에 계속 보여 준다 ──
   // 순서대로 하나씩. 끝낸 것은 state.quest.done 에 남겨 다시 나타나지 않게 한다.
   let questInit = false, questCur = null;
+  // 직접 해 보는 미션 — 그 행동을 한 순간 표시해 둔다
+  function questAct(k) { const Q = state.quest = state.quest || { done: [], seen: [] }; Q.acts = Q.acts || {}; if (!Q.acts[k]) { Q.acts[k] = true; markDirty(); } }
   function questTick() {
     const card = $('#quest');
     if (!card) return;
@@ -743,7 +745,7 @@
   }
   function removeWorm() { if (!worm) return; world.scene.remove(worm.model.group); worm = null; for (const b of birds) { b.wormRun = 0; b.fleeing = false; if (b.anim === 'chase' || b.anim === 'beg') decide(b); } }
   function eatWorm(b) {
-    removeWorm(); b.goal = 'treat'; setAnim(b, 'eat', 1.6); showIcon(b, '😋', 2000);
+    questAct('worm'); removeWorm(); b.goal = 'treat'; setAnim(b, 'eat', 1.6); showIcon(b, '😋', 2000);
   }
   // 벌레를 부리로 찍는다 — 단번에 물리지 않는다.
   // 닿자마자 물면 '잡았다'는 느낌이 없다. 한두 번 놓쳐야 쫓는 맛이 난다.
@@ -2146,7 +2148,7 @@
     const dx = x - rub.lastX; rub.lastX = x; rub.lastT = t;
     if (Math.abs(dx) > 1) { const sg = Math.sign(dx); if (rub.sign && sg !== rub.sign) rub.rev++; rub.sign = sg; rub.dist += Math.abs(dx); }
     if (!rub.active && rub.dist > 70 && rub.rev >= 2 && eligible(b) && !b.carrying) {
-      rub.active = true; rub.tickT = t; b.inCoop = false; setVisible(b, true); b.targetX = null; setAnim(b, 'pet', 1.5); showIcon(b, '❤️', 900);
+      rub.active = true; questAct('pet'); rub.tickT = t; b.inCoop = false; setVisible(b, true); b.targetX = null; setAnim(b, 'pet', 1.5); showIcon(b, '❤️', 900);
       if (b.d.aff < 25 && trait(b).flee > 1.2 && Math.random() < 0.5) { rub.active = false; scoldFlee(b); return; }
     }
     if (rub.active) {

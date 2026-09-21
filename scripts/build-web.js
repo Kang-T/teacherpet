@@ -116,7 +116,7 @@ if ('serviceWorker' in navigator) {
   const bad = [];
   for (const f of ['app.js', 'web-ui.js']) {
     const t = fs.readFileSync(path.join(OUT, f), 'utf8');
-    t.split('\n').forEach((line, i) => {
+    t.split(/\r?\n/).forEach((line, i) => {
       const code = line.replace(/\/\/.*$/, '');
       if (DIALOG.test(code)) bad.push(`${f}:${i + 1}  ${line.trim().slice(0, 90)}`);
     });
