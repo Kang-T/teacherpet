@@ -577,6 +577,82 @@
     }
     T.closeMenu();
 
+    // ── 28. 행동 도감 ──
+    // 아이들이 지렁이 9마리를 10분 만에 다 주고 "또 할 거 없어요?" 했다. 지켜보게 만드는 장치.
+    const c28 = T.coins();
+    const d1 = T.dexTry(NAME, 'dustbath');
+    ok('행동하는 순간 누르면 도감에 오른다', d1 === 'new' && T.dexState().ids.includes('dustbath'), `결과 ${d1}`);
+    ok('처음 찾은 행동은 1코인', T.coins() === c28 + 1, `코인 ${c28} → ${T.coins()}`);
+    const d2 = T.dexTry(NAME, 'dustbath');
+    ok('두 번째부터는 설명만 (코인 없음)', d2 === 'seen' && T.coins() === c28 + 1, `결과 ${d2} · 코인 ${T.coins()}`);
+    // 방금 끝난 행동은 1.5초 봐준다 (아이 손이 닭보다 느리다). 그 뒤에는 평범하게 서 있는 것일 뿐이다.
+    ok('방금 끝난 행동도 잠깐은 알아본다', T.dexTry(NAME, 'idle') === 'seen', '');
+    await wait(1700);
+    ok('평범하게 서 있을 때는 도감에 안 오른다', T.dexTry(NAME, 'idle') === null, '');
+    const fc = T.farmCode();
+    const fcBack = fc ? T.readFarmCode(fc) : null;
+    ok('농장 코드로 옮겨도 도감이 따라간다', !!(fcBack && fcBack.dex && fcBack.dex.includes('dustbath')), fcBack ? `코드 속 도감 ${JSON.stringify(fcBack.dex)}` : '코드 없음');
+
+    // ── 29. 땅 파기 — 진짜 마우스로 ──
+    // 꾹 누르면 파고, 끌면 화면 옮기기. 둘이 섞이면 확대한 아이가 화면을 옮기다 땅을 판다.
+    const cv = document.querySelector('#stageHost canvas');
+    let spot = null;
+    for (const [gx, gz] of [[5, -6], [-5, -6], [6, 2], [-6, 2], [0, 4], [8, -12], [-8, -12]]) {
+      const sp = T.screenOfPoint(gx, 0, gz);
+      if (!sp) continue;
+      const hit = T.pickAt(sp.x, sp.y);
+      if (!hit || hit.type === 'ground') { spot = sp; break; }
+    }
+    ok('파 볼 빈 땅을 찾았다', !!spot, '');
+    if (spot && cv) {
+      const fire = (type, x, y) => (type === 'mouseup' ? window : cv).dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }));
+      T.clearWorm();
+      const t0 = T.digState().tries;
+      fire('mousedown', spot.x, spot.y);
+      await wait(1100 + 900 * SLOW);
+      fire('mouseup', spot.x, spot.y);
+      ok('빈 땅을 꾹 누르고 있으면 판다', T.digState().tries === t0 + 1, `판 횟수 ${t0} → ${T.digState().tries}`);
+      const t1 = T.digState().tries;
+      fire('mousedown', spot.x, spot.y);
+      await wait(150);
+      fire('mousemove', spot.x + 40, spot.y + 10);
+      await wait(1100 + 900 * SLOW);
+      fire('mouseup', spot.x + 40, spot.y + 10);
+      ok('누른 채 끌면 파지 않는다', T.digState().tries === t1, `판 횟수 ${t1} → ${T.digState().tries}`);
+    }
+    T.clearWorm();
+    const got = T.digAt(4, -6, true);
+    ok('지렁이가 나오면 마당에 기어 나온다', got === 'worm' && T.digState().worm, `결과 ${got}`);
+    T.clearWorm();
+    for (let i = 0; i < 10 && T.digState().found < T.digState().max; i++) { T.digAt(4, -6, true); T.clearWorm(); }
+    const over = T.digAt(4, -6, true);
+    ok('하루에 찾는 지렁이 수에는 끝이 있다', over === 'done', `${T.digState().found}/${T.digState().max} 뒤 결과 ${over}`);
+    T.clearWorm();
+
+    // ── 30. 코인이 모자랄 때 — 그 아이에게 맞는 길만 ──
+    T.setEggs(0);
+    const w0 = T.coinWays();
+    ok('팔 달걀이 없으면 달걀 팔기를 권하지 않는다', !w0.some((w) => w.includes('바구니')), w0.join(' / '));
+    T.setEggs(2);
+    ok('달걀이 있으면 팔기를 알려 준다', T.coinWays().some((w) => w.includes('바구니')), '');
+    T.setEggs(0);
+
+    // ── 31. 퀴즈는 선생님 검토 전에는 숨어 있다 ──
+    T.openMenu('coop');
+    await wait(200);
+    const qb = document.querySelector('#btnQuiz');
+    ok('퀴즈 단추는 검토 전에는 안 보인다', T.quizReady() ? !qb.classList.contains('hidden') : qb.classList.contains('hidden'), `READY ${T.quizReady()}`);
+    T.closeMenu();
+    const qid = T.quizAsk();
+    for (let i = 0; i < 100 && T.grannyButtons().length < 4; i++) await wait(150);
+    ok('퀴즈는 보기 4개로 묻는다', !!qid && T.grannyButtons().length === 4, `문제 ${qid} · 보기 ${T.grannyButtons().length}`);
+    T.clickGranny(0);
+    for (let i = 0; i < 100 && !/맞았다|답은/.test(T.grannyText()); i++) await wait(150);
+    ok('답하면 맞았는지와 까닭을 알려 준다', /맞았다|답은/.test(T.grannyText()), T.grannyText().slice(0, 40));
+    for (let i = 0; i < 40 && !T.grannyButtons().length; i++) await wait(150);
+    const gb = T.grannyButtons();
+    if (gb.length) T.clickGranny(gb.length - 1);
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));

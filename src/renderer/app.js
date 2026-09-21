@@ -606,7 +606,10 @@
   const sexKnown = (d) => d.stage === 'young' || d.stage === 'hen' || d.stage === 'rooster';
   const sexMark = (d) => (sexKnown(d) ? (d.sex === 'f' ? ' ♀' : ' ♂') : '');
 
-  function setAnim(b, anim, dur) { b.anim = anim; b.animT = 0; b.animDur = dur; }
+  function setAnim(b, anim, dur) {
+    if (b.anim !== anim) { b.prevAnim = b.anim; b.prevAnimAt = now(); }   // 행동 도감: 방금 끝난 행동도 잠깐 봐준다
+    b.anim = anim; b.animT = 0; b.animDur = dur;
+  }
   // 방향은 0.5초에 한 번만 바꾼다 — 화면 끝이나 양쪽에 닭이 있을 때 매 프레임 뒤집히며 떨던 문제
   function faceDir(b, d) {
     if (!d || d === b.dir) return;
@@ -665,7 +668,7 @@
     if (spawnWorm(px, py) && worm) { worm.held = false; worm.y = 0.9; worm.vy = 0; }
   }
   function spawnWorm(px, py) {
-    if (state.worms <= 0) { toast('🪱 벌레가 없어요. 닭장 메뉴에서 달걀 코인으로 살 수 있어요'); return false; }
+    if (state.worms <= 0) { toast(digToday().found < DIG_MAX ? '🪱 벌레통이 비었어요. 마당 빈 땅을 꾹 누르고 있으면 흙 속 지렁이를 찾을 수 있어요' : '🪱 벌레통이 비었어요. 내일 아침에 3마리가 또 와요', false, 6000); return false; }
     if (worm) return false;
     const sp = wormSpot(px, py);
     if (!sp) return false;
@@ -2007,6 +2010,7 @@
       if (showTag) { if (!b.tagEl) { b.tagEl = document.createElement('div'); b.tagEl.className = 'tag'; overlay.appendChild(b.tagEl); } b.tagEl.textContent = `${b.d.name} · ${STAGE_KO[b.d.stage]}${sexMark(b.d)}`; b.tagEl.style.left = top.x + 'px'; b.tagEl.style.top = (top.y - (showIconNow ? 34 : 4)) + 'px'; b.tagEl.style.display = ''; }
       else if (b.tagEl) b.tagEl.style.display = 'none';
     }
+    tickDig();
     if (worm) {
       if (!worm.held && !worm.carrier) {
         if (worm.y > 0 || worm.vy > 0) { worm.vy -= GRAV * dt; worm.y += worm.vy * dt; if (worm.y <= 0) { worm.y = 0; worm.vy = 0; } }
@@ -2195,6 +2199,10 @@
   });
   setInterval(() => { if (rub.id && now() - rub.lastT > 700) rubEnd(); }, 300);
   setInterval(() => { if (birds.length && state.onboarded) nudge(); }, 20000);
+  setInterval(() => tellOnce(), 15000);
+  canvas.addEventListener('mousemove', (e) => { if (digging && Math.hypot(e.clientX - digging.px, e.clientY - digging.py) > 8) cancelDig(); });
+  addEventListener('mouseup', () => cancelDig());
+  addEventListener('blur', () => cancelDig());
   setInterval(refreshTemp, 1000);          // 병아리가 움직이면 온도도 바뀐다
   canvas.addEventListener('mousedown', (e) => {
     const b = birdAt(e.clientX, e.clientY);
@@ -2218,6 +2226,7 @@
         // 빈 땅을 끌면 화면이 따라온다 — 확대했을 때만. 다 보이는 상태에서 밀면 오히려 헷갈린다.
         // 누르기만 하고 놓으면 예전처럼 메뉴가 닫힌다 (mouseup 에서 moved 를 본다).
         const gp = world.view.zoom > 1.05 ? world.screenToGround(e.clientX, e.clientY) : null;
+        startDig(e.clientX, e.clientY);          // 꾹 누르고 있으면 판다 — 움직이면 취소되고 화면 옮기기가 된다
         if (gp) { drag = { pan: true, sx: e.clientX, sy: e.clientY, gx: gp.x, gz: gp.z, moved: false }; canvas.style.cursor = 'grabbing'; }
         else closePanel();
       }
@@ -2351,8 +2360,149 @@
     if (k === 'crop') { toast(`🚫 하루 동안 사료를 끊고 물만 주면 나아요. 그릿도 사 두세요`, false, 8000); return false; }
     return false;
   }
+
+  // ── 행동 도감 ──
+  // 닭이 무언가 하는 순간 클릭하면 모인다. 처음 보면 1코인과 함께 '왜 그러는지'를 알려 준다.
+  // 이미 본 행동은 코인 없이 설명만 다시 — 클릭이 곧 '지금 뭐 해?'라는 질문이 된다.
+  const DEX = TP.dex, QUIZ = TP.quiz;
+  const DEX_GRACE = 1500;                  // 방금 끝난 행동도 이만큼은 봐준다 (아이 손은 닭보다 느리다)
+  function dexOf(b) {
+    let e = DEX.match(b.anim, b.d.stage);
+    if (!e && b.prevAnim && now() - (b.prevAnimAt || 0) < DEX_GRACE) e = DEX.match(b.prevAnim, b.d.stage);
+    return e;
+  }
+  function dexSpot(b) {
+    if (b.d.stage === 'egg') return null;
+    const e = dexOf(b);
+    if (!e) return null;
+    if (!state.dex[e.id]) {
+      state.dex[e.id] = { day: today(), by: b.d.name };
+      state.coins += 1; markDirty(); renderCoop(); chime();
+      toast(`📔 새 행동 발견! ${e.icon} ${e.name}  +1🪙  (${dexCount()}/${DEX.LIST.length})`, true, 6000);
+      toast(e.why, false, 9000);
+      return 'new';
+    }
+    if (now() - (b.dexSaidAt || 0) > 6000) { b.dexSaidAt = now(); toast(`${e.icon} ${b.d.name}: ${e.name} — ${e.why}`, false, 6000); }
+    return 'seen';
+  }
+  const dexCount = () => DEX.LIST.filter((e) => state.dex[e.id]).length;
+
+  // ── 땅 파기 ──
+  // 빈 땅을 꾹 누르고 있으면 흙이 튀다가 가끔 지렁이가 나온다. 끌면 파기가 아니라 화면 옮기기다.
+  // 하루에 찾을 수 있는 수는 정해져 있다 — 지렁이가 끝없이 나오면 또 10분 만에 할 게 없어진다.
+  const DIG_HOLD = 1100;                   // 이만큼 누르고 있으면 한 번 판다 (ms)
+  const DIG_MAX = 5;                       // 하루에 찾는 지렁이
+  const DIG_CHANCE = 0.4;
+  const DIG_PITY = 3;                      // 이만큼 연달아 허탕이면 다음엔 꼭 나온다 (운이 나빠 포기하지 않게)
+  let digging = null;
+  function inYard(x, z) { return x > world.xMin + 0.6 && x < world.xMax - 0.6 && z > world.zMin + 0.6 && z < world.zMax - 0.6; }
+  function startDig(px, py) {
+    const g = world.screenToGround(px, py);
+    if (!g || !inYard(g.x, g.z)) return false;
+    digging = { px, py, x: g.x, z: g.z, t0: now(), lastPuff: 0 };
+    return true;
+  }
+  function cancelDig() { digging = null; }
+  function tickDig() {
+    if (!digging) return;
+    const t = now() - digging.t0;
+    if (t > 250 && now() - digging.lastPuff > 170) { world.puff(digging.x, digging.z, 3, 0.3, 0x9A7A55); digging.lastPuff = now(); }
+    if (t >= DIG_HOLD) { const d = digging; digging = null; digAt(d.x, d.z); }
+  }
+  function digToday() {
+    if (state.dig.day !== today()) state.dig = { day: today(), found: 0, tries: 0, miss: 0 };
+    return state.dig;
+  }
+  function digAt(x, z, force) {
+    const dg = digToday();
+    dg.tries += 1;
+    world.puff(x, z, 9, 0.55, 0x8B6B47);
+    if (dg.found >= DIG_MAX) { markDirty(); toast('🕳️ 흙만 나왔어요. 오늘은 땅속 벌레가 다 숨었나 봐요 — 내일 또 파 보세요', false, 6000); return 'done'; }
+    const hit = force === true || (force !== false && (Math.random() < DIG_CHANCE || dg.miss >= DIG_PITY));
+    if (!hit) {
+      dg.miss += 1; markDirty();
+      toast(pick(['🕳️ 흙만 나왔어요. 조금 옆을 파 볼까요?', '🪨 작은 돌멩이! 닭은 이런 돌을 삼켜서 모래주머니에서 먹이를 갈아요', '🌱 풀뿌리만 나왔어요. 한 번 더!']), false, 4500);
+      return 'miss';
+    }
+    dg.found += 1; dg.miss = 0; markDirty();
+    if (!worm) {
+      const m = world.makeWorm(); world.scene.add(m.group);
+      worm = { model: m, x: clamp(x, world.xMin + XMARGIN, world.xMax - XMARGIN), y: 0, z: clampZ(z), held: false, vy: 0, bornAt: now(), escapes: 0, dir: rand(0, Math.PI * 2), turnAt: 0, dartUntil: 0 };
+      toast(`🪱 지렁이다! 닭들이 알아챘어요 (오늘 ${dg.found}/${DIG_MAX})`, true, 5000);
+      for (const b of birds) if (eligible(b)) decide(b);
+    } else {
+      state.worms = Math.min(12, state.worms + 1); world.setWormCount(state.worms); renderCoop();
+      toast(`🪱 지렁이를 찾아 벌레통에 넣었어요 (오늘 ${dg.found}/${DIG_MAX})`, false, 5000);
+    }
+    return 'worm';
+  }
+
+  // ── 코인이 모자랄 때 — 그 아이가 지금 할 수 있는 길만 알려 준다 ──
+  // 예전에는 늘 "달걀을 팔아 보세요"였다. 병아리로 막 시작한 아이에게는 팔 달걀이 없다.
+  function coinWays() {
+    const ways = [];
+    if (state.allowance.day !== today() && birds.some((b) => b.d.stage !== 'egg')) ways.push('모든 닭에게 모이와 물을 챙겨 주면 할머니가 용돈을 주세요');
+    if (dexCount() < DEX.LIST.length) ways.push('닭이 무언가 하는 순간 클릭하면 행동 도감이 채워지고 코인이 생겨요');
+    if (QUIZ.READY && quizLeft() > 0) ways.push('할머니 퀴즈를 맞혀 보세요');
+    if (state.basket > 0) ways.push('달걀 바구니를 눌러 달걀을 팔 수 있어요');
+    else if (birds.some((b) => b.d.stage === 'hen')) ways.push('암탉이 알을 낳으면 팔 수 있어요');
+    return ways;
+  }
+  function coinShort(need) {
+    const ways = coinWays();
+    toast(`🪙 코인이 모자라요${need ? ` (${need}개 필요)` : ''}`, false, 6000);
+    if (ways.length) toast('💡 ' + ways.slice(0, 2).join('\n💡 '), false, 8000);
+    else toast('💡 오늘은 코인을 다 모았어요. 내일 또 돌봐 주세요', false, 6000);
+  }
+
+  // ── 할머니 퀴즈 ── (QUIZ.READY 가 false 면 나오지 않는다 — 문항 검토 전)
+  function quizToday() {
+    if (state.quiz.day !== today()) { state.quiz.day = today(); state.quiz.n = 0; }
+    return state.quiz;
+  }
+  function quizLeft() { return Math.max(0, QUIZ.PER_DAY - quizToday().n); }
+  function askQuiz(force) {
+    if (!QUIZ.READY && !force) return null;
+    const qs = quizToday();
+    if (qs.n >= QUIZ.PER_DAY) { grannySay('오늘 문제는 다 풀었구나. 내일 또 내 주마.', [{ label: '네!', primary: true, fn: grannyHide }], 'smile'); return null; }
+    let pool = QUIZ.Q.filter((x) => !qs.done.includes(x.id));
+    if (!pool.length) { qs.done = []; pool = QUIZ.Q.slice(); }
+    const item = pick(pool);
+    const order = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+    const answer = (i) => {
+      qs.n += 1; qs.done.push(item.id);
+      const right = i === item.a;
+      if (right) state.coins += 1;
+      markDirty(); renderCoop();
+      const more = qs.n < QUIZ.PER_DAY;
+      grannySay(`${right ? '맞았다! 🪙 1코인' : `아쉽구나. 답은 「${item.c[item.a]}」란다.`}\n${item.why}`,
+        [more ? { label: '다음 문제', primary: true, fn: () => askQuiz(force) } : { label: '내일 또 풀래요', primary: true, fn: grannyHide },
+         ...(more ? [{ label: '그만할래요', fn: grannyHide }] : [])], right ? 'proud' : 'think');
+    };
+    grannySay(`할머니 퀴즈 (${qs.n + 1}/${QUIZ.PER_DAY})\n${item.q}`, order.map((i) => ({ label: item.c[i], fn: () => answer(i) })), 'think');
+    return item.id;
+  }
+
+  // ── 할머니가 한 번씩만 알려 주는 것 ──
+  // 용돈 조건과 도감은 알려 주지 않으면 아이들이 끝내 모른다 (실제로 "코인 어떻게 얻어요?"가 나왔다).
+  function tellOnce() {
+    if (!state.onboarded || talking || !$('#granny').classList.contains('hidden')) return;
+    if (!birds.some((b) => b.d.stage !== 'egg')) return;
+    const t = state.told;
+    if (!t.allowance) {
+      t.allowance = now(); markDirty();
+      grannySay('모든 닭에게 모이랑 물을 챙겨 주면, 그날 할머니가 용돈을 주마.\n그 돈으로 벌레도 사고 마당도 꾸밀 수 있단다.', [{ label: '네!', primary: true, fn: grannyHide }], 'smile');
+      return;
+    }
+    if (!t.dex && now() - t.allowance > 3 * 60 * 1000) {
+      t.dex = now(); markDirty();
+      grannySay('닭이 무얼 하는지 가만히 보다가, 그 순간 눌러 보렴.\n모래 목욕, 깃털 다듬기, 기지개…… 처음 보는 행동을 찾으면 관찰일지에 적어 두고 1코인을 주마.', [{ label: '찾아볼게요', primary: true, fn: grannyHide }], 'smile');
+    }
+  }
+
   function touch(b) {
     selectedId = b.d.id;
+    dexSpot(b);
     if (b.d.sick && treat(b)) return;
     if (b.d.stage === 'egg') { b.f = 1; b.wobbleUntil = performance.now() / 1000 + 1; setAnim(b, 'egg', 1.5); showIcon(b, '✨', 1500); return; }
     if (now() - (b.lastPet || 0) > 20000) { b.d.happy = clamp(b.d.happy + 3, 0, 100); b.d.pets += 1; b.lastPet = now(); affect(b, 1.5 * trait(b).affGain); markDirty(); }
@@ -2450,6 +2600,9 @@
       : levelSay(state.feed, ['텅 비었어요', '거의 없어요', '조금 남았어요', '넉넉해요']);
     $('#waterSay').textContent = levelSay(state.water, ['텅 비었어요', '거의 없어요', '조금 남았어요', '넉넉해요']);
     $('#basketCount').textContent = state.basket; $('#coinCount').textContent = state.coins; $('#wormCount').textContent = state.worms;
+    $('#dexCount').textContent = `${dexCount()}/${DEX.LIST.length}`;
+    $('#btnQuiz').classList.toggle('hidden', !QUIZ.READY);
+    if (QUIZ.READY) $('#quizLeft').textContent = quizLeft();
     const lv = HYG.level(state.ammonia), n = HYG.count();
     $('#poopCount').textContent = n;
     $('#ammLabel').textContent = HYG.LABEL[lv] + (detailOn() ? ` (${Math.round(state.ammonia || 0)}ppm)` : '');
@@ -2583,9 +2736,11 @@
     toast(`🔦 남은 똥 ${list.length}개를 표시했어요`, false, 3500);
   });
   $('#btnSellEggs').addEventListener('click', () => sellEggs());
-    $('#btnBuyWorm').addEventListener('click', () => { if (state.coins < 1) { toast('🪙 코인이 부족해요. 달걀 바구니를 눌러 달걀을 팔아 보세요'); return; } state.coins -= 1; state.worms += 1; markDirty(); world.setWormCount(state.worms); renderCoop(); toast('🪱 벌레 한 마리를 샀어요'); });
+    $('#btnBuyWorm').addEventListener('click', () => { if (state.coins < 1) { coinShort(1); return; } state.coins -= 1; state.worms += 1; markDirty(); world.setWormCount(state.worms); renderCoop(); toast('🪱 벌레 한 마리를 샀어요'); });
   $('#btnWhistle').addEventListener('click', () => { whistleAt(mouse.x, mouse.y); closePanel(); });
   $('#btnAlbum').addEventListener('click', () => { renderJournal(); $('#journalModal').classList.remove('hidden'); closePanel(); });
+  $('#btnDex').addEventListener('click', () => { renderJournal(); $('#journalModal').classList.remove('hidden'); closePanel(); });
+  $('#btnQuiz').addEventListener('click', () => { closePanel(); askQuiz(); });
   function journalLines() {
     const out = [];
     for (const e of (state.journal || [])) out.push(`${e.day}  ${JR.KINDS[e.kind] ? JR.KINDS[e.kind].icon : '·'} ${e.text}`);
@@ -2594,8 +2749,17 @@
   }
   function renderJournal() {
     const box = $('#journalList'); box.innerHTML = '';
+    // 행동 도감 — 못 본 행동도 이름은 보여 준다. 무엇을 찾아야 할지 알아야 지켜보게 된다.
+    const dx = document.createElement('div'); dx.className = 'dexBox'; dx.id = 'dexBox';
+    dx.innerHTML = `<div class="dexHead"><b>🔍 행동 도감</b><span>${dexCount()} / ${DEX.LIST.length}</span></div>
+      <p class="hint">닭이 그 행동을 하는 순간 눌러 보세요. 처음 찾으면 🪙 1코인!</p>
+      <div class="dexGrid">${DEX.LIST.map((e) => {
+        const got = state.dex[e.id];
+        return `<div class="dexCell ${got ? 'got' : ''}" title="${got ? esc(e.why) : '아직 못 봤어요'}"><span class="di">${got ? e.icon : '❔'}</span><span class="dn">${esc(e.name)}</span>${got ? `<span class="dw">${esc(e.why)}</span><span class="dd">${esc(got.day.slice(5).replace('-', '/'))} · ${esc(got.by || '')}</span>` : ''}</div>`;
+      }).join('')}</div>`;
+    box.appendChild(dx);
     const js = (state.journal || []);
-    if (!js.length && !(state.album || []).length) { box.innerHTML = '<p class="hint">아직 기록이 없어요. 닭이 자라면 그때그때 이곳에 쌓입니다.</p>'; return; }
+    if (!js.length && !(state.album || []).length) { box.insertAdjacentHTML('beforeend', '<p class="hint">아직 자라온 기록이 없어요. 닭이 자라면 그때그때 이곳에 쌓입니다.</p>'); return; }
     for (const e of js) {                       // 오래된 것부터 — 자라온 이야기가 된다
       const k = JR.KINDS[e.kind] || { icon: '·', title: '' };
       const el = document.createElement('div'); el.className = 'jItem';
@@ -2726,7 +2890,7 @@
   function pickShop(it, has) {
     // 장식물은 살 때마다 하나씩 더 놓인다. 나머지는 한 번 사면 계속 쓴다.
     if (!has || it.kind === 'deco') {
-      if (state.coins < it.price) { toast(`🪙 코인이 모자라요 (${it.price}개 필요)`, false, 5000); return; }
+      if (state.coins < it.price) { coinShort(it.price); return; }
       state.coins -= it.price;
       if (!has) (state.owned[it.kind] = state.owned[it.kind] || []).push(it.id);
     }
@@ -2772,6 +2936,7 @@
   function applyFarmCode(r) {
     state.flock = r.birds.map((b) => newBird(b.stage, b));
     state.coins = r.coins;
+    for (const id of (r.dex || [])) if (!state.dex[id]) state.dex[id] = { day: today(), by: '' };   // 도감은 합친다 — 잃을 이유가 없다
     for (const b of birds) world.removeBird(b.d.id);
     birds = state.flock.map(makeRuntime);
     for (const b of birds) { b.x = rand(world.xMin + 4, world.xMax - 4); b.z = clampZ(rand(world.zMin + 4, world.zMax - 2)); decide(b); }
@@ -3035,7 +3200,19 @@
     askGuide() { askGuide(); return true; },
     grannyButtons() { return [...document.querySelectorAll('#gBtns button')].map((b) => b.textContent); },
     clickGranny(i) { const b = document.querySelectorAll('#gBtns button')[i || 0]; if (!b) return false; b.click(); return true; },
-    openMenu(tab) { openPanel(tab || 'coop'); return !document.querySelector('#panel').classList.contains('hidden'); },
+    dexTry(name, anim) { const b = birds.find((q) => q.d.name === name); if (!b) return null; setAnim(b, anim, 5); b.animT = 0; return dexSpot(b); },
+    dexClick(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; touch(b); return dexCount(); },
+    dexState() { return { count: dexCount(), total: DEX.LIST.length, ids: Object.keys(state.dex) }; },
+    digAt(x, z, force) { return digAt(x, z, force); },
+    digState() { return Object.assign({}, digToday(), { max: DIG_MAX, holding: !!digging, worm: !!worm, bucket: state.worms }); },
+    clearWorm() { if (worm) removeWorm(); return !worm; },
+    coinWays() { return coinWays(); },
+    quizReady() { return QUIZ.READY; },
+    quizAsk() { return askQuiz(true); },
+    quizState() { return Object.assign({}, quizToday(), { done: quizToday().done.length }); },
+    told() { return Object.assign({}, state.told); },
+    tellOnce() { tellOnce(); return Object.assign({}, state.told); },
+        openMenu(tab) { openPanel(tab || 'coop'); return !document.querySelector('#panel').classList.contains('hidden'); },
     closeMenu() { closePanel(); return true; },
     grannyOpen() { return !document.querySelector('#granny').classList.contains('hidden'); },
     grannyText() { const e = document.querySelector('#gSay'); return e ? e.textContent.trim() : ''; },

@@ -20,7 +20,8 @@
     "web": "node scripts/build-web.js",
     "web:serve": "node scripts/build-web.js && cd web && python3 -m http.server 8777",
     "check": "node scripts/check.js",
-    "shot": "node scripts/check.js"
+    "shot": "node scripts/check.js",
+    "quiz-doc": "node scripts/quiz-doc.js"
   },
   "devDependencies": {
     "electron": "^33.2.1",

@@ -354,3 +354,14 @@ body.menuOpen #dim { display: block; }
 }
 .sw input:checked + i { background: #7FBF5A; }
 .sw input:checked + i::after { transform: translateX(18px); }
+
+/* 행동 도감 (관찰일지 맨 위) */
+.dexBox { border-bottom: 2px dashed #D9CFB8; padding-bottom: 12px; margin-bottom: 10px; }
+.dexHead { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; }
+.dexGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; margin-top: 6px; }
+.dexCell { border: 2px solid #E4DAC4; border-radius: 10px; padding: 6px; background: #F6F1E4; color: #A89B82; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.dexCell .di { font-size: 20px; }
+.dexCell .dn { font-weight: bold; font-size: 13px; }
+.dexCell.got { background: #FFFDF5; border-color: #2B1B0E; color: #2B2620; }
+.dexCell .dw { font-size: 11px; line-height: 1.45; color: #5A4A38; }
+.dexCell .dd { font-size: 10px; color: #A08868; }

@@ -30,6 +30,10 @@
       farm: { placements: {}, decos: [], coopSkin: 'red', ground: 'grass' },
       owned: { hat: [], coop: ['red'], deco: [], ground: ['grass'] },
       allowance: { day: '', streak: 0 },    // 할머니 용돈 — 하루 한 번
+      dex: {},                              // 행동 도감 — { 행동id: { day, by } }
+      dig: { day: '', found: 0, tries: 0, miss: 0 },   // 땅 파기 — 하루에 찾을 수 있는 지렁이 수가 정해져 있다
+      quiz: { day: '', n: 0, done: [] },    // 할머니 퀴즈 — 하루 몇 문제, 낸 문제는 한 바퀴 돌 때까지 다시 안 낸다
+      told: {},                             // 할머니가 한 번만 알려 주는 것들
       chapter: 0, onboarded: false, borrowed: null, lastBackup: '', backupNagged: '', classCode: '', wxTold: '',   // borrowed = 친구에게 빌린 수탉(씨알 코드)
       lastCrow: '', lastSeen: U.now(), openedDays: [],
     };
@@ -162,6 +166,7 @@
     //    저장 데이터에 없는 기본값(homeSide, pauseWeekends 등)이 전부 사라진다.
     const dSettings = base.settings, dInventory = base.inventory, dEquipment = base.equipment;
     const dFarm = base.farm, dOwned = base.owned, dAllow = base.allowance;
+    const dDig = base.dig, dQuiz = base.quiz;
     const out = Object.assign(base, s);
     out.settings = Object.assign(dSettings, s.settings || {});
     out.inventory = Object.assign(dInventory, s.inventory || {});
@@ -169,6 +174,11 @@
     out.farm = Object.assign(dFarm, s.farm || {});
     out.owned = Object.assign(dOwned, s.owned || {});
     out.allowance = Object.assign(dAllow, s.allowance || {});
+    out.dig = Object.assign(dDig, s.dig || {});
+    out.quiz = Object.assign(dQuiz, s.quiz || {});
+    if (!Array.isArray(out.quiz.done)) out.quiz.done = [];
+    if (!out.dex || typeof out.dex !== 'object') out.dex = {};
+    if (!out.told || typeof out.told !== 'object') out.told = {};
     // 가진 목록은 배열이어야 한다 (저장이 망가져도 화면이 죽지 않게)
     for (const k of ['hat', 'coop', 'deco', 'ground']) if (!Array.isArray(out.owned[k])) out.owned[k] = [];
     for (const k of ['red']) if (!out.owned.coop.includes(k)) out.owned.coop.push(k);

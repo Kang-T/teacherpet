@@ -33,12 +33,25 @@
   function caredCount(d) {
     return Object.keys(d.care || {}).filter((day) => day >= (d.stageSince || '') && TP.state.isCared(d, day)).length;
   }
+  function dexBits(state) {
+    const L = (TP.dex && TP.dex.LIST) || [];
+    let n = 0;
+    L.forEach((e, i) => { if (state.dex && state.dex[e.id]) n += 2 ** i; });
+    return n;
+  }
+  function dexFrom(n) {
+    const L = (TP.dex && TP.dex.LIST) || [];
+    n = Math.max(0, Math.floor(Number(n) || 0));
+    return L.filter((e, i) => Math.floor(n / 2 ** i) % 2 === 1).map((e) => e.id);
+  }
   function make(state) {
     const flock = (state.flock || []).filter((d) => d.stage !== 'egg');
     if (!flock.length) return null;
     const body = {
       v: VER,
       c: Math.round(state.coins || 0),
+      // 행동 도감 — 찾은 칸을 비트로 (학교 크롬북에서 모은 도감이 집에서 사라지지 않게). 없으면 옛 코드와 같다.
+      ...(dexBits(state) ? { x: dexBits(state) } : {}),
       b: flock.map((d) => [
         d.name || '',
         Math.max(0, STAGES.indexOf(d.stage)),
@@ -75,7 +88,7 @@
         stageSince: U.addDays(today, -Math.min(r[4] | 0, 400) - 1),
       };
     });
-    return { coins: Math.max(0, body.c | 0), birds };
+    return { coins: Math.max(0, body.c | 0), birds, dex: dexFrom(body.x) };
   }
 
   TP.farmcode = { make, read, VER };
