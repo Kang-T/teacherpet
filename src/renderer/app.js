@@ -2383,7 +2383,9 @@
     if (poopAt(e.clientX, e.clientY) || propAt(e.clientX, e.clientY)) return;
     whistleAt(e.clientX, e.clientY);
   });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePanel(); $('#journalModal').classList.add('hidden'); grannyHide(); } });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePanel(); $('#journalModal').classList.add('hidden'); $('#shopModal').classList.add('hidden'); grannyHide(); } });
+  // 창 바깥(어두운 곳)을 누르면 닫힌다 — ✕ 를 못 찾는 아이가 있다
+  for (const id of ['#shopModal', '#journalModal']) $(id).addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
   function treat(b) {
     const k = b.d.sick && b.d.sick.type;
     if (k === 'pasty') { HLT.cure(b.d); showIcon(b, '✨', 3000); toast(`💧 ${b.d.name}(이)의 엉덩이를 닦아 줬어요. 다 나았어요`, true, 7000); markDirty(); renderCoop(); return true; }

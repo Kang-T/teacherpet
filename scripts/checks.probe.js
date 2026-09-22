@@ -593,6 +593,32 @@
     }
     T.closeMenu();
 
+    // ── 27-2. 모든 창이 화면 맨 앞에 뜬다 ──
+    // 이름 바꾸기 창에 이어 가게 창도 위치 CSS 가 없어 3D 화면 뒤에 깔려 있었다.
+    // 창을 하나씩 열어 '가운데 한 점을 누르면 그 창이 눌리는가'로 잰다.
+    {
+      const front = (sel) => {
+        const el = document.querySelector(sel); if (!el) return 'no-el';
+        const r = el.getBoundingClientRect();
+        if (r.width < 50 || r.height < 50) return `작음 ${Math.round(r.width)}×${Math.round(r.height)}`;
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(30, r.height / 2));
+        return el.contains(hit) ? 'ok' : `뒤에 깔림 (${r.left | 0},${r.top | 0})`;
+      };
+      document.querySelector('#btnShop').click(); await wait(200);
+      const shopF = front('.shopCard');
+      document.querySelector('#closeShop').click(); await wait(100);
+      document.querySelector('#btnDex').click(); await wait(200);
+      const jF = front('.jCard');
+      document.querySelector('#closeJournal').click(); await wait(100);
+      T.openMenu('coop'); await wait(200);
+      const pF = front('#panel');
+      T.closeMenu();
+      ok('가게·관찰일지·메뉴 창이 모두 맨 앞에 뜬다', shopF === 'ok' && jF === 'ok' && pF === 'ok', `가게 ${shopF} · 관찰일지 ${jF} · 메뉴 ${pF}`);
+      document.querySelector('#btnShop').click(); await wait(150);
+      document.querySelector('#shopModal').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      ok('가게는 바깥을 눌러도 닫힌다', document.querySelector('#shopModal').classList.contains('hidden'), '');
+    }
+
     // ── 28. 행동 도감 ──
     // 아이들이 지렁이 9마리를 10분 만에 다 주고 "또 할 거 없어요?" 했다. 지켜보게 만드는 장치.
     const c28 = T.coins();

@@ -183,6 +183,8 @@ label { display: inline-flex; align-items: center; gap: 4px; }
 .askCard .btnRow { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
 
 /* 할머니의 가게 */
+/* 가게 창 — 처음 만들 때 위치를 빠뜨려 3D 화면 뒤에 깔려 있었다 (열려 있는데 안 보이고, 닫을 수도 없었다) */
+#shopModal { position: fixed; inset: 0; z-index: 62; display: flex; align-items: center; justify-content: center; background: rgba(30, 24, 16, .28); }
 .shopCard { width: min(560px, calc(100vw - 28px)); max-height: 84vh; display: flex; flex-direction: column; }
 .shopTabs { display: flex; gap: 6px; padding: 0 14px 8px; flex-wrap: wrap; }
 .shopTabs .stab {
