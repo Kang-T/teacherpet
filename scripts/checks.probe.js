@@ -724,6 +724,12 @@
       const fs = D.screenOf('feeder');
       if (fs) { mv('mousemove', fs.x, fs.y); await wait(60); }
       ok('기구 위에서는 가리키는 손', /cursor\/point\.png/.test(T.cursor().css), T.cursor().kind);
+      // 닭은 계속 움직인다 — 누르기 바로 전에 빈 땅을 다시 고른다 (고른 자리에 닭이 걸어 들어오면 파기가 아니라 쓰다듬기가 된다)
+      ground = null;
+      for (const [gx, gz] of [[8, -12], [-8, -12], [5, -6], [-5, -6], [6, 2], [-6, 2], [0, 4], [10, -18], [-10, -18]]) {
+        const sp = T.screenOfPoint(gx, 0, gz); const hit = sp && T.pickAt(sp.x, sp.y);
+        if (sp && (!hit || hit.type === 'ground')) { ground = sp; break; }
+      }
       if (ground) {
         T.clearWorm();
         mv('mousemove', ground.x, ground.y); await wait(60);
