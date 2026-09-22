@@ -2278,12 +2278,8 @@
       if (!drag.moved) {
         const d0 = drag.deco, it = SHOP.get('deco', d0.kind);
         // 할머니가 묻는다 — confirm() 은 내장 브라우저에서 막히면 '아니요'가 되어 버린다
-        grannySay(`${it ? it.icon + ' ' + it.name : '장식'}을(를) 마당에서 치울까?\n코인은 돌려받지 못한단다.`,
-          [{ label: '치울래요', primary: true, fn: () => {
-            grannyHide();
-            state.farm.decos = state.farm.decos.filter((q) => q.uid !== d0.uid);
-            world.setDecos(state.farm.decos); markDirty(); toast('🧹 마당에서 치웠어요');
-          } },
+        grannySay(`${it ? it.icon + ' ' + it.name : '장식'}을(를) 보관함에 넣어 둘까?\n가게에서 언제든 공짜로 다시 꺼내 놓을 수 있단다.`,
+          [{ label: '넣어 둘래요', primary: true, fn: () => { grannyHide(); storeDeco(d0.kind, d0.uid); } },
            { label: '그냥 둘래요', fn: grannyHide }], 'think');
       } else toast('📦 자리를 옮겼어요');
       drag = null; setCur('open'); return;
@@ -2385,7 +2381,7 @@
   });
   addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePanel(); $('#journalModal').classList.add('hidden'); $('#shopModal').classList.add('hidden'); grannyHide(); } });
   // 창 바깥(어두운 곳)을 누르면 닫힌다 — ✕ 를 못 찾는 아이가 있다
-  for (const id of ['#shopModal', '#journalModal']) $(id).addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
+  for (const id of ['#journalModal']) $(id).addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
   function treat(b) {
     const k = b.d.sick && b.d.sick.type;
     if (k === 'pasty') { HLT.cure(b.d); showIcon(b, '✨', 3000); toast(`💧 ${b.d.name}(이)의 엉덩이를 닦아 줬어요. 다 나았어요`, true, 7000); markDirty(); renderCoop(); return true; }
@@ -2895,37 +2891,95 @@
     return false;                              // 장식물은 '입는' 것이 아니라 놓는 것
   }
   function openShop(kind, bird) {
-    shopKind = kind || 'hat'; shopBird = bird || null;
+    shopKind = kind || 'hat';
+    // 닭을 고르지 않고 열어도 모자를 바로 씌울 수 있게 — 첫 닭을 골라 두고, 위에서 바꿀 수 있다
+    shopBird = bird || (shopBird && birds.includes(shopBird) ? shopBird : null) || birds.find((b) => b.d.stage !== 'egg') || null;
     $$('.stab').forEach((t) => t.classList.toggle('on', t.dataset.kind === shopKind));
     renderShop(); closePanel();
     $('#shopModal').classList.remove('hidden');
   }
+  const DECO_MAX = 16;                     // 마당에 한 번에 놓을 수 있는 장식
+  const placedOf = (id) => state.farm.decos.filter((q) => q.kind === id).length;
+  const storedOf = (id) => (state.farm.stored || {})[id] || 0;
+  const seasonLabel = (it) => { const S = SHOP.SEASONS[it.season]; return S ? `${S.icon} ${S.name}에만 (${S.from.replace('-', '/')}~${S.to.replace('-', '/')})` : ''; };
   function renderShop() {
     $('#shopCoins').textContent = '🪙 ' + state.coins;
+    // 모자 칸: 누구에게 씌울지 위에서 고른다
+    const who = $('#shopBirds');
+    const flock = birds.filter((b) => b.d.stage !== 'egg');
+    who.innerHTML = '';
+    who.classList.toggle('hidden', shopKind !== 'hat' || !flock.length);
+    for (const b of flock) {
+      const el = document.createElement('button');
+      el.className = 'small' + (b === shopBird ? ' primary' : '');
+      el.textContent = `${b.d.hat ? (SHOP.get('hat', b.d.hat) || {}).icon || '🧢' : '🐤'} ${b.d.name}`;
+      el.addEventListener('click', () => { shopBird = b; renderShop(); });
+      who.appendChild(el);
+    }
     const hint = {
-      hat: shopBird ? `${shopBird.d.name}에게 씌울 모자예요. 다시 누르면 벗어요.`
-        : '먼저 닭장 상태에서 닭을 고르고 [모자 씌우기]를 누르세요.',
+      hat: shopBird ? `${shopBird.d.name}에게 씌울 모자예요. 같은 모자를 한 번 더 누르면 벗어요.` : '아직 모자를 씌울 닭이 없어요.',
       coop: '닭장 지붕 색을 고르세요.',
-      deco: '사면 마당에 놓여요. 끌어서 자리를 옮길 수 있어요.',
+      deco: `사면 마당에 놓여요. 끌어서 옮기고, [보관]을 누르면 보관함에 들어가요 (마당에 ${state.farm.decos.length}/${DECO_MAX}).`,
       ground: '마당 바닥을 고르세요.',
     }[shopKind];
     $('#shopHint').textContent = hint + ' 꾸미기는 겉모습만 바꿔요.';
     const grid = $('#shopGrid');
     grid.innerHTML = '';
-    for (const it of SHOP.of(shopKind)) {
+    const day = today();
+    // 모자 벗기기 칸
+    if (shopKind === 'hat' && shopBird && shopBird.d.hat) {
+      const off = document.createElement('button');
+      off.className = 'shopItem own'; off.dataset.act = 'hatoff';
+      off.innerHTML = '<span class="si">🚫</span><span class="sn">모자 벗기기</span><span class="sp">공짜</span>';
+      off.addEventListener('click', () => { shopBird.d.hat = null; applyHat(shopBird); markDirty(); renderShop(); renderCoop(); toast(`${shopBird.d.name}의 모자를 벗겼어요`); });
+      grid.appendChild(off);
+    }
+    // 지금 철에 파는 계절 물건을 맨 앞에, 나머지는 값 순서로. 철이 지난 것은 맨 뒤에 흐리게.
+    const list = SHOP.of(shopKind).slice().sort((a, b) => {
+      const ra = a.season ? (SHOP.inSeason(a, day) ? 0 : 2) : 1, rb = b.season ? (SHOP.inSeason(b, day) ? 0 : 2) : 1;
+      return ra - rb || a.price - b.price;
+    });
+    for (const it of list) {
       const has = owned(shopKind, it.id), on = equipped(shopKind, it.id);
+      const sell = SHOP.inSeason(it, day);
+      const deco = shopKind === 'deco';
+      const st = deco ? storedOf(it.id) : 0, pl = deco ? placedOf(it.id) : 0;
       const poor = !has && state.coins < it.price;
       const el = document.createElement('button');
-      el.className = 'shopItem' + (on ? ' on' : has ? ' own' : '') + (poor ? ' cant' : '');
-      el.innerHTML = `<span class="si">${esc(it.icon)}</span><span class="sn">${esc(it.name)}</span>`
-        + `<span class="sp">${on ? '입고 있어요' : has ? (shopKind === 'deco' ? '🪙 ' + it.price : '가지고 있어요') : '🪙 ' + it.price}</span>`;
-      el.addEventListener('click', () => pickShop(it, has));
+      el.className = 'shopItem' + (on ? ' on' : has ? ' own' : '') + ((poor && !st) || (!sell && !has && !st) ? ' cant' : '') + (it.season && sell ? ' season' : '');
+      let sp;
+      if (on) sp = shopKind === 'hat' ? '쓰고 있어요' : '쓰고 있어요';
+      else if (deco && st) sp = `보관함 ${st}개 · 누르면 놓기`;
+      else if (!sell && !(has && !deco)) sp = seasonLabel(it);
+      else if (has && !deco) sp = '가지고 있어요';
+      else sp = '🪙 ' + it.price;
+      el.innerHTML = `${it.season && sell ? '<span class="sbadge">철 한정</span>' : ''}<span class="si">${esc(it.icon)}</span><span class="sn">${esc(it.name)}</span><span class="sp">${esc(sp)}</span>`
+        + (deco && pl ? `<span class="sput">마당에 ${pl}개 <span class="sstore" data-store="${esc(it.id)}">보관</span></span>` : '');
+      el.addEventListener('click', (e) => {
+        if (e.target.dataset && e.target.dataset.store) { storeDeco(e.target.dataset.store); return; }
+        pickShop(it, has);
+      });
       grid.appendChild(el);
     }
   }
+  // 마당의 장식 하나를 보관함으로 (가장 나중에 놓은 것부터). 코인은 그대로 — 다시 놓을 때 공짜다.
+  function storeDeco(kind, uidOf) {
+    const i = uidOf ? state.farm.decos.findIndex((q) => q.uid === uidOf) : state.farm.decos.map((q) => q.kind).lastIndexOf(kind);
+    if (i < 0) return false;
+    const [d] = state.farm.decos.splice(i, 1);
+    state.farm.stored[d.kind] = (state.farm.stored[d.kind] || 0) + 1;
+    world.setDecos(state.farm.decos); markDirty(); renderShop();
+    const it = SHOP.get('deco', d.kind);
+    toast(`📦 ${it ? it.icon + ' ' + it.name : '장식'}을(를) 보관함에 넣었어요. 가게에서 언제든 다시 놓을 수 있어요`, false, 5000);
+    return true;
+  }
   function pickShop(it, has) {
     // 장식물은 살 때마다 하나씩 더 놓인다. 나머지는 한 번 사면 계속 쓴다.
-    if (!has || it.kind === 'deco') {
+    const fromStore = it.kind === 'deco' && storedOf(it.id) > 0;          // 보관함에 있으면 꺼내 놓는다 (공짜)
+    if (it.kind === 'deco' && state.farm.decos.length >= DECO_MAX) { toast(`마당이 꽉 찼어요 (${DECO_MAX}개). 장식 하나를 [보관]하고 다시 놓아 주세요`, false, 6000); return; }
+    if (!fromStore && (!has || it.kind === 'deco') && !SHOP.inSeason(it, today())) { toast(`🗓️ ${seasonLabel(it)} 팔아요`, false, 5000); return; }
+    if (fromStore) state.farm.stored[it.id] -= 1;
+    else if (!has || it.kind === 'deco') {
       if (state.coins < it.price) { coinShort(it.price); return; }
       state.coins -= it.price;
       if (!has) (state.owned[it.kind] = state.owned[it.kind] || []).push(it.id);
@@ -2933,10 +2987,9 @@
     if (it.kind === 'coop') state.farm.coopSkin = it.id;
     else if (it.kind === 'ground') state.farm.ground = it.id;
     else if (it.kind === 'deco') {
-      if (state.farm.decos.length >= 12) { toast('마당이 꽉 찼어요. 장식을 하나 치우고 다시 놓아 주세요', false, 6000); return; }
       const spot = { x: rand(world.xMin + 4, world.xMax - 4), z: clampZ(rand(world.zMin + 5, world.zMax - 3)) };
       state.farm.decos.push({ uid: uid(), kind: it.id, x: spot.x, z: spot.z });
-      toast(`${it.icon} ${it.name}을(를) 마당에 놓았어요. 끌어서 옮겨 보세요`, false, 6000);
+      toast(`${it.icon} ${it.name}을(를) 마당에 놓았어요${fromStore ? ' (보관함에서)' : ''}. 끌어서 옮겨 보세요`, false, 6000);
     } else if (it.kind === 'hat') {
       if (!shopBird) { toast('먼저 닭을 고르세요', false, 5000); return; }
       shopBird.d.hat = shopBird.d.hat === it.id ? null : it.id;
@@ -3256,6 +3309,25 @@
     plainCursor(on) { state.settings.plainCursor = !!on; setCur(curKind, true); return canvas.style.cursor; },
     callTargetOf(name) { const b = birds.find((q) => q.d.name === name); return b && b.callTarget ? { x: +b.callTarget.x.toFixed(2), z: +b.callTarget.z.toFixed(2) } : null; },
     lookSpot() { return lookSpot(); },
+    shopItems() { return SHOP.ITEMS.map((it) => ({ kind: it.kind, id: it.id, price: it.price, season: it.season || null })); },
+    decoKinds() { return world.decoKinds.slice(); },
+    tryAllHats(name) {
+      const b = birds.find((q) => q.d.name === name); if (!b) return ['no-bird'];
+      const bad = [];
+      for (const it of SHOP.of('hat')) { try { b.d.hat = it.id; applyHat(b); } catch (e) { bad.push(it.id + ':' + e.message); } }
+      b.d.hat = null; applyHat(b); return bad;
+    },
+    tryAllDecos() {
+      const bad = []; const keep = state.farm.decos.slice();
+      for (const k of SHOP.of('deco')) { try { world.setDecos([{ uid: 't-' + k.id, kind: k.id, x: 0, z: -10 }]); if (!world.decos.get('t-' + k.id)) bad.push(k.id + ':없음'); } catch (e) { bad.push(k.id + ':' + e.message); } }
+      world.setDecos(keep); return bad;
+    },
+    setDecosRaw(list) { state.farm.decos = list.map((d, i) => Object.assign({ uid: 'raw' + i }, d)); world.setDecos(state.farm.decos); return state.farm.decos.length; },
+    hatRaw(name, id) { const b = birds.find((q) => q.d.name === name); if (!b) return null; b.d.hat = id; applyHat(b); return id; },
+    decoState() { return { placed: state.farm.decos.map((d) => d.kind), stored: Object.assign({}, state.farm.stored) }; },
+    shopPick(kind, id) { const it = SHOP.get(kind, id); if (!it) return 'no-item'; pickShop(it, owned(kind, id)); return { coins: state.coins, placed: state.farm.decos.length }; },
+    storeDeco(kind) { return storeDeco(kind); },
+    openShopUi(kind) { openShop(kind || 'hat', null); return shopBird ? shopBird.d.name : null; },
     openMenu(tab) { openPanel(tab || 'coop'); return !document.querySelector('#panel').classList.contains('hidden'); },
     closeMenu() { closePanel(); return true; },
     grannyOpen() { return !document.querySelector('#granny').classList.contains('hidden'); },

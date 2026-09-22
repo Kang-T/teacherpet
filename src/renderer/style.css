@@ -367,3 +367,12 @@ body.menuOpen #dim { display: block; }
 .dexCell.got { background: #FFFDF5; border-color: #2B1B0E; color: #2B2620; }
 .dexCell .dw { font-size: 11px; line-height: 1.45; color: #5A4A38; }
 .dexCell .dd { font-size: 10px; color: #A08868; }
+
+/* 가게 — 닭 고르기 · 철 한정 · 보관 */
+.shopBirds { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 8px; }
+.shopItem { position: relative; }
+.shopItem.season { border-color: #C0392B; }
+.shopItem .sbadge { position: absolute; top: 4px; right: 4px; font-size: 10px; background: #C0392B; color: #fff; border-radius: 6px; padding: 1px 5px; }
+.shopItem .sput { display: block; margin-top: 4px; font-size: 11px; color: #5A4A38; }
+.shopItem .sstore { display: inline-block; margin-left: 4px; padding: 1px 7px; border: 1.5px solid #2B1B0E; border-radius: 8px; background: #FFF3D0; font-weight: 700; cursor: pointer; }
+.shopItem .sstore:hover { background: #FFE9A8; }

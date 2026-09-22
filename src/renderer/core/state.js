@@ -27,7 +27,7 @@
         propHidden: {},
       },
       // 마당 꾸미기. 자리는 마당 좌표 그대로 담는다 (마당 크기는 고정이다).
-      farm: { placements: {}, decos: [], coopSkin: 'red', ground: 'grass' },
+      farm: { placements: {}, decos: [], coopSkin: 'red', ground: 'grass', stored: {} },   // stored: 치운 장식 보관함 { 종류: 개수 }
       owned: { hat: [], coop: ['red'], deco: [], ground: ['grass'] },
       allowance: { day: '', streak: 0 },    // 할머니 용돈 — 하루 한 번
       dex: {},                              // 행동 도감 — { 행동id: { day, by } }
@@ -185,6 +185,7 @@
     if (!out.owned.ground.includes('grass')) out.owned.ground.push('grass');
     if (!Array.isArray(out.farm.decos)) out.farm.decos = [];
     if (!out.farm.placements || typeof out.farm.placements !== 'object') out.farm.placements = {};
+    if (!out.farm.stored || typeof out.farm.stored !== 'object') out.farm.stored = {};
     out.away = s.away || [];
     out.openedDays = s.openedDays || [];
     out.flock = (out.flock || []).map(ensureBird);

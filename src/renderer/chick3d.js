@@ -16,6 +16,7 @@
       scale: 1, comb: 0, tail: 0, wattle: 0, // 어린닭·암탉·수탉용 부품 크기 (0이면 없음)
     }, opts);
     const dullMats = [], combMats = [];
+    const topBits = [];                       // 볏·머리털 — 머리를 덮는 모자를 쓰면 숨긴다 (모자를 뚫고 나오면 이상하다)
     function registerComb(m) { m.userData.base = m.color.clone(); combMats.push(m); return m; }
     function registerDull(m) { m.userData.base = m.color.clone(); dullMats.push(m); return m; }
     const mat = (color, extra = {}) => registerDull(new THREE.MeshPhysicalMaterial(Object.assign({ color, roughness: 0.9, metalness: 0, sheen: 0.8, sheenRoughness: 0.7, sheenColor: new THREE.Color(color).lerp(new THREE.Color(0xFFFFFF), 0.5) }, extra)));
@@ -84,10 +85,10 @@
       for (let i = 0; i < n; i++) {
         const k = 1 - Math.abs(i - (n - 1) / 2) / n; // 가운데가 크게
         const c = new THREE.Mesh(S(0.19 * P.comb * (0.7 + k * 0.6)), registerComb(hard(0xE8323C, { roughness: 0.55 })));
-        c.scale.set(0.55, 1.25, 0.9); c.position.set(0, 1.45 + k * 0.12 * P.comb, 0.42 - i * 0.26); c.rotation.z = (i - (n - 1) / 2) * 0.12; head.add(c);
+        c.scale.set(0.55, 1.25, 0.9); c.position.set(0, 1.45 + k * 0.12 * P.comb, 0.42 - i * 0.26); c.rotation.z = (i - (n - 1) / 2) * 0.12; head.add(c); topBits.push(c);
       }
     } else {
-      for (let i = 0; i < 3; i++) { const t = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 12), mat(0xF2C230)); t.position.set((i - 1) * 0.1, 1.62, -0.05 + (i - 1) * 0.05); t.rotation.z = (i - 1) * 0.35; t.rotation.x = -0.2; head.add(t); }
+      for (let i = 0; i < 3; i++) { const t = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 12), mat(0xF2C230)); t.position.set((i - 1) * 0.1, 1.62, -0.05 + (i - 1) * 0.05); t.rotation.z = (i - 1) * 0.35; t.rotation.x = -0.2; head.add(t); topBits.push(t); }
     }
     if (P.wattle) { const w = new THREE.Mesh(S(0.13 * P.wattle), registerComb(hard(0xE8323C, { roughness: 0.55 }))); w.scale.set(0.6, 1.2, 0.6); w.position.set(0, 0.2, 0.95); head.add(w); }
     // 다리·발
@@ -461,39 +462,99 @@
         c.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
       }
       hatSlot.position.set(0, 1.42, 0.02);    // 리본·꽃이 옮겨 놓은 자리를 늘 되돌린다
+      for (const t of topBits) t.visible = true;
       if (!kind || !spec) return;
       const col = hard(spec.color, { roughness: 0.65 });
-      if (kind === 'ribbon') {
+      // 틀(style)마다 모양이 정해져 있고, 색은 가게 목록에서 온다. 옛 저장의 모자(id 만 있음)도 알아본다.
+      const style = spec.style || ({ ribbon: 'ribbon', flower: 'flower', party: 'cone' })[kind] || 'brim';
+      const add = (geo, mat, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); hatSlot.add(m); return m; };
+      const Cyl = (rt, rb, h, n = 20) => new THREE.CylinderGeometry(rt, rb, h, n);
+      const dome = (r) => new THREE.SphereGeometry(r, 22, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+      if (style === 'ribbon') {
         // 리본은 머리에 얹지 않고 옆에 단다 (정수리에 두면 볏과 겹친다)
         hatSlot.position.set(0.5, 1.12, 0.12);
         for (const side of [-1, 1]) {
           const loop = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.1, 8, 18), col);
           loop.position.set(0, side * 0.3, 0); loop.rotation.x = Math.PI / 2; loop.rotation.z = side * 0.5; hatSlot.add(loop);
         }
-        const knot = new THREE.Mesh(S(0.16), col); hatSlot.add(knot);
-      } else if (kind === 'flower') {
+        add(S(0.16), col);
+      } else if (style === 'flower') {
         hatSlot.position.set(0.42, 1.28, 0.16);
         for (let i = 0; i < 5; i++) {
-          const pet = new THREE.Mesh(S(0.2), col);
-          pet.position.set(Math.cos(i / 5 * Math.PI * 2) * 0.24, 0, Math.sin(i / 5 * Math.PI * 2) * 0.24);
-          pet.scale.set(1, 0.5, 1); hatSlot.add(pet);
+          const pet = add(S(0.2), col, Math.cos(i / 5 * Math.PI * 2) * 0.24, 0, Math.sin(i / 5 * Math.PI * 2) * 0.24);
+          pet.scale.set(1, 0.5, 1);
         }
-        const core = new THREE.Mesh(S(0.14), hard(0xE8913A)); core.position.y = 0.08; hatSlot.add(core);
-        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6), hard(0x6FAF62));
-        stem.position.y = -0.22; hatSlot.add(stem);
+        add(S(0.14), hard(spec.core || 0xE8913A), 0, 0.08, 0);
+        add(Cyl(0.05, 0.05, 0.4, 6), hard(0x6FAF62), 0, -0.22, 0);
+      } else if (style === 'cone' || style === 'witch' || style === 'santa') {
+        const tall = style === 'witch' ? 1.35 : style === 'santa' ? 0.95 : (spec.top || 1.05);
+        const r = style === 'witch' ? 0.55 : style === 'santa' ? 0.6 : (spec.crown || 0.58);
+        const cone = add(new THREE.ConeGeometry(r, tall, 22), col, 0, tall / 2 + 0.04, 0);
+        if (style === 'santa') { cone.rotation.z = -0.35; cone.position.x = 0.16; }
+        if (style === 'witch') {
+          add(Cyl(1.1, 1.1, 0.06, 26), col, 0, 0.02, 0);
+          add(Cyl(0.56, 0.56, 0.12, 22), hard(spec.band || 0xF0892E), 0, 0.14, 0);
+          cone.rotation.x = -0.12;
+        }
+        if (style === 'santa') {
+          add(new THREE.TorusGeometry(0.58, 0.14, 10, 24), hard(0xFFFFFF, { roughness: 0.9 }), 0, 0.06, 0).rotation.x = Math.PI / 2;
+          add(S(0.17), hard(0xFFFFFF, { roughness: 0.9 }), 0.16 + Math.sin(0.35) * tall, 0.04 + Math.cos(0.35) * tall, 0);
+        }
+        if (style === 'cone') add(S(0.13), hard(spec.ball || 0xFFE07A), 0, tall + 0.08, 0);
+      } else if (style === 'cap') {
+        add(dome(0.64), col, 0, -0.02, 0);
+        const visor = add(Cyl(0.5, 0.5, 0.06, 20), col, 0, 0.0, 0.52);
+        visor.scale.set(1, 1, 0.7);
+        add(S(0.08), col, 0, 0.62, 0);
+      } else if (style === 'beanie') {
+        add(dome(0.66), col, 0, -0.04, 0);
+        add(new THREE.TorusGeometry(0.64, 0.12, 10, 26), hard(spec.pom || 0xFFF5E6, { roughness: 0.95 }), 0, 0.0, 0).rotation.x = Math.PI / 2;
+        add(S(0.2), hard(spec.pom || 0xFFF5E6, { roughness: 0.95 }), 0, 0.7, 0);
+      } else if (style === 'beret') {
+        const b = add(S(0.72), col, 0.08, 0.14, 0); b.scale.set(1, 0.32, 1); b.rotation.z = -0.22;
+        add(Cyl(0.05, 0.07, 0.14, 8), col, 0.02, 0.36, 0);
+      } else if (style === 'crown') {
+        const gold = hard(spec.color, { roughness: 0.3, metalness: 0.4 });
+        add(Cyl(0.5, 0.46, 0.3, 22), gold, 0, 0.15, 0);
+        for (let i = 0; i < 5; i++) {
+          const a = i / 5 * Math.PI * 2;
+          add(new THREE.ConeGeometry(0.11, 0.3, 8), gold, Math.cos(a) * 0.46, 0.44, Math.sin(a) * 0.46);
+          add(S(0.06), gold, Math.cos(a) * 0.46, 0.62, Math.sin(a) * 0.46);
+        }
+        add(S(0.09), hard(spec.gem || 0xD9574F, { roughness: 0.2 }), 0, 0.16, 0.48);
+      } else if (style === 'halo') {
+        const m = hard(spec.color, { roughness: 0.4 });
+        if (m.emissive) m.emissive.setHex(0x7A5A00);
+        add(new THREE.TorusGeometry(0.52, 0.07, 10, 30), m, 0, 0.72, 0).rotation.x = Math.PI / 2;
+      } else if (style === 'gat') {
+        // 갓 — 넓고 얇은 챙과 높은 대우. 챙은 살짝 비치게.
+        const brimM = hard(spec.color, { roughness: 0.6 }); brimM.transparent = true; brimM.opacity = 0.82;
+        add(Cyl(1.4, 1.4, 0.04, 30), brimM, 0, 0.02, 0);
+        add(Cyl(0.4, 0.46, 0.62, 22), col, 0, 0.33, 0);
+        add(Cyl(0.47, 0.47, 0.08, 22), hard(0x6B4A2E), 0, 0.08, 0);
+      } else if (style === 'pumpkin') {
+        const p = add(S(0.58), col, 0, 0.3, 0); p.scale.set(1, 0.78, 1);
+        for (let i = 0; i < 6; i++) {
+          const a = i / 6 * Math.PI * 2;
+          const rib = add(S(0.2), col, Math.cos(a) * 0.46, 0.3, Math.sin(a) * 0.46); rib.scale.set(0.7, 1.9, 0.7);
+        }
+        add(Cyl(0.06, 0.08, 0.26, 8), hard(0x5E8C3A), 0, 0.8, 0);
+      } else if (style === 'bokgeon') {
+        // 색동 복건 — 머리를 덮는 검은 두건에 색동 띠
+        const hood = add(dome(0.7), col, 0, -0.06, -0.04); hood.scale.set(1, 1.05, 1.08);
+        const cols = [0xD9574F, 0xF2C14E, 0x6FAF62, 0x5E93D6, 0xF09AB4];
+        cols.forEach((c, i) => { add(Cyl(0.72 - i * 0.004, 0.72, 0.06, 26), hard(c), 0, 0.02 + i * 0.06, -0.04); });
       } else {
-        if (spec.brim) {
-          const brim = new THREE.Mesh(new THREE.CylinderGeometry(spec.brim, spec.brim, 0.08, 22), col);
-          hatSlot.add(brim);
-        }
+        // brim — 챙 + 둥근 모자 (밀짚모자·낙엽관·신사 모자)
+        if (spec.brim) add(Cyl(spec.brim, spec.brim, 0.08, 22), col);
         if (spec.top) {
-          const crown = kind === 'party'
-            ? new THREE.Mesh(new THREE.ConeGeometry(spec.crown, spec.top, 20), col)
-            : new THREE.Mesh(new THREE.CylinderGeometry(spec.crown * 0.92, spec.crown, spec.top, 20), col);
-          crown.position.y = spec.top / 2 + 0.04; hatSlot.add(crown);
-          if (kind === 'party') { const ball = new THREE.Mesh(S(0.13), hard(0xFFE07A)); ball.position.y = spec.top + 0.08; hatSlot.add(ball); }
+          add(Cyl(spec.crown * 0.92, spec.crown, spec.top, 20), col, 0, spec.top / 2 + 0.04, 0);
+          if (spec.band) add(Cyl(spec.crown * 1.01, spec.crown * 1.01, Math.min(0.14, spec.top * 0.25), 20), hard(spec.band), 0, 0.12, 0);
         }
       }
+      // 머리를 덮는 모자면 볏을 숨긴다. 리본·꽃·왕관·천사 고리·낙엽관(챙만)은 볏이 보이는 게 자연스럽다.
+      const covers = ['cone', 'witch', 'santa', 'cap', 'beanie', 'beret', 'gat', 'pumpkin', 'bokgeon'].includes(style) || (style === 'brim' && spec.top > 0);
+      for (const t of topBits) t.visible = !covers;
       for (const o of hatSlot.children) o.castShadow = true;
     }
 

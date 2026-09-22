@@ -255,6 +255,8 @@
       }
     }
     function tickPuffs(dt) {
+      // 풍차 날개는 천천히 돈다
+      for (const o of world.decos.values()) if (o.userData.spin) o.userData.spin.rotation.z += dt * 0.9;
       for (let i = puffs.length - 1; i >= 0; i--) {
         const p = puffs[i]; p.t += dt;
         for (const m of p.g.children) {
@@ -485,6 +487,10 @@
     }
     // ── 마당 장식물 ──
     // 아이가 사서 놓는 것. 닭의 판단에는 들어가지 않는다 — 걸어서 지나간다.
+    // 장식물을 빚는 작은 도구들
+    const sph = (r) => new THREE.SphereGeometry(r, 16, 12);
+    const cyl = (rt, rb, h, n = 14, open = false) => new THREE.CylinderGeometry(rt, rb, h, n, 1, open);
+    function mk(geo, mat, x = 0, y = 0, z = 0, parent) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (parent) parent.add(m); return m; }
     const decoMakers = {
       flowerbed() {
         const g = new THREE.Group();
@@ -555,6 +561,185 @@
           const st = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 8), hard(0x9E9280));
           st.scale.y = 0.55; st.position.set(Math.cos(a) * 1.14, 0.12, Math.sin(a) * 1.14); g.add(st);
         }
+        return g;
+      },
+      // ── 2026-09-22 추가 — 아이들이 "꾸미기가 너무 적어요" 했다 ──
+      rock() {
+        const g = new THREE.Group();
+        const a = mk(new THREE.DodecahedronGeometry(0.55, 1), hard(0xA39C90, { roughness: 0.9 }), 0, 0.32, 0); a.scale.set(1.2, 0.7, 1);
+        mk(new THREE.DodecahedronGeometry(0.28, 1), hard(0x8F887C, { roughness: 0.9 }), 0.55, 0.16, 0.25, g);
+        g.add(a); return g;
+      },
+      sunflower() {
+        const g = new THREE.Group();
+        mk(cyl(0.05, 0.06, 1.5, 6), hard(0x5E9A45), 0, 0.75, 0, g);
+        const leafM = hard(0x6FAF62);
+        for (const sd of [-1, 1]) { const l = mk(sph(0.22), leafM, sd * 0.2, 0.6, 0, g); l.scale.set(1.4, 0.3, 0.7); l.rotation.z = sd * 0.5; }
+        const face = new THREE.Group(); face.position.set(0, 1.55, 0.05); face.rotation.x = -0.35; g.add(face);
+        for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; const p = mk(sph(0.14), hard(0xFFC83D), Math.cos(a) * 0.36, Math.sin(a) * 0.36, 0, face); p.scale.set(1.5, 0.7, 0.3); p.rotation.z = a; }
+        mk(cyl(0.26, 0.26, 0.1, 18), hard(0x7A4A24), 0, 0, 0.02, face).rotation.x = Math.PI / 2;
+        return g;
+      },
+      mushroom() {
+        const g = new THREE.Group();
+        mk(cyl(0.2, 0.26, 0.55, 12), hard(0xFFF5E6), 0, 0.27, 0, g);
+        const cap = mk(new THREE.SphereGeometry(0.55, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), hard(0xD9463C), 0, 0.5, 0, g); cap.scale.y = 0.75;
+        for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; mk(sph(0.08), hard(0xFFFFFF), Math.cos(a) * 0.34, 0.72, Math.sin(a) * 0.34, g); }
+        mk(sph(0.08), hard(0xFFFFFF), 0, 0.92, 0, g);
+        return g;
+      },
+      pot() {
+        const g = new THREE.Group();
+        mk(cyl(0.38, 0.28, 0.5, 16), hard(0xC9744A), 0, 0.25, 0, g);
+        mk(cyl(0.42, 0.42, 0.08, 16), hard(0xB5623C), 0, 0.5, 0, g);
+        const cols = [0xF07F9A, 0xFFE07A, 0xC79BE0];
+        for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2; mk(cyl(0.03, 0.03, 0.4, 6), hard(0x6FAF62), Math.cos(a) * 0.14, 0.72, Math.sin(a) * 0.14, g); mk(sph(0.13), hard(cols[i]), Math.cos(a) * 0.14, 0.94, Math.sin(a) * 0.14, g); }
+        return g;
+      },
+      haybale() {
+        const g = new THREE.Group();
+        const b = mk(cyl(0.55, 0.55, 1.1, 20), hard(0xE3C46A, { roughness: 0.95 }), 0, 0.55, 0, g); b.rotation.z = Math.PI / 2;
+        for (const x of [-0.3, 0.3]) { const r = mk(cyl(0.565, 0.565, 0.06, 20), hard(0xB0843A), x, 0.55, 0, g); r.rotation.z = Math.PI / 2; }
+        return g;
+      },
+      stones() {
+        const g = new THREE.Group();
+        for (let i = 0; i < 5; i++) { const s = mk(cyl(0.32, 0.34, 0.1, 14), hard(0xC9C2B4, { roughness: 0.9 }), (i - 2) * 0.62, 0.05, Math.sin(i * 1.7) * 0.25, g); s.scale.z = 0.8; }
+        return g;
+      },
+      mailbox() {
+        const g = new THREE.Group();
+        mk(cyl(0.07, 0.07, 1.1, 8), hard(0x8B6A4A), 0, 0.55, 0, g);
+        const box = mk(new THREE.BoxGeometry(0.5, 0.4, 0.7), hard(0xD9463C), 0, 1.2, 0, g); box.castShadow = true;
+        const top = mk(cyl(0.25, 0.25, 0.7, 16, true), hard(0xD9463C), 0, 1.4, 0, g); top.rotation.x = Math.PI / 2;
+        mk(new THREE.BoxGeometry(0.04, 0.3, 0.08), hard(0xFFE07A), 0.27, 1.45, 0.2, g);
+        return g;
+      },
+      bench() {
+        const g = new THREE.Group();
+        const wood = hard(0xB5824E);
+        mk(new THREE.BoxGeometry(1.8, 0.1, 0.5), wood, 0, 0.55, 0, g).castShadow = true;
+        mk(new THREE.BoxGeometry(1.8, 0.4, 0.08), wood, 0, 0.85, -0.24, g);
+        for (const x of [-0.75, 0.75]) for (const z of [-0.18, 0.18]) mk(new THREE.BoxGeometry(0.1, 0.55, 0.1), hard(0x7A5A3A), x, 0.27, z, g);
+        return g;
+      },
+      birdhouse() {
+        const g = new THREE.Group();
+        mk(cyl(0.06, 0.06, 1.5, 8), hard(0x8B6A4A), 0, 0.75, 0, g);
+        mk(new THREE.BoxGeometry(0.55, 0.55, 0.5), hard(0x8FC7E8), 0, 1.75, 0, g).castShadow = true;
+        const roof = mk(new THREE.ConeGeometry(0.5, 0.4, 4), hard(0xD9574F), 0, 2.22, 0, g); roof.rotation.y = Math.PI / 4;
+        mk(cyl(0.1, 0.1, 0.05, 14), hard(0x3A2A1A), 0, 1.8, 0.26, g).rotation.x = Math.PI / 2;
+        return g;
+      },
+      tree() {
+        const g = new THREE.Group();
+        mk(cyl(0.16, 0.22, 1.4, 10), hard(0x8B6A4A), 0, 0.7, 0, g).castShadow = true;
+        for (const [x, y, z, r] of [[0, 1.9, 0, 0.85], [0.5, 1.6, 0.2, 0.55], [-0.5, 1.65, -0.1, 0.6], [0.1, 2.4, -0.2, 0.55]]) mk(sph(r), hard(0x62A852), x, y, z, g).castShadow = true;
+        for (const [x, y, z] of [[0.6, 1.9, 0.5], [-0.4, 2.0, 0.6], [0.2, 1.5, 0.75], [-0.7, 1.5, 0.3], [0.5, 2.4, 0.3]]) mk(sph(0.12), hard(0xD9322E), x, y, z, g);
+        return g;
+      },
+      parasol() {
+        const g = new THREE.Group();
+        mk(cyl(0.04, 0.04, 2.1, 8), hard(0xEEEEEE), 0, 1.05, 0, g);
+        const cols = [0xF07F9A, 0xFFFFFF];
+        for (let i = 0; i < 8; i++) {
+          const seg = mk(new THREE.ConeGeometry(1.2, 0.5, 8, 1, true, i / 8 * Math.PI * 2, Math.PI / 4), hard(cols[i % 2], { side: THREE.DoubleSide }), 0, 2.2, 0, g);
+          seg.castShadow = true;
+        }
+        mk(new THREE.BoxGeometry(0.9, 0.08, 0.9), hard(0xF5EBD8), 0.9, 0.35, 0.2, g);
+        return g;
+      },
+      lamppost() {
+        const g = new THREE.Group();
+        mk(cyl(0.07, 0.1, 2.3, 10), hard(0x3E4752), 0, 1.15, 0, g);
+        const glowM = hard(0xFFF3C4, { roughness: 0.3 }); if (glowM.emissive) glowM.emissive.setHex(0xB8902A);
+        mk(sph(0.26), glowM, 0, 2.45, 0, g);
+        mk(new THREE.ConeGeometry(0.34, 0.22, 16), hard(0x3E4752), 0, 2.75, 0, g);
+        return g;
+      },
+      windmill() {
+        const g = new THREE.Group();
+        mk(cyl(0.45, 0.7, 2.4, 12), hard(0xF1E7D2), 0, 1.2, 0, g).castShadow = true;
+        mk(new THREE.ConeGeometry(0.6, 0.6, 12), hard(0xC9574F), 0, 2.7, 0, g);
+        const hub = new THREE.Group(); hub.position.set(0, 2.2, 0.55); g.add(hub);
+        for (let i = 0; i < 4; i++) { const b = mk(new THREE.BoxGeometry(0.22, 1.3, 0.04), hard(0xE8DCC0), 0, 0.65, 0); const arm = new THREE.Group(); arm.rotation.z = i * Math.PI / 2 + 0.3; arm.add(b); hub.add(arm); }
+        mk(sph(0.1), hard(0x7A5A3A), 0, 0, 0.03, hub);
+        g.userData.spin = hub;                               // 바람개비 날개 (render 에서 돌린다)
+        return g;
+      },
+      well() {
+        const g = new THREE.Group();
+        mk(cyl(0.8, 0.85, 0.7, 20, true), hard(0xA89E8E, { roughness: 0.9, side: THREE.DoubleSide }), 0, 0.35, 0, g).castShadow = true;
+        mk(new THREE.TorusGeometry(0.82, 0.1, 8, 24), hard(0x9C9282), 0, 0.72, 0, g).rotation.x = Math.PI / 2;
+        mk(cyl(0.72, 0.72, 0.04, 20), hard(0x3E6E8C, { roughness: 0.2 }), 0, 0.4, 0, g);
+        for (const x of [-0.75, 0.75]) mk(new THREE.BoxGeometry(0.1, 1.5, 0.1), hard(0x8B6A4A), x, 1.1, 0, g);
+        const roof = mk(new THREE.ConeGeometry(1.1, 0.6, 4), hard(0xC9574F), 0, 2.0, 0, g); roof.rotation.y = Math.PI / 4;
+        const bucket = mk(cyl(0.16, 0.12, 0.22, 12), hard(0x8B6A4A), 0, 1.25, 0, g);
+        mk(cyl(0.012, 0.012, 0.45, 4), hard(0xE8DCC0), 0, 1.58, 0, g);
+        void bucket; return g;
+      },
+      statue() {
+        const g = new THREE.Group();
+        mk(new THREE.BoxGeometry(1.0, 0.5, 1.0), hard(0xE8E1D2, { roughness: 0.8 }), 0, 0.25, 0, g).castShadow = true;
+        const gold = hard(0xF2C14E, { roughness: 0.25, metalness: 0.6 });
+        const body = mk(sph(0.42), gold, 0, 0.95, 0, g); body.scale.set(1.15, 1, 1); body.castShadow = true;
+        mk(sph(0.26), gold, 0.28, 1.45, 0, g);
+        mk(new THREE.ConeGeometry(0.08, 0.2, 8), gold, 0.55, 1.43, 0, g).rotation.z = -Math.PI / 2;
+        for (let i = 0; i < 3; i++) mk(sph(0.08), gold, 0.2 + i * 0.09, 1.72 - Math.abs(i - 1) * 0.04, 0, g);
+        const tail = mk(new THREE.ConeGeometry(0.2, 0.5, 8), gold, -0.45, 1.2, 0, g); tail.rotation.z = 0.7;
+        return g;
+      },
+      moonlantern() {
+        const g = new THREE.Group();
+        mk(cyl(0.05, 0.05, 1.8, 8), hard(0x8B6A4A), 0, 0.9, 0, g);
+        mk(new THREE.BoxGeometry(0.7, 0.05, 0.05), hard(0x8B6A4A), 0.3, 1.8, 0, g);
+        const m = hard(0xFFE9A8, { roughness: 0.4 }); if (m.emissive) m.emissive.setHex(0xC08A20);
+        mk(sph(0.34), m, 0.6, 1.45, 0, g);
+        mk(cyl(0.012, 0.012, 0.3, 4), hard(0x6B4A2E), 0.6, 1.66, 0, g);
+        return g;
+      },
+      jackolantern() {
+        const g = new THREE.Group();
+        const orange = hard(0xF0892E);
+        const p = mk(sph(0.5), orange, 0, 0.42, 0, g); p.scale.set(1.15, 0.85, 1.05); p.castShadow = true;
+        for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const r = mk(sph(0.22), orange, Math.cos(a) * 0.42, 0.42, Math.sin(a) * 0.38, g); r.scale.set(0.8, 1.7, 0.8); }
+        const glow = hard(0xFFE07A); if (glow.emissive) glow.emissive.setHex(0xCC8800);
+        for (const x of [-0.18, 0.18]) mk(new THREE.ConeGeometry(0.08, 0.14, 3), glow, x, 0.52, 0.5, g).rotation.x = Math.PI / 2;
+        const mouth = mk(new THREE.BoxGeometry(0.36, 0.08, 0.05), glow, 0, 0.32, 0.52, g); void mouth;
+        mk(cyl(0.05, 0.07, 0.2, 8), hard(0x5E8C3A), 0, 0.85, 0, g);
+        return g;
+      },
+      xmastree() {
+        const g = new THREE.Group();
+        mk(cyl(0.14, 0.16, 0.4, 8), hard(0x8B6A4A), 0, 0.2, 0, g);
+        const green = hard(0x3E8C4E);
+        [[0.95, 0.9, 0.75], [0.75, 0.8, 1.3], [0.52, 0.7, 1.8]].forEach(([r, h, y]) => { mk(new THREE.ConeGeometry(r, h, 14), green, 0, y, 0, g).castShadow = true; });
+        const star = hard(0xFFE07A); if (star.emissive) star.emissive.setHex(0x886600);
+        mk(new THREE.OctahedronGeometry(0.16), star, 0, 2.25, 0, g);
+        const cols = [0xD9322E, 0xFFE07A, 0x5E93D6, 0xF4A6C0];
+        for (let i = 0; i < 10; i++) { const a = i * 2.2, y = 0.6 + (i % 5) * 0.3, r = 0.85 - (y - 0.6) * 0.5; mk(sph(0.07), hard(cols[i % 4]), Math.cos(a) * r, y, Math.sin(a) * r, g); }
+        return g;
+      },
+      snowman() {
+        const g = new THREE.Group();
+        const snow = hard(0xFAFCFF, { roughness: 0.95 });
+        mk(sph(0.55), snow, 0, 0.5, 0, g).castShadow = true;
+        mk(sph(0.38), snow, 0, 1.28, 0, g).castShadow = true;
+        for (const x of [-0.12, 0.12]) mk(sph(0.04), hard(0x1E1410), x, 1.38, 0.34, g);
+        mk(new THREE.ConeGeometry(0.06, 0.28, 8), hard(0xF0892E), 0, 1.28, 0.48, g).rotation.x = Math.PI / 2;
+        mk(new THREE.TorusGeometry(0.34, 0.07, 8, 20), hard(0xD9322E), 0, 1.05, 0, g).rotation.x = Math.PI / 2;
+        mk(cyl(0.25, 0.25, 0.3, 14), hard(0x2E2A28), 0, 1.75, 0, g);
+        mk(cyl(0.36, 0.36, 0.04, 14), hard(0x2E2A28), 0, 1.6, 0, g);
+        return g;
+      },
+      kite() {
+        const g = new THREE.Group();
+        mk(cyl(0.04, 0.04, 2.0, 6), hard(0x8B6A4A), 0, 1.0, 0, g);
+        const k = new THREE.Group(); k.position.set(0, 2.1, 0); k.rotation.z = 0.12; g.add(k);
+        mk(new THREE.BoxGeometry(0.9, 1.1, 0.03), hard(0xFFFFFF, { roughness: 0.9 }), 0, 0, 0, k).castShadow = true;
+        mk(cyl(0.18, 0.18, 0.04, 18), hard(0xD9322E), 0, 0.05, 0.02, k).rotation.x = Math.PI / 2;
+        mk(new THREE.BoxGeometry(0.9, 0.12, 0.035), hard(0x5E93D6), 0, 0.5, 0.01, k);
+        for (const x of [-0.35, 0.35]) mk(new THREE.BoxGeometry(0.06, 0.8, 0.02), hard(x < 0 ? 0xF2C14E : 0x6FAF62), x, -0.85, 0, k);
         return g;
       },
     };
@@ -630,6 +815,7 @@
     let lastRender = performance.now();
     function render() { const t = performance.now(); const d = Math.min(0.1, (t - lastRender) / 1000); tickPuffs(d); tickSparks(d); scenery.tick(d); lastRender = t; tickShells(); renderer.render(scene, camera); if (pendingShot) takeShot(); }
 
+    world.decoKinds = Object.keys(decoMakers);
     Object.assign(world, { makeWorm, setWormCount, addShells, puff, sparkle, makePoop, addPickable, removePickable, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
     // 관찰일지용 사진 — 화면에서 한 곳을 잘라 작은 JPEG 로 돌려준다.
     // WebGL 캔버스는 '그린 직후'에만 읽을 수 있다(preserveDrawingBuffer 가 꺼져 있어서).

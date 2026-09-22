@@ -758,6 +758,48 @@
       T.plainCursor(false);
     }
 
+    // ── 33. 꾸미기 ── 아이들이 "너무 적어요" 했다 (18개였다)
+    {
+      const items = T.shopItems();
+      const prices = items.filter((i) => i.price > 0).map((i) => i.price);
+      ok('꾸미기 물건이 50개가 넘는다', items.length >= 50, `${items.length}개`);
+      ok('싼 것부터 큰 목표까지 값이 고르다', Math.min(...prices) <= 5 && Math.max(...prices) >= 60, `${Math.min(...prices)} ~ ${Math.max(...prices)}코인`);
+      const kinds = T.decoKinds();
+      const noModel = items.filter((i) => i.kind === 'deco' && !kinds.includes(i.id)).map((i) => i.id);
+      const badDeco = T.tryAllDecos();
+      ok('모든 마당 장식에 3D 모형이 있다', !noModel.length && !badDeco.length, [...noModel, ...badDeco].join(', '));
+      const badHat = T.tryAllHats(NAME);
+      ok('모든 모자가 오류 없이 씌워진다', !badHat.length, badHat.join(', '));
+      const SH = window.TP.shop;
+      ok('철 한정 물건은 그 철에만 판다',
+        SH.inSeason(SH.get('hat', 'santa'), '2026-12-20') && !SH.inSeason(SH.get('hat', 'santa'), '2026-09-22')
+        && SH.inSeason(SH.get('hat', 'gat'), '2026-09-22') && SH.inSeason(SH.get('deco', 'rock'), '2026-06-01'), '');
+
+      // 보관함 — 치워도 코인이 사라지지 않는다
+      T.coins(50);
+      const before = T.decoState().placed.filter((k) => k === 'rock').length;
+      T.shopPick('deco', 'rock');
+      const c1 = T.coins();
+      ok('장식을 사면 마당에 놓인다', T.decoState().placed.filter((k) => k === 'rock').length === before + 1 && c1 === 47, `코인 50 → ${c1}`);
+      T.storeDeco('rock');
+      const ds = T.decoState();
+      ok('[보관]하면 보관함에 들어간다 (코인은 그대로)', (ds.stored.rock || 0) >= 1 && T.coins() === c1, `보관함 ${JSON.stringify(ds.stored)} · 코인 ${T.coins()}`);
+      T.shopPick('deco', 'rock');
+      ok('보관함에서 다시 놓으면 공짜다', T.coins() === c1 && (T.decoState().stored.rock || 0) === (ds.stored.rock - 1), `코인 ${T.coins()}`);
+
+      // 모자 벗기기 — 닭을 고르지 않고 가게를 열어도 모자를 씌울 수 있다
+      const who = T.openShopUi('hat');
+      ok('가게를 열면 모자 씌울 닭이 골라져 있다', !!who, `고른 닭 ${who}`);
+      T.hatRaw(who, 'cap');
+      T.openShopUi('hat');
+      await wait(100);
+      const offBtn = document.querySelector('#shopGrid [data-act="hatoff"]');
+      if (offBtn) offBtn.click();
+      await wait(100);
+      ok('모자 벗기기 단추로 벗는다', !!offBtn && !document.querySelector('#shopGrid [data-act="hatoff"]'), offBtn ? '' : '단추가 없음');
+      document.querySelector('#closeShop').click();
+    }
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));
