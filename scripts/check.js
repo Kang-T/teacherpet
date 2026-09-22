@@ -125,7 +125,8 @@ function connect(url) {
     try { fs.rmSync(profile, { recursive: true, force: true }); } catch (_) {}
   };
   const die = (code, msg) => { if (msg) console.error(msg); cleanup(); process.exit(code); };
-  const timer = setTimeout(() => die(2, '시간 초과 — 크롬을 종료합니다'), 300000);
+  // 검사가 늘어 CI(소프트웨어 렌더링, 대기 4배)에서 5분을 넘기게 됐다. 멈춘 것과 느린 것을 가르려면 넉넉히.
+  const timer = setTimeout(() => die(2, '시간 초과 — 크롬을 종료합니다'), Number(process.env.TEACHERPET_TIMEOUT || 900000));
 
   // 2) 디버깅 포트를 기다린다
   const portFile = path.join(profile, 'DevToolsActivePort');
