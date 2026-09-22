@@ -91,5 +91,39 @@
     return { coins: Math.max(0, body.c | 0), birds, dex: dexFrom(body.x) };
   }
 
-  TP.farmcode = { make, read, VER };
+  // ── 놀러 가기 코드 (짧은 코드) ──
+  // 닭 한 마리를 친구 마당에 놀러 보낼 때 쓴다. 교실에서 말로 불러 줄 수 있게 '이름-네 글자'.
+  //   앞 두 글자: 단계(2비트)·성별(1비트)·성격(5비트)   뒤 두 글자: 오타 확인
+  // 헷갈리는 글자(0·O·1·I)는 쓰지 않고, 대소문자는 가리지 않는다. 기기 옮기기는 긴 농장 코드가 맡는다.
+  const B32 = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const VSTAGES = ['chick', 'young', 'hen', 'rooster'];
+  function chk10(str) {                   // 10비트 확인값
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0) & 1023;
+  }
+  const two = (n) => B32[(n >> 5) & 31] + B32[n & 31];
+  function short(d) {
+    if (!d || !d.name) return null;
+    const st = VSTAGES.indexOf(d.stage);
+    if (st < 0) return null;             // 알은 놀러 갈 수 없다
+    const ti = Math.max(0, Math.min(31, traits().indexOf(d.trait)));
+    const payload = (st << 6) | ((d.sex === 'f' ? 0 : 1) << 5) | ti;
+    const name = String(d.name).replace(/\s+/g, '').slice(0, 12);
+    return name + '-' + two(payload) + two(chk10(name.toUpperCase() + '|' + payload));
+  }
+  function readShort(code) {
+    const m = String(code || '').trim().replace(/\s+/g, '').toUpperCase().match(/^(.+)-([0-9A-Z]{4})$/);
+    if (!m) return null;
+    const raw = String(code).trim().replace(/\s+/g, '');
+    const name = raw.slice(0, raw.lastIndexOf('-'));
+    const t = m[2].split('').map((c) => B32.indexOf(c));
+    if (t.some((x) => x < 0)) return null;
+    const payload = (t[0] << 5) | t[1], check = (t[2] << 5) | t[3];
+    if (payload > 255 || chk10(name.toUpperCase() + '|' + payload) !== check) return null;   // 이름의 대소문자도 가리지 않는다
+    const stage = VSTAGES[payload >> 6], sex = (payload >> 5) & 1 ? 'm' : 'f', trait = traits()[payload & 31] || traits()[0] || '느긋이';
+    return { name: name.slice(0, 12), stage, sex, trait };
+  }
+
+  TP.farmcode = { make, read, short, readShort, VER };
 })(typeof window !== 'undefined' ? window : module.exports);

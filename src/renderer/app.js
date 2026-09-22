@@ -3086,7 +3086,8 @@
     const code = FC.make(state);
     if (!code) { toast('아직 데려갈 닭이 없어요', false, 5000); return; }
     const qr = QR.svg(codeUrl(code), 168);
-    grannySay('우리 닭들의 코드란다.\n\n• 친구에게 주면 → 우리 닭이 친구 마당에 놀러 간단다\n• 내 다른 기기(학교↔집)에 넣으면 → 우리 닭을 옮겨 간단다\n\n휴대폰 사진기로 그림을 비춰도 된단다.',
+    const shorts = birds.filter((b) => !b.visitor && FC.short(b.d)).map((b) => `  ${b.d.name}  →  ${FC.short(b.d)}`).join('\n');
+    grannySay(`친구 마당에 놀러 보내려면 이 짧은 코드를 불러 주렴.\n${shorts}\n\n내 다른 기기(학교↔집)로 닭을 옮길 때는 아래 긴 코드나 그림을 쓰렴.`,
       [{ label: '복사하기',
          primary: true,
          // 복사는 약속(Promise)으로 끝난다. try/catch 로만 감싸면 실패가 새어 나가
@@ -3176,12 +3177,21 @@
       [{ label: '아니요, 놀러 오게 할래요', primary: true, fn: () => chooseGuests(r) },
        { label: '네, 옮겨 올래요', fn: () => { grannyHide(); applyFarmCode(r); toast('📦 닭들을 이 기기로 옮겨 왔어요', true, 6000); } }], 'worry');
   }
+  // 받은 코드를 읽는다 — 긴 농장 코드면 놀러 오기/옮겨 오기를 묻고, 짧은 놀러 가기 코드면 바로 놀러 온다
+  function takeCode(inp) {
+    const t = String(inp || '').trim();
+    if (/^농장-/.test(t)) { const r = FC.read(t); if (r.error) { toast(r.error, false, 7000); return 'error'; } receiveCode(r); return 'farm'; }
+    const v = FC.readShort(t);
+    if (!v) { toast('코드가 조금 다른 것 같아요. 한 글자씩 다시 확인해 볼까요? (예: 초코-3F7K)', false, 7000); return 'error'; }
+    const n = inviteVisitors([v]);
+    if (n) grannySay(`친구네 ${v.name}(이)가 놀러 왔구나! (${STAGE_KO[v.stage] || ''} · ${v.trait})\n오늘 하루 함께 놀다가 내일 집으로 돌아간단다.${v.stage === 'rooster' ? '\n이 수탉이 머무는 동안은 우리 알에서 병아리가 태어난단다.' : ''}`,
+      [{ label: '반가워!', primary: true, fn: grannyHide }], 'smile');
+    return 'visit';
+  }
   async function codeIn() {
-    const inp = await askText('닭 코드를 넣어 주세요 ("농장-" 으로 시작해요)', '');
+    const inp = await askText('친구에게 받은 코드를 넣어 주세요\n(짧은 코드 예: 초코-3F7K · 긴 코드는 "농장-" 으로 시작해요)', '');
     if (!inp) return;
-    const r = FC.read(inp);
-    if (r.error) { toast(r.error, false, 7000); return; }
-    receiveCode(r);
+    takeCode(inp);
   }
   $('#btnCodeUse').addEventListener('click', codeIn);
   $('#btnCodeIn').addEventListener('click', () => { closePanel(); codeIn(); });
@@ -3444,6 +3454,9 @@
     visitors() { return birds.filter((b) => b.visitor).map((b) => ({ name: b.d.name, stage: b.d.stage })); },
     invite(list) { return inviteVisitors(list); },
     receive(code) { const r = FC.read(code); if (r.error) return r.error; receiveCode(r); return r.birds.length; },
+    takeCode(code) { return takeCode(code); },
+    shortOf(name) { const b = birds.find((q) => q.d.name === name); return b ? FC.short(b.d) : null; },
+    readShort(code) { return FC.readShort(code); },
     sendHomeByName(name) { const b = birds.find((q) => q.visitor && q.d.name === name); if (!b) return false; sendHome(b); return true; },
     visitorsReload() { loadVisitors(); return state.visitors.length; },
     ageVisitors() { for (const v of state.visitors) v.until = U.addDays(today(), -1); loadVisitors(); return birds.filter((b) => b.visitor).length; },

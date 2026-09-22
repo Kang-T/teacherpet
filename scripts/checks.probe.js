@@ -701,6 +701,8 @@
     {
       const cvs = document.querySelector('#stageHost canvas');
       const mv = (type, x, y) => (type === 'mouseup' ? window : cvs).dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }));
+      // 닭이 커서를 쪼면 손이 0.3초 움찔한다(정상). 그 순간에 걸리면 다른 모양으로 보이므로 몇 번 다시 본다.
+      const curAt = async (x, y, re) => { for (let i = 0; i < 6; i++) { mv('mousemove', x, y); await wait(60); if (re.test(T.cursor().css)) return true; await wait(250); } return false; };
       const img = await new Promise((res) => { const im = new Image(); im.onload = () => res(im.naturalWidth); im.onerror = () => res(0); im.src = 'cursor/open@2x.png'; });
       ok('손 커서 그림이 웹에 실려 있다', img === 64, `open@2x.png 폭 ${img}px`);
       T.plainCursor(false);
@@ -718,17 +720,17 @@
       while (Date.now() - tp < 3000 * SLOW) {
         T.holdStill(guest, 4);
         bs = T.screenOfBird(guest);
-        if (bs) { mv('mousemove', bs.x, bs.y); await wait(80); if (T.cursor().kind === 'pet') { petSeen = true; break; } }
+        if (bs && await curAt(bs.x, bs.y, /cursor\/pet\.png/)) { petSeen = true; break; }
         await wait(200);
       }
       ok('닭 위에서는 쓰다듬는 손', petSeen, `${T.cursor().kind} · 닭 화면 ${bs ? bs.x + ',' + bs.y : '-'}`);
       // 닭이 앞에서 밥을 먹고 있으면 그 자리는 '닭 위'다 — 닭이 가리지 않은 기구를 골라 잰다
-      let propName = null;
+      let propName = null, propOk = false;
       for (const k of ['basket', 'wormbucket', 'nest', 'feeder2', 'waterer', 'feeder', 'lamp']) {
         const ps = D.screenOf(k); const h = ps && T.pickAt(ps.x, ps.y);
-        if (h && h.type === 'prop') { mv('mousemove', ps.x, ps.y); await wait(60); propName = k; break; }
+        if (h && h.type === 'prop') { propName = k; propOk = await curAt(ps.x, ps.y, /cursor\/point\.png/); break; }
       }
-      ok('기구 위에서는 가리키는 손', !!propName && /cursor\/point\.png/.test(T.cursor().css), `${propName || '-'} 위 · ${T.cursor().kind}`);
+      ok('기구 위에서는 가리키는 손', !!propName && propOk, `${propName || '-'} 위 · ${T.cursor().kind}`);
       // 닭은 계속 움직인다 — 누르기 바로 전에 빈 땅을 다시 고른다 (고른 자리에 닭이 걸어 들어오면 파기가 아니라 쓰다듬기가 된다)
       ground = null;
       for (const [gx, gz] of [[8, -12], [-8, -12], [5, -6], [-5, -6], [6, 2], [-6, 2], [0, 4], [10, -18], [-10, -18]]) {
@@ -886,6 +888,27 @@
       ok('옮겨 오기는 한 번 더 묻고, 안전한 쪽이 먼저다', /되돌릴 수 없어/.test(T.grannyText()) && /놀러/.test(b2[0] || ''), b2.join(' / '));
       T.ageVisitors();
       for (let i = 0; i < 20 && T.grannyButtons().length; i++) { const bb = T.grannyButtons(); T.clickGranny(bb.length - 1); await wait(200); if (T.visitors().length) T.ageVisitors(); }
+    }
+
+    // ── 36. 짧은 놀러 가기 코드 ── 긴 코드(80글자)는 교실에서 불러 줄 수가 없다
+    {
+      T.ageVisitors();
+      const sc = T.shortOf(NAME);
+      ok('닭마다 말로 불러 줄 수 있는 짧은 코드가 있다', !!sc && /^.+-[2-9A-Z]{4}$/.test(sc) && sc.length <= 17, sc);
+      const back = T.readShort(sc.toLowerCase());
+      ok('짧은 코드는 대소문자를 가리지 않고 되읽힌다', !!back && back.name === NAME, JSON.stringify(back));
+      const typo = sc.slice(0, -1) + (sc.endsWith('2') ? '3' : '2');
+      ok('한 글자만 틀려도 알아챈다', T.takeCode(typo) === 'error', typo);
+      const v0 = T.visitors().length;
+      const r = T.takeCode(sc);
+      ok('짧은 코드를 넣으면 바로 놀러 온다', r === 'visit' && T.visitors().length === v0 + 1, `결과 ${r} · 손님 ${T.visitors().length}마리`);
+      for (let i = 0; i < 40 && !T.grannyButtons().length; i++) await wait(150);
+      if (T.grannyButtons().length) T.clickGranny(0);
+      document.querySelector('#btnMyCode').click();
+      for (let i = 0; i < 120 && !T.grannyButtons().length; i++) await wait(150);
+      ok('"내 닭 코드" 창에 짧은 코드가 보인다', T.grannyText().includes(sc), T.grannyText().slice(0, 60));
+      const gb = T.grannyButtons(); if (gb.length) T.clickGranny(gb.length - 1);
+      T.ageVisitors();
     }
 
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
