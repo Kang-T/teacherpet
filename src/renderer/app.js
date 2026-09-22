@@ -152,6 +152,35 @@
     coop: 1.65, nest: 0, feeder: 0.6, feeder2: 0.6, waterer: 0.6,
     basket: 0.5, wormbucket: 0.45, lamp: 0.2, dustpit: 0, perch: 0,
   };
+  // 마당 장식의 몸통 — [반지름, 가로 반길이]. 가로 반길이가 있으면 원이 아니라 막대(울타리·벤치)로 막는다.
+  // 0 이면 막지 않는다: 징검돌(밟고 지나간다), 그네·파라솔(밑으로 지나간다 — 기둥만 막는다).
+  const DECO_SOLID = {
+    rock: [0.62, 0], sunflower: [0.14, 0], mushroom: [0.34, 0], pot: [0.42, 0], haybale: [0.62, 0.5],
+    fence: [0.16, 1.32], stones: [0, 0], flowerbed: [0.98, 0], mailbox: [0.3, 0], bench: [0.34, 0.8],
+    pond: [1.12, 0], birdhouse: [0.14, 0], scarecrow: [0.16, 0], tree: [0.3, 0], swing: [0.12, 0.85],
+    parasol: [0.1, 0], lamppost: [0.14, 0], windmill: [0.72, 0], well: [0.92, 0], statue: [0.62, 0],
+    moonlantern: [0.1, 0], jackolantern: [0.56, 0], xmastree: [0.9, 0], snowman: [0.56, 0], kite: [0.1, 0],
+  };
+  // 지금 마당에 놓인 장식의 몸통들
+  function decoShapes() {
+    const out = [];
+    for (const d of state.farm.decos) { const sp = DECO_SOLID[d.kind]; if (sp && sp[0] > 0) out.push({ x: d.x, z: d.z, r: sp[0], h: sp[1], kind: d.kind }); }
+    return out;
+  }
+  // 그 몸통에서 (x,z) 까지 — 막대면 가장 가까운 한 점에서 잰다. 앞뒤는 소품처럼 납작하게 본다.
+  function decoGap(sh, x, z) {
+    const cx = clamp(x, sh.x - sh.h, sh.x + sh.h);
+    const dx = x - cx, dz = (z - sh.z) * 1.35;
+    return { cx, dx, dz, d: Math.hypot(dx, dz) };
+  }
+  // 몸통 속 점을 가장자리 밖으로 (목표·벌레가 장식 속에 있으면 영영 닿지 못한다)
+  function outOfDeco(sh, x, z, rr, fx, fz) {
+    const g = decoGap(sh, x, z);
+    if (g.d >= rr) return null;
+    let ux = g.dx, uz = g.dz, n = g.d;
+    if (n < 0.001) { ux = fx || (sh.h > 0 ? 0 : 1); uz = fz || (sh.h > 0 ? 1 : 0); n = Math.hypot(ux, uz) || 1; }
+    return { x: g.cx + (ux / n) * (rr + 0.08), z: sh.z + (uz / n) * (rr + 0.08) / 1.35 };
+  }
   // 소품은 언제나 끌어서 옮길 수 있다. 눌렀다 떼면 동작하고, 끌면 자리를 옮긴다.
   // (모드를 따로 켜게 했더니 오히려 번거로웠다)
   // ── 닭 카드에 쓸 그 아이의 모습 ──
@@ -712,6 +741,7 @@
   // (벌레 속도 1.5 vs 병아리 1.5·암탉 1.8 — 쫓기면 결국 잡힌다)
   function tickWormCrawl(dt) {
     if (!worm || worm.held || worm.carrier) return;
+    for (const sh of decoShapes()) { const o = outOfDeco(sh, worm.x, worm.z, sh.r + 0.2); if (o) { worm.x = o.x; worm.z = clampZ(o.z); } }
     let near = null, nd = 1e9;
     for (const b of birds) {
       if (!eligible(b)) continue;
@@ -1576,6 +1606,42 @@
           const push = (rr - dist) * Math.min(1, dt * 7);
           b.x = clamp(b.x + (dx / dist) * push, world.xMin + XMARGIN, world.xMax - XMARGIN);
           b.z = clampZ(b.z + (dz / dist) * push * 0.7);
+        }
+      }
+      // 마당 장식도 뚫고 지나가지 않는다 (아이들이 산 우물·벤치를 닭이 통과하면 이상하다)
+      const shapes = decoShapes();
+      if (shapes.length) {
+        let aim = null;                                          // 가려는 곳
+        if (b.targetX !== null && b.targetX !== undefined) aim = { x: b.targetX, z: (b.targetZ !== null && b.targetZ !== undefined) ? b.targetZ : b.z };
+        else if (b.anim === 'chase' && b.callTarget) aim = b.callTarget;
+        else if (b.anim === 'chase' && worm) aim = { x: worm.x, z: worm.z };
+        for (const sh of shapes) {
+          const rr = sh.r + height(b) * 0.16;
+          const g = decoGap(sh, b.x, b.z);
+          if (g.d >= rr) continue;
+          // 밀어낼 방향. 몸통의 한가운데 선 위에 딱 서 있으면 방향이 없다 —
+          // 막대(울타리)면 앞뒤로, 원이면 좌우로 민다. (여기서 거리를 1로 꾸며 넣었다가 거꾸로 끌어당긴 적이 있다)
+          let ux = g.dx, uz = g.dz, n = g.d;
+          if (n < 0.001) { if (sh.h > 0) { ux = 0; uz = b.z >= sh.z ? 1 : -1; } else { ux = b.x >= sh.x ? 1 : -1; uz = 0; } n = 1; }
+          // 기구와 달리 한 번에 가장자리까지 밀어낸다 — 조금씩 밀면 걸어 들어가는 힘과 비겨서 반쯤 박힌 채로 지나간다
+          const push = rr - g.d;
+          b.x = clamp(b.x + (ux / n) * push, world.xMin + XMARGIN, world.xMax - XMARGIN);
+          b.z = clampZ(b.z + (uz / n) * push * 0.7);
+          if (!aim) continue;
+          // 가려는 곳이 장식 속이면 가장자리로 옮긴다 — 닿을 수 없는 곳을 향해 제자리걸음하지 않게
+          const moved = outOfDeco(sh, aim.x, aim.z, rr, ux, uz);
+          if (moved) {
+            if (b.targetX !== null && b.targetX !== undefined) { b.targetX = clamp(moved.x, world.xMin + XMARGIN, world.xMax - XMARGIN); if (b.targetZ !== null && b.targetZ !== undefined) b.targetZ = clampZ(moved.z); }
+            else if (b.callTarget && aim === b.callTarget) { b.callTarget.x = moved.x; b.callTarget.z = clampZ(moved.z); }
+            continue;
+          }
+          // 가려는 곳이 장식 너머면 옆으로 비껴 돈다. 정면으로 밀리기만 하면 그 자리에 멈춘다.
+          const ax = aim.x - b.x, az = (aim.z - b.z) * 1.35;
+          let tx = -uz / n, tz = ux / n;
+          if (tx * ax + tz * az < 0) { tx = -tx; tz = -tz; }
+          const slide = spec(b).speed * dt * 0.9;
+          b.x = clamp(b.x + tx * slide, world.xMin + XMARGIN, world.xMax - XMARGIN);
+          b.z = clampZ(b.z + (tz * slide) / 1.35);
         }
       }
     }
@@ -3414,6 +3480,13 @@
       }
       return { over: +worst.toFixed(2), prop: which };
     },
+    insideDeco(name) {
+      const b = birds.find((q) => q.d.name === name); if (!b) return null;
+      let worst = 0, which = '';
+      for (const sh of decoShapes()) { const over = (sh.r + height(b) * 0.16) - decoGap(sh, b.x, b.z).d; if (over > worst) { worst = over; which = sh.kind; } }
+      return { over: +worst.toFixed(2), deco: which };
+    },
+    walkTo(name, x, z) { const b = birds.find((q) => q.d.name === name); if (!b) return null; goTo(b, x, 'walk', z); return { x: b.targetX, z: b.targetZ }; },
     warmSpot() { const w = warmSpot(); return w ? { x: +w.x.toFixed(2), z: +w.z.toFixed(2) } : null; },
     setMouse(px, py) { mouse.x = px; mouse.y = py; mouse.movedAt = now(); return { x: mouse.x, y: mouse.y }; },
     peckNow(name) {

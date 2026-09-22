@@ -563,7 +563,8 @@
       ok('부르면 누른 자리로 온다 (맨 앞줄이 아니라)', !!tgt && Math.abs(tgt.z - (-20)) < 1.5, tgt ? `누른 곳 z -20 · 가는 곳 z ${tgt.z}` : '부름에 안 옴');
       const lk = T.lookSpot();
       let t2 = null;
-      for (let i = 0; i < 5 && !t2; i++) { D.set(NAME, 'aff', 95); T.whistleAt(-1, -1); t2 = T.callTargetOf(NAME); }
+      // 앞의 부름이 남아 있으면 그 자리를 잰다 — 먼저 비운다
+      for (let i = 0; i < 5 && !t2; i++) { T.holdStill(NAME, 1); D.set(NAME, 'aff', 95); T.whistleAt(-1, -1); t2 = T.callTargetOf(NAME); }
       ok('휘파람 단추는 보고 있는 곳으로 부른다', !!t2 && Math.abs(t2.z - lk.z) < 1.5, t2 ? `화면 가운데 z ${lk.z.toFixed(1)} · 가는 곳 z ${t2.z}` : '부름에 안 옴');
     }
 
@@ -798,6 +799,40 @@
       await wait(100);
       ok('모자 벗기기 단추로 벗는다', !!offBtn && !document.querySelector('#shopGrid [data-act="hatoff"]'), offBtn ? '' : '단추가 없음');
       document.querySelector('#closeShop').click();
+    }
+
+    // ── 34. 마당 장식에 부딪힌다 ──
+    {
+      const wb = T.addBird('hen', '벽돌이');
+      T.clearWorm();
+      T.setDecosRaw([{ kind: 'well', x: 0, z: -10 }, { kind: 'fence', x: 8, z: -18 }, { kind: 'pond', x: -8, z: -6 }]);
+      // 장식 한가운데 놓아도 밖으로 나온다
+      T.place(wb, 0, -10); T.holdStill(wb, 6);
+      await wait(900 * SLOW + 300);
+      const in1 = T.insideDeco(wb);
+      ok('장식 속에 들어가 있으면 밖으로 밀려난다', in1.over < 0.12, `우물에 ${in1.over} 박힘`);
+      // 울타리는 길다 — 원 하나가 아니라 막대로 막아야 끝부분도 막힌다
+      T.place(wb, 9.1, -18); T.holdStill(wb, 6);
+      await wait(900 * SLOW + 300);
+      const in2 = T.insideDeco(wb);
+      ok('긴 울타리는 끝부분도 막힌다', in2.over < 0.12, `울타리에 ${in2.over} 박힘`);
+      // 건너편으로 걸어가면 뚫지 않고 비껴 돌아간다
+      T.place(wb, -4.5, -10);
+      T.walkTo(wb, 4.5, -10);
+      let worst = 0; const tw = Date.now();
+      while (Date.now() - tw < 9000 * SLOW) { worst = Math.max(worst, T.insideDeco(wb).over); if (D.birds().find((q) => q.name === wb).x > 3.5) break; await wait(120); }
+      const endX = D.birds().find((q) => q.name === wb).x;
+      ok('걸어가도 우물을 뚫고 지나가지 않는다', worst < 0.3, `가장 깊이 박힌 정도 ${worst.toFixed(2)}`);
+      okMotion('우물에 막히면 옆으로 돌아서 건너간다', endX > 3, `x -4.5 → ${endX}`);
+      // 벌레가 웅덩이 속으로 기어 들어가면 닭이 영영 못 잡는다
+      // (땅 파기는 앞 검사에서 오늘 몫을 다 써서, 벌레통에서 떨어뜨린다)
+      T.dropWormAt(-8, -6);
+      await wait(700 * SLOW + 200);
+      const w = T.wormState();
+      const wd = w ? Math.hypot(w.x - (-8), (w.z - (-6)) * 1.35) : -1;
+      ok('벌레는 웅덩이 속에 있지 않는다', !!w && wd >= 1.1, w ? `웅덩이 가운데서 ${wd.toFixed(2)}` : '벌레가 안 나왔다 (검사 준비 실패)');
+      T.clearWorm();
+      T.setDecosRaw([]);
     }
 
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
