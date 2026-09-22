@@ -805,7 +805,7 @@
     {
       const wb = T.addBird('hen', '벽돌이');
       T.clearWorm();
-      T.setDecosRaw([{ kind: 'well', x: 0, z: -10 }, { kind: 'fence', x: 8, z: -18 }, { kind: 'pond', x: -8, z: -6 }]);
+      T.setDecosRaw([{ kind: 'well', x: 0, z: -10 }, { kind: 'fence', x: 8, z: -18 }, { kind: 'pond', x: -8, z: -6 }, { kind: 'well', x: 0, z: -22 }]);
       // 장식 한가운데 놓아도 밖으로 나온다
       T.place(wb, 0, -10); T.holdStill(wb, 6);
       await wait(900 * SLOW + 300);
@@ -817,13 +817,29 @@
       const in2 = T.insideDeco(wb);
       ok('긴 울타리는 끝부분도 막힌다', in2.over < 0.12, `울타리에 ${in2.over} 박힘`);
       // 건너편으로 걸어가면 뚫지 않고 비껴 돌아간다
-      T.place(wb, -4.5, -10);
-      T.walkTo(wb, 4.5, -10);
+      T.place(wb, -4.5, -22);
+      T.walkTo(wb, 4.5, -22);
       let worst = 0; const tw = Date.now();
-      while (Date.now() - tw < 9000 * SLOW) { worst = Math.max(worst, T.insideDeco(wb).over); if (D.birds().find((q) => q.name === wb).x > 3.5) break; await wait(120); }
+      // 닭은 가다가 스스로 다른 일을 고르기도 한다 — 여기서 재려는 것은 '길 찾기'라 목적지를 계속 다시 준다
+      const trail = [];
+      while (Date.now() - tw < 9000 * SLOW) {
+        worst = Math.max(worst, T.insideDeco(wb).over);
+        const me = D.birds().find((q) => q.name === wb);
+        trail.push(`${me.x.toFixed(1)},${me.z.toFixed(1)}:${me.anim}`);
+        if (me.x > 3.5) break;
+        if (me.anim !== 'walk') T.walkTo(wb, 4.5, -22);
+        await wait(120);
+      }
+      window.__trail = trail;
       const endX = D.birds().find((q) => q.name === wb).x;
       ok('걸어가도 우물을 뚫고 지나가지 않는다', worst < 0.3, `가장 깊이 박힌 정도 ${worst.toFixed(2)}`);
-      okMotion('우물에 막히면 옆으로 돌아서 건너간다', endX > 3, `x -4.5 → ${endX}`);
+      okMotion('우물에 막히면 옆으로 돌아서 건너간다', endX > 3, `x -4.5 → ${endX}` + (endX > 3 ? '' : ` · 발자국 ${trail.filter((_, i) => i % 6 === 0).slice(-8).join(' ')}`));
+      // 기구와 장식 사이 틈에 끼여도 영영 제자리걸음하지 않는다
+      T.place(wb, -4.5, -10.5);
+      T.walkTo(wb, 4.5, -10);
+      let gaveUp = false; const tg = Date.now();
+      while (Date.now() - tg < 7000 * SLOW) { const me = D.birds().find((q) => q.name === wb); if (me.anim !== 'walk' || me.x > 3.5) { gaveUp = true; break; } await wait(150); }
+      okMotion('틈에 끼이면 제자리걸음하지 않고 돌아선다', gaveUp, gaveUp ? '' : '7초 넘게 같은 곳을 향해 걷는 중');
       // 벌레가 웅덩이 속으로 기어 들어가면 닭이 영영 못 잡는다
       // (땅 파기는 앞 검사에서 오늘 몫을 다 써서, 벌레통에서 떨어뜨린다)
       T.dropWormAt(-8, -6);
@@ -833,6 +849,41 @@
       ok('벌레는 웅덩이 속에 있지 않는다', !!w && wd >= 1.1, w ? `웅덩이 가운데서 ${wd.toFixed(2)}` : '벌레가 안 나왔다 (검사 준비 실패)');
       T.clearWorm();
       T.setDecosRaw([]);
+    }
+
+    // ── 35. 친구 닭 놀러 오기 ──
+    // 예전에는 친구 코드를 넣으면 우리 닭이 친구 닭으로 '바뀌었다'. 초대인 줄 알고 넣은 아이가 농장을 잃을 수 있었다.
+    {
+      const mine0 = T.ownCount();
+      const code = T.farmCode();
+      const n = T.receive(code);
+      for (let i = 0; i < 100 && T.grannyButtons().length < 2; i++) await wait(150);
+      const btns = T.grannyButtons();
+      ok('코드를 넣으면 먼저 "놀러 오게 할까?"를 묻는다', /놀러/.test(btns[0] || ''), btns.join(' / '));
+      T.clickGranny(0);                                        // 놀러 오게 하기
+      await wait(300);
+      for (let i = 0; i < 60 && T.grannyButtons().length && !T.visitors().length; i++) {
+        const bb = T.grannyButtons(); const all = bb.findIndex((t) => /모두/.test(t));
+        if (all >= 0) T.clickGranny(all); await wait(200);
+      }
+      const vs = T.visitors();
+      ok('친구 닭이 놀러 온다', vs.length >= 1 && vs.length <= 3, `${vs.length}마리 · ${vs.map((v) => v.name).join(', ')}`);
+      ok('놀러 와도 우리 닭은 그대로다', T.ownCount() === mine0, `우리 닭 ${mine0} → ${T.ownCount()}`);
+      const fc2 = T.readFarmCode(T.farmCode());
+      ok('놀러 온 닭은 내 닭 코드에 섞이지 않는다', fc2 && fc2.birds.length === mine0, `코드 속 ${fc2 ? fc2.birds.length : '-'}마리`);
+      ok('손님은 최대 3마리', T.invite([{ name: 'a', stage: 'hen' }, { name: 'b', stage: 'hen' }, { name: 'c', stage: 'hen' }, { name: 'd', stage: 'hen' }]) <= 3 - vs.length && T.visitors().length <= 3, `${T.visitors().length}마리`);
+      const left = T.ageVisitors();
+      ok('다음 날이면 집으로 돌아간다', left === 0 && T.ownCount() === mine0, `남은 손님 ${left}`);
+      // 옮겨 오기는 한 번 더 묻고, 그때도 '놀러 오게 할래요'가 먼저다
+      T.receive(code);
+      for (let i = 0; i < 100 && T.grannyButtons().length < 2; i++) await wait(150);
+      T.clickGranny(1);                                        // 내 닭 옮겨 오기
+      for (let i = 0; i < 100 && !/되돌릴 수 없어/.test(T.grannyText()); i++) await wait(150);
+      for (let i = 0; i < 60 && T.grannyButtons().length < 2; i++) await wait(150);
+      const b2 = T.grannyButtons();
+      ok('옮겨 오기는 한 번 더 묻고, 안전한 쪽이 먼저다', /되돌릴 수 없어/.test(T.grannyText()) && /놀러/.test(b2[0] || ''), b2.join(' / '));
+      T.ageVisitors();
+      for (let i = 0; i < 20 && T.grannyButtons().length; i++) { const bb = T.grannyButtons(); T.clickGranny(bb.length - 1); await wait(200); if (T.visitors().length) T.ageVisitors(); }
     }
 
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',

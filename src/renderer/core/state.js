@@ -34,6 +34,7 @@
       dig: { day: '', found: 0, tries: 0, miss: 0 },   // 땅 파기 — 하루에 찾을 수 있는 지렁이 수가 정해져 있다
       quiz: { day: '', n: 0, done: [] },    // 할머니 퀴즈 — 하루 몇 문제, 낸 문제는 한 바퀴 돌 때까지 다시 안 낸다
       told: {},                             // 할머니가 한 번만 알려 주는 것들
+      visitors: [],                         // 놀러 온 친구 닭 — 그날 하루 머문다 (flock 에 넣지 않는다)
       chapter: 0, onboarded: false, borrowed: null, lastBackup: '', backupNagged: '', classCode: '', wxTold: '',   // borrowed = 친구에게 빌린 수탉(씨알 코드)
       lastCrow: '', lastSeen: U.now(), openedDays: [],
     };
@@ -179,6 +180,7 @@
     if (!Array.isArray(out.quiz.done)) out.quiz.done = [];
     if (!out.dex || typeof out.dex !== 'object') out.dex = {};
     if (!out.told || typeof out.told !== 'object') out.told = {};
+    if (!Array.isArray(out.visitors)) out.visitors = [];
     // 가진 목록은 배열이어야 한다 (저장이 망가져도 화면이 죽지 않게)
     for (const k of ['hat', 'coop', 'deco', 'ground']) if (!Array.isArray(out.owned[k])) out.owned[k] = [];
     for (const k of ['red']) if (!out.owned.coop.includes(k)) out.owned.coop.push(k);
