@@ -738,14 +738,16 @@
       if (ground) {
         T.clearWorm();
         mv('mousemove', ground.x, ground.y); await wait(60);
+        const hitAt = T.pickAt(ground.x, ground.y);
         mv('mousedown', ground.x, ground.y);
+        const holding0 = T.digState().holding;
         // 누르는 동안(0.25~1.1초) 한 번이라도 호미가 되는지 본다 — 한 시점만 보면 느린 기계에서 이미 다 판 뒤일 수 있다
         let during = 'open';
         const t0h = Date.now();
         while (Date.now() - t0h < 1000) { if (T.cursor().kind === 'hoe') { during = 'hoe'; break; } await wait(40); }
         mv('mouseup', ground.x, ground.y);
         await wait(100);
-        ok('땅을 꾹 누르면 호미 쥔 손', during === 'hoe' && T.cursor().kind !== 'hoe', `누르는 중 ${during} → 뗀 뒤 ${T.cursor().kind}`);
+        ok('땅을 꾹 누르면 호미 쥔 손', during === 'hoe' && T.cursor().kind !== 'hoe', `누르는 중 ${during} → 뗀 뒤 ${T.cursor().kind}` + (during === 'hoe' ? '' : ` · 누른 곳 ${hitAt ? hitAt.type : '빈 곳'} · 파기 시작 ${holding0} · ${ground.x},${ground.y}`));
         T.clearWorm();
       }
       T.setCursorKind('open');

@@ -181,6 +181,15 @@
     if (n < 0.001) { ux = fx || (sh.h > 0 ? 0 : 1); uz = fz || (sh.h > 0 ? 1 : 0); n = Math.hypot(ux, uz) || 1; }
     return { x: g.cx + (ux / n) * (rr + 0.08), z: sh.z + (uz / n) * (rr + 0.08) / 1.35 };
   }
+  // 걷고 난 바로 뒤에도 장식 밖으로 — 느린 기기는 한 프레임에 크게 움직여서, 밀어낸 다음 걸음이 다시 파고든다
+  function keepOut(b) {
+    if (b.carrying || b.inCoop || b.y > 0.3) return;
+    for (const sh of decoShapes()) {
+      const rr = sh.r + height(b) * 0.16;
+      const o = outOfDeco(sh, b.x, b.z, rr - 0.08);
+      if (o) { b.x = clamp(o.x, world.xMin + XMARGIN, world.xMax - XMARGIN); b.z = clampZ(o.z); }
+    }
+  }
   // 소품은 언제나 끌어서 옮길 수 있다. 눌렀다 떼면 동작하고, 끌면 자리를 옮긴다.
   // (모드를 따로 켜게 했더니 오히려 번거로웠다)
   // ── 닭 카드에 쓸 그 아이의 모습 ──
@@ -1676,7 +1685,7 @@
         const step = s.speed * 2.4 * (b.d.old ? 0.7 : 1) * dt;
         const k = Math.min(1, step / Math.max(0.0001, dist));
         b.x += dx * k;
-        b.z = clampZ(b.z + dz * k);
+        b.z = clampZ(b.z + dz * k); keepOut(b);
       } else if (tgt.kind === 'worm') {
         const car = wormCarrier();
         if (car && car !== b) { if (Math.random() < 0.45) stealWorm(car, b); else { setAnim(b, 'beg', rand(0.4, 0.8)); if (b.y === 0) b.vy = 3.2; } return; }
@@ -1702,7 +1711,7 @@
       const gd = Math.hypot(gx, gz);
       if (gd > 0.08) {
         const k = Math.min(1, speed * dt / gd);
-        b.x += gx * k; b.z = clampZ(b.z + gz * k);
+        b.x += gx * k; b.z = clampZ(b.z + gz * k); keepOut(b);
         if (Math.abs(gx) > 0.05) faceDir(b, gx > 0 ? 1 : -1);
       }
       if (gd <= 0.08) {
