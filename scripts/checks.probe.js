@@ -911,6 +911,21 @@
       T.ageVisitors();
     }
 
+    // ── 37. 새로 생긴 것 ── 업데이트 뒤 처음 한 번만
+    {
+      for (let i = 0; i < 20 && T.grannyOpen(); i++) { const b = T.grannyButtons(); if (b.length) T.clickGranny(b.length - 1); await wait(200); }
+      T.setNewsSeen('2000-01-01');
+      T.tellOnce();
+      for (let i = 0; i < 100 && !T.grannyButtons().length; i++) await wait(150);
+      ok('업데이트 뒤 들어오면 할머니가 새로 생긴 것을 알려 준다', /새로 생긴/.test(T.grannyText()), T.grannyText().slice(0, 40));
+      const gb = T.grannyButtons(); if (gb.length) T.clickGranny(0);
+      await wait(200);
+      T.tellOnce();
+      await wait(300);
+      ok('한 번 보면 다시 나오지 않는다', !/새로 생긴/.test(T.grannyText()) || !T.grannyOpen(), T.newsState().seen);
+      for (let i = 0; i < 20 && T.grannyOpen(); i++) { const b = T.grannyButtons(); if (b.length) T.clickGranny(b.length - 1); await wait(200); }
+    }
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));

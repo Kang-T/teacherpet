@@ -2301,6 +2301,7 @@
   setInterval(() => { if (rub.id && now() - rub.lastT > 700) rubEnd(); }, 300);
   setInterval(() => { if (birds.length && state.onboarded) nudge(); }, 20000);
   setInterval(() => tellOnce(), 15000);
+  setTimeout(() => tellOnce(), 6000);          // 새 소식은 들어오자마자 (15초는 아이에게 길다)
   canvas.addEventListener('mousemove', (e) => { if (digging && Math.hypot(e.clientX - digging.px, e.clientY - digging.py) > 8) cancelDig(); });
   addEventListener('mouseup', () => cancelDig());
   addEventListener('blur', () => cancelDig());
@@ -2589,8 +2590,16 @@
   // 용돈 조건과 도감은 알려 주지 않으면 아이들이 끝내 모른다 (실제로 "코인 어떻게 얻어요?"가 나왔다).
   function tellOnce() {
     if (!state.onboarded || talking || !$('#granny').classList.contains('hidden')) return;
-    if (!birds.some((b) => b.d.stage !== 'egg')) return;
+    if (!birds.some((b) => b.d.stage !== 'egg') && !(TP.news && TP.news.since(state.newsSeen).length)) return;
     const t = state.told;
+    // 새로 생긴 것 — 업데이트 뒤 처음 한 번
+    const fresh = TP.news ? TP.news.since(state.newsSeen) : [];
+    if (fresh.length) {
+      const items = [].concat(...fresh.map((n) => n.items)).slice(0, 8);
+      state.newsSeen = TP.news.latest(); markDirty();
+      grannySay('그동안 새로 생긴 것이 있단다.\n\n' + items.map((x) => '• ' + x).join('\n'), [{ label: '찾아볼게요!', primary: true, fn: grannyHide }], 'smile');
+      return;
+    }
     if (!t.allowance) {
       t.allowance = now(); markDirty();
       grannySay('모든 닭에게 모이랑 물을 챙겨 주면, 그날 할머니가 용돈을 주마.\n그 돈으로 벌레도 사고 마당도 꾸밀 수 있단다.', [{ label: '네!', primary: true, fn: grannyHide }], 'smile');
@@ -3461,6 +3470,8 @@
     visitorsReload() { loadVisitors(); return state.visitors.length; },
     ageVisitors() { for (const v of state.visitors) v.until = U.addDays(today(), -1); loadVisitors(); return birds.filter((b) => b.visitor).length; },
     ownCount() { return birds.filter((b) => !b.visitor).length; },
+    newsState() { return { seen: state.newsSeen, latest: TP.news.latest() }; },
+    setNewsSeen(v) { state.newsSeen = v; return v; },
     openMenu(tab) { openPanel(tab || 'coop'); return !document.querySelector('#panel').classList.contains('hidden'); },
     closeMenu() { closePanel(); return true; },
     grannyOpen() { return !document.querySelector('#granny').classList.contains('hidden'); },

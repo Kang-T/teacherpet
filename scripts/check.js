@@ -167,7 +167,7 @@ function connect(url) {
           feed: 100, water: 100, worms: 9, bedding: 100, poops: [], ammonia: 0,
           chapter: 4, onboarded: true, borrowed: null, lampPower: 1,
           settings: { size: 4, sound: false, guide: 'alone', detail: true, useCalendar: false, zoom: 1, elev: 24 },
-          openedDays: [], lastSeen: Date.now(),
+          openedDays: [], lastSeen: Date.now(), newsSeen: '9999',   // 새 소식 창이 다른 검사를 가리지 않게
         }));
       } catch (e) {}
     `,
