@@ -731,27 +731,29 @@
         if (h && h.type === 'prop') { propName = k; propOk = await curAt(ps.x, ps.y, /cursor\/point\.png/); break; }
       }
       ok('기구 위에서는 가리키는 손', !!propName && propOk, `${propName || '-'} 위 · ${T.cursor().kind}`);
-      // 닭은 계속 움직인다 — 누르기 바로 전에 빈 땅을 다시 고른다 (고른 자리에 닭이 걸어 들어오면 파기가 아니라 쓰다듬기가 된다)
-      ground = null;
-      for (const [gx, gz] of [[8, -12], [-8, -12], [5, -6], [-5, -6], [6, 2], [-6, 2], [0, 4], [10, -18], [-10, -18]]) {
-        const sp = T.screenOfPoint(gx, 0, gz); const hit = sp && T.pickAt(sp.x, sp.y);
-        if (sp && (!hit || hit.type === 'ground')) { ground = sp; break; }
-      }
-      if (ground) {
+      // 닭은 계속 움직인다 — 고른 자리에 닭이 걸어 들어오면 파기가 아니라 쓰다듬기가 된다.
+      // 누르는 바로 그 순간에 빈 땅인지 다시 보고, 아니면 다른 자리로 다시 한다.
+      let during = 'open', hitAt = null, holding0 = false, g0 = null;
+      for (let attempt = 0; attempt < 6 && during !== 'hoe'; attempt++) {
         T.clearWorm();
-        mv('mousemove', ground.x, ground.y); await wait(60);
-        const hitAt = T.pickAt(ground.x, ground.y);
-        mv('mousedown', ground.x, ground.y);
-        const holding0 = T.digState().holding;
+        for (const [gx, gz] of [[8, -12], [-8, -12], [5, -6], [-5, -6], [6, 2], [-6, 2], [0, 4], [10, -18], [-10, -18]]) {
+          const sp = T.screenOfPoint(gx, 0, gz); const hit = sp && T.pickAt(sp.x, sp.y);
+          if (sp && (!hit || hit.type === 'ground')) { g0 = sp; break; }
+        }
+        if (!g0) break;
+        hitAt = T.pickAt(g0.x, g0.y);
+        if (hitAt && hitAt.type !== 'ground') { await wait(300); continue; }
+        mv('mousemove', g0.x, g0.y);
+        mv('mousedown', g0.x, g0.y);
+        holding0 = T.digState().holding;
         // 누르는 동안(0.25~1.1초) 한 번이라도 호미가 되는지 본다 — 한 시점만 보면 느린 기계에서 이미 다 판 뒤일 수 있다
-        let during = 'open';
         const t0h = Date.now();
         while (Date.now() - t0h < 1000) { if (T.cursor().kind === 'hoe') { during = 'hoe'; break; } await wait(40); }
-        mv('mouseup', ground.x, ground.y);
+        mv('mouseup', g0.x, g0.y);
         await wait(100);
-        ok('땅을 꾹 누르면 호미 쥔 손', during === 'hoe' && T.cursor().kind !== 'hoe', `누르는 중 ${during} → 뗀 뒤 ${T.cursor().kind}` + (during === 'hoe' ? '' : ` · 누른 곳 ${hitAt ? hitAt.type : '빈 곳'} · 파기 시작 ${holding0} · ${ground.x},${ground.y}`));
-        T.clearWorm();
       }
+      ok('땅을 꾹 누르면 호미 쥔 손', during === 'hoe' && T.cursor().kind !== 'hoe', `누르는 중 ${during} → 뗀 뒤 ${T.cursor().kind}` + (during === 'hoe' ? '' : ` · 누른 곳 ${hitAt ? hitAt.type : '빈 곳'} · 파기 시작 ${holding0}`));
+      T.clearWorm();
       T.setCursorKind('open');
       T.peckHand();
       await wait(80);
