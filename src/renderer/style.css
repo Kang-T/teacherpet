@@ -301,6 +301,27 @@ body.menuOpen #dim { display: block; }
   .jItem { break-inside: avoid; border-color: #BBB; }
 }
 
+/* 온도 챌린지 */
+#chalModal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.25); }
+#chalHud { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 40; background: #FFFDF5; border: 3px solid #2B1B0E;
+  border-radius: 14px; padding: 8px 16px; box-shadow: 3px 3px 0 #2B1B0E; font-size: 18px; text-align: center; max-width: calc(100vw - 28px); }
+#chalHud b { font-size: 22px; }
+#chalHud .cBar { height: 12px; background: #EEE6D6; border: 1px solid #2B1B0E; border-radius: 6px; overflow: hidden; margin-top: 6px; }
+#chalHud .cBar i { display: block; height: 100%; background: #2E8B57; }
+#chalBody { font-size: 18px; line-height: 1.7; }
+#chalBody .big { font-size: 34px; font-weight: 800; }
+.chalWrite { margin-top: 12px; display: grid; gap: 6px; font-size: 16px; }
+.chalWrite input, .chalWrite textarea { font: inherit; font-size: 18px; padding: 8px; border: 2px solid #2B1B0E; border-radius: 8px; }
+.chalTeacher { margin-top: 12px; font-size: 15px; color: #4A4034; }
+.chalTeacher summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+body.printChal #journalModal { display: none !important; }
+@media print {
+  body.printChal #chalModal, body.printChal #chalModal * { display: revert !important; }
+  body.printChal #chalModal { position: static !important; background: none !important; }
+  body.printChal #chalModal .jCard { width: auto !important; max-height: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+  body.printChal #chalModal .chalTeacher, body.printChal #chalModal .jActs { display: none !important; }
+}
+
 #advBox.hidden, #helpBox.hidden { display: none; }
 #advBox { border-top: 1px dashed #D9CFB8; margin-top: 8px; padding-top: 8px; }
 
@@ -376,3 +397,13 @@ body.menuOpen #dim { display: block; }
 .shopItem .sput { display: block; margin-top: 4px; font-size: 11px; color: #5A4A38; }
 .shopItem .sstore { display: inline-block; margin-left: 4px; padding: 1px 7px; border: 1.5px solid #2B1B0E; border-radius: 8px; background: #FFF3D0; font-weight: 700; cursor: pointer; }
 .shopItem .sstore:hover { background: #FFE9A8; }
+
+/* 미션 카드 — 지금 할 일을 화면에 계속 보여 준다 */
+#quest { position: fixed; top: 64px; left: 14px; z-index: 30; max-width: min(320px, calc(100vw - 28px)); cursor: pointer;
+  background: rgba(255,253,245,.96); border: 2px solid #2B1B0E; border-radius: 14px; padding: 10px 14px; box-shadow: 0 3px 0 rgba(43,27,14,.2); font-size: 18px; line-height: 1.4; }
+#quest.hidden { display: none; }
+#quest .qHead { font-size: 14px; color: #6b5a44; }
+#quest .qTitle { font-weight: 700; }
+#quest .qHint { font-size: 16px; color: #4a3a28; }
+#quest.done { background: #FFE9A8; }
+body.uiIdle #quest { opacity: .55; }
