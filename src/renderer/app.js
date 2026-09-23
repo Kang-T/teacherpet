@@ -2423,6 +2423,78 @@
   });
   addEventListener('mouseup', () => { if (tilt) { tilt = null; markDirty(); } });
 
+  // ── 손가락(터치 화면) ──
+  // 마우스 코드를 그대로 쓴다 — 손가락 하나는 마우스 하나처럼 옮겨 준다.
+  //   누르기 = 클릭(쓰다듬기·채우기)   끌기 = 끌기(닭·기구 옮기기, 확대했을 때 화면 옮기기)
+  //   빈 땅 꾹 = 땅 파기   두 번 톡톡 = 휘파람   모이통 꾹 = 사료 바꾸기(마우스의 오른쪽 버튼)
+  //   두 손가락 벌리기·오므리기 = 확대·축소   두 손가락 위아래 = 시점
+  // 닭 위를 꾹 누르는 것은 아무 일도 없다 — 마우스 오른쪽 버튼(야단치기)을 손가락에 주면
+  // 닭을 오래 만지는 아이가 뜻하지 않게 닭을 혼내게 된다.
+  const TOUCH_LONG = 600;
+  let touch1 = null, pinch = null, lastTap = null;
+  const fireMouse = (type, x, y, target) => (target || canvas).dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, button: 0, buttons: type === 'mouseup' ? 0 : 1, bubbles: true, cancelable: true }));
+  canvas.style.touchAction = 'none';            // 브라우저가 화면을 스크롤·확대하지 않게
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1 && !pinch) {
+      const t = e.touches[0];
+      touch1 = { x0: t.clientX, y0: t.clientY, x: t.clientX, y: t.clientY, t0: now(), moved: false, long: null };
+      fireMouse('mousemove', t.clientX, t.clientY);
+      fireMouse('mousedown', t.clientX, t.clientY);
+      // 모이통을 꾹 — 사료 바꾸기
+      const pr = propAt(t.clientX, t.clientY);
+      if (pr === 'feeder' || pr === 'feeder2') {
+        touch1.long = setTimeout(() => {
+          if (!touch1 || touch1.moved) return;
+          drag = null; setCur('open'); cycleFeed(pr); touch1.used = true;
+        }, TOUCH_LONG);
+      }
+    } else if (e.touches.length === 2) {
+      // 두 번째 손가락 — 하던 끌기를 거두고 확대·시점으로
+      if (touch1) { clearTimeout(touch1.long); cancelDig(); drag = null; touch1 = null; }
+      const [a, b2] = [e.touches[0], e.touches[1]];
+      pinch = { d: Math.hypot(a.clientX - b2.clientX, a.clientY - b2.clientY), y: (a.clientY + b2.clientY) / 2, elev: world.view.elev };
+    }
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (pinch && e.touches.length >= 2) {
+      const [a, b2] = [e.touches[0], e.touches[1]];
+      const d = Math.hypot(a.clientX - b2.clientX, a.clientY - b2.clientY);
+      const cx = (a.clientX + b2.clientX) / 2, cy = (a.clientY + b2.clientY) / 2;
+      // 벌린 만큼 휠을 한 칸씩 굴린다 (확대 코드를 그대로 쓴다 — 누른 곳을 붙잡고 확대한다)
+      while (d / pinch.d > 1.1) { canvas.dispatchEvent(new WheelEvent('wheel', { clientX: cx, clientY: cy, deltaY: -1, bubbles: true, cancelable: true })); pinch.d *= 1.1; }
+      while (d / pinch.d < 0.9) { canvas.dispatchEvent(new WheelEvent('wheel', { clientX: cx, clientY: cy, deltaY: 1, bubbles: true, cancelable: true })); pinch.d *= 0.9; }
+      // 두 손가락을 함께 위아래로 — 시점
+      const v = clamp(pinch.elev + (cy - pinch.y) * 0.16, 16, 55);
+      if (Math.abs(v - world.view.elev) >= 0.15) { state.settings.elev = v; resize(); }
+      return;
+    }
+    if (!touch1 || !e.touches.length) return;
+    const t = e.touches[0];
+    touch1.x = t.clientX; touch1.y = t.clientY;
+    if (Math.hypot(t.clientX - touch1.x0, t.clientY - touch1.y0) > 10) { touch1.moved = true; clearTimeout(touch1.long); }
+    fireMouse('mousemove', t.clientX, t.clientY);      // 캔버스에서 쏜다 — 땅 파기 취소가 캔버스에서 듣는다 (창까지 올라간다)
+  }, { passive: false });
+  function touchEnd(e) {
+    e.preventDefault();                          // 브라우저가 뒤따라 보내는 가짜 마우스 클릭을 막는다 (두 번 눌리지 않게)
+    if (pinch) { if (e.touches.length < 2) { pinch = null; markDirty(); } return; }
+    if (!touch1) return;
+    const t = touch1; touch1 = null;
+    clearTimeout(t.long);
+    if (!t.used) fireMouse('mouseup', t.x, t.y, window);
+    // 두 번 톡톡 — 휘파람 (마우스의 더블클릭)
+    const quick = !t.moved && !t.used && now() - t.t0 < 350;
+    if (quick && lastTap && now() - lastTap.at < 380 && Math.hypot(t.x - lastTap.x, t.y - lastTap.y) < 30) {
+      canvas.dispatchEvent(new MouseEvent('dblclick', { clientX: t.x, clientY: t.y, bubbles: true }));
+      lastTap = null;
+    } else lastTap = quick ? { x: t.x, y: t.y, at: now() } : null;
+    // 손가락을 떼면 '커서'도 사라진다 — 안 그러면 닭들이 아무도 없는 자리를 계속 궁금해한다
+    setTimeout(() => { if (!touch1) { mouse = { x: -1, y: -1, movedAt: 0 }; propTag.style.display = 'none'; hoverId = null; } }, 400);
+  }
+  canvas.addEventListener('touchend', touchEnd, { passive: false });
+  canvas.addEventListener('touchcancel', touchEnd, { passive: false });
+
   canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     // 모이통을 오른쪽 버튼으로 누르면 사료가 바뀐다 (메뉴를 열지 않고)
@@ -3472,6 +3544,8 @@
     ownCount() { return birds.filter((b) => !b.visitor).length; },
     newsState() { return { seen: state.newsSeen, latest: TP.news.latest() }; },
     setNewsSeen(v) { state.newsSeen = v; return v; },
+    petsOf(name) { const b = birds.find((q) => q.d.name === name); return b ? { pets: b.d.pets, lastPet: b.lastPet || 0, selected: selectedId === b.d.id } : null; },
+    feedTypes() { return { a: state.feedType || 'starter', b: state.feedType2 || 'grower' }; },
     openMenu(tab) { openPanel(tab || 'coop'); return !document.querySelector('#panel').classList.contains('hidden'); },
     closeMenu() { closePanel(); return true; },
     grannyOpen() { return !document.querySelector('#granny').classList.contains('hidden'); },

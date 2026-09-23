@@ -926,6 +926,68 @@
       for (let i = 0; i < 20 && T.grannyOpen(); i++) { const b = T.grannyButtons(); if (b.length) T.clickGranny(b.length - 1); await wait(200); }
     }
 
+    // ── 38. 손가락(터치 화면) ──
+    {
+      const cvs = document.querySelector('#stageHost canvas');
+      let tid = 0;
+      const tch = (x, y) => new Touch({ identifier: ++tid, target: cvs, clientX: x, clientY: y });
+      const fireT = (type, pts, changed) => cvs.dispatchEvent(new TouchEvent(type, { touches: pts, targetTouches: pts, changedTouches: changed || pts, bubbles: true, cancelable: true }));
+      const tap = async (x, y, hold) => { const t = tch(x, y); fireT('touchstart', [t]); await wait(hold || 60); fireT('touchend', [], [t]); };
+      const emptyGround = () => {
+        for (const [gx, gz] of [[8, -12], [-8, -12], [5, -6], [-5, -6], [6, 2], [-6, 2], [10, -18], [-10, -18]]) {
+          const sp = T.screenOfPoint(gx, 0, gz); const h = sp && T.pickAt(sp.x, sp.y);
+          if (sp && (!h || h.type === 'ground')) return sp;
+        }
+        return null;
+      };
+      // 닭을 톡 — 쓰다듬기
+      const tb = T.addBird('hen', '톡톡이');
+      let petted = false; const tp0 = Date.now();
+      while (Date.now() - tp0 < 3000 * SLOW) {
+        T.holdStill(tb, 4); const bs = T.screenOfBird(tb);
+        if (bs) { await tap(bs.x, bs.y); await wait(120); if (T.petsOf(tb).lastPet > 0) { petted = true; break; } }
+        await wait(300);
+      }
+      ok('손가락으로 닭을 톡 누르면 쓰다듬는다', petted, JSON.stringify(T.petsOf(tb)));
+      // 빈 땅을 꾹 — 땅 파기
+      T.clearWorm();
+      let g = emptyGround();
+      const tries0 = T.digState().tries;
+      if (g) await tap(g.x, g.y, 1100 + 700 * SLOW);
+      ok('손가락으로 빈 땅을 꾹 누르면 땅을 판다', T.digState().tries === tries0 + 1, `판 횟수 ${tries0} → ${T.digState().tries}`);
+      T.clearWorm();
+      // 모이통을 꾹 — 사료 바꾸기
+      T.setFeed('starter', 'grower');
+      let fdOk = false;
+      for (const k of ['feeder', 'feeder2']) {
+        const fs2 = D.screenOf(k); const h = fs2 && T.pickAt(fs2.x, fs2.y);
+        if (h && h.type === 'prop' && h.name === k) {
+          const before = T.feedTypes();
+          await tap(fs2.x, fs2.y, 900);
+          const after = T.feedTypes();
+          fdOk = (k === 'feeder' ? after.a !== before.a : after.b !== before.b);
+          break;
+        }
+      }
+      ok('손가락으로 모이통을 꾹 누르면 사료가 바뀐다', fdOk, JSON.stringify(T.feedTypes()));
+      T.setFeed('starter', 'grower');
+      // 빈 땅을 두 번 톡톡 — 휘파람
+      g = emptyGround();
+      D.set(NAME, 'aff', 95); T.holdStill(NAME, 1);
+      let called = false;
+      for (let i = 0; i < 4 && !called && g; i++) { D.set(NAME, 'aff', 95); await tap(g.x, g.y); await wait(80); await tap(g.x, g.y); await wait(100); called = !!T.callTargetOf(NAME); }
+      ok('빈 땅을 두 번 톡톡 누르면 닭을 부른다', called, '');
+      // 두 손가락 벌리기 — 확대
+      const z0 = T.view().zoom;
+      const c = { x: innerWidth / 2, y: innerHeight / 2 };
+      let a = tch(c.x - 40, c.y), b = tch(c.x + 40, c.y);
+      fireT('touchstart', [a], [a]); fireT('touchstart', [a, b], [b]);
+      for (let k = 1; k <= 8; k++) { a = new Touch({ identifier: a.identifier, target: cvs, clientX: c.x - 40 - k * 15, clientY: c.y }); b = new Touch({ identifier: b.identifier, target: cvs, clientX: c.x + 40 + k * 15, clientY: c.y }); fireT('touchmove', [a, b]); await wait(30); }
+      fireT('touchend', [a], [b]); fireT('touchend', [], [a]);
+      ok('두 손가락을 벌리면 확대된다', T.view().zoom > z0 + 0.1, `확대 ${z0} → ${T.view().zoom}`);
+      T.setView(1, 24);
+    }
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));
