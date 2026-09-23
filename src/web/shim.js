@@ -11,12 +11,19 @@
       return raw ? JSON.parse(raw) : null;
     } catch (e) { console.warn('저장 데이터를 읽지 못했습니다', e); return null; }
   }
+  // 화면 알림 — alert() 는 내장 브라우저에서 막혀 조용히 사라진다
+  function note(text, ms) {
+    const t = document.querySelector('#toasts');
+    if (!t) return;
+    const el = document.createElement('div'); el.className = 'toast big'; el.textContent = text;
+    t.appendChild(el); setTimeout(() => el.remove(), ms || 6000);
+  }
   function saveState(s) {
     try { localStorage.setItem(KEY, JSON.stringify(s)); return true; }
     catch (e) {
       // 저장 공간이 꽉 찼을 때 (localStorage는 보통 5MB)
       console.error('저장 실패', e);
-      if (!window.__tpSaveWarned) { window.__tpSaveWarned = true; alert('브라우저 저장 공간이 부족해 저장하지 못했습니다.\n시크릿 모드에서는 저장이 되지 않습니다.'); }
+      if (!window.__tpSaveWarned) { window.__tpSaveWarned = true; note('⚠️ 브라우저 저장 공간이 부족해 저장하지 못했어요. 시크릿 창에서는 저장되지 않아요', 12000); }
       return false;
     }
   }
@@ -51,7 +58,10 @@
     const r = new FileReader();
     r.onload = () => {
       try { JSON.parse(r.result); localStorage.setItem(KEY, r.result); location.reload(); }
-      catch (e) { alert('올바른 티처펫 파일이 아닙니다.'); }
+      catch (e) {
+        // alert() 는 내장 브라우저에서 막힌다 — 화면 알림으로
+        note('올바른 티처펫 파일이 아니에요', 6000);
+      }
     };
     r.readAsText(file);
   };

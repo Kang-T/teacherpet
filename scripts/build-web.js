@@ -73,7 +73,7 @@ html = must(html, '<div id="stageHost"></div>', `<div id="stageHost"></div>
   <p>알에서 시작해 병아리 · 어린닭 · 암탉과 수탉까지,<br>닭의 한살이를 우리 반이 함께 키웁니다.</p>
   <p>모이와 물을 챙긴 날만 하루로 셉니다.<br>커서를 가만히 두면 닭들이 궁금해서 다가와요.</p>
   <p class="tiny">이름도 학교도 묻지 않아요. 아무것도 인터넷으로 보내지 않습니다.<br>
-  닭은 <b>이 기기 안에만</b> 저장돼요 — 가끔 [내보내기]로 챙겨 두세요.
+  닭은 <b>이 기기 안에만</b> 저장돼요 — 가끔 설정의 [파일로 저장]으로 챙겨 두세요.
   <a href="privacy.html">자세히</a></p>
   <button class="primary" id="wbStart">시작하기</button>
 </div>`, '무대 컨테이너');
@@ -114,7 +114,7 @@ if ('serviceWorker' in navigator) {
 {
   const DIALOG = /(^|[^.\w])(confirm|prompt|alert)\s*\(/;
   const bad = [];
-  for (const f of ['app.js', 'web-ui.js']) {
+  for (const f of ['app.js', 'web-ui.js', 'shim.js']) {
     const t = fs.readFileSync(path.join(OUT, f), 'utf8');
     t.split('\n').forEach((line, i) => {
       const code = line.replace(/\/\/.*$/, '');
