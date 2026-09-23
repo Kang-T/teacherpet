@@ -115,6 +115,9 @@ function connect(url) {
     'about:blank',
   ];
   if (process.env.CI) args.unshift('--no-sandbox', '--disable-dev-shm-usage');
+  // TEACHERPET_SOFT=1 — CI 처럼 그래픽 카드 없이(소프트웨어 렌더링, 초당 몇 프레임) 돌려 본다.
+  // CI 에서만 흔들리는 검사를 내 컴퓨터에서 잡으려고.
+  if (process.env.TEACHERPET_SOFT) args.unshift('--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-gpu');
   const child = spawn(exe, args, { stdio: ['ignore', 'pipe', 'pipe'] });
   let chromeErr = '';
   child.stderr.on('data', (d) => { chromeErr += d; });

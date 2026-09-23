@@ -312,7 +312,8 @@
     }, 28);
     card.onclick = () => { if (talking) finish(); };
   }
-  function grannyHide() { $('#granny').classList.add('hidden'); }
+  // 닫으면 글자 찍기도 멈춘다 — 안 그러면 뒤에서 계속 '말하는 중'으로 남아 다른 안내가 뜨지 못한다
+  function grannyHide() { stopTyping(); $('#granny').classList.add('hidden'); }
   function askGranny() {
     const line = GR.advise(state, birds, HYG, (d) => ST.caredToday(d));
     grannySay(line, [{ label: '알겠어요', primary: true, fn: grannyHide }], adviceMood(line));
@@ -3546,6 +3547,9 @@
     setNewsSeen(v) { state.newsSeen = v; return v; },
     petsOf(name) { const b = birds.find((q) => q.d.name === name); return b ? { pets: b.d.pets, lastPet: b.lastPet || 0, selected: selectedId === b.d.id } : null; },
     feedTypes() { return { a: state.feedType || 'starter', b: state.feedType2 || 'grower' }; },
+    grannyClose() { grannyHide(); return true; },
+    setOnboarded(v) { state.onboarded = !!v; return state.onboarded; },
+    talkState() { return { talking, open: !$('#granny').classList.contains('hidden'), onboarded: state.onboarded, seen: state.newsSeen, grown: birds.some((b) => b.d.stage !== 'egg') }; },
     openMenu(tab) { openPanel(tab || 'coop'); return !document.querySelector('#panel').classList.contains('hidden'); },
     closeMenu() { closePanel(); return true; },
     grannyOpen() { return !document.querySelector('#granny').classList.contains('hidden'); },

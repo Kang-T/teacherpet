@@ -560,7 +560,7 @@
         T.whistleAt(far.x, far.y);
         tgt = T.callTargetOf(NAME);
       }
-      ok('부르면 누른 자리로 온다 (맨 앞줄이 아니라)', !!tgt && Math.abs(tgt.z - (-20)) < 1.5, tgt ? `누른 곳 z -20 · 가는 곳 z ${tgt.z}` : '부름에 안 옴');
+      ok('부르면 누른 자리로 온다 (맨 앞줄이 아니라)', !!tgt && Math.abs(tgt.z - (-20)) < 1.5, tgt ? `누른 곳 z -20 · 가는 곳 z ${tgt.z} · 화면점 ${far.x},${far.y} · 시점 ${JSON.stringify(T.view())}` : '부름에 안 옴');
       const lk = T.lookSpot();
       let t2 = null;
       // 앞의 부름이 남아 있으면 그 자리를 잰다 — 먼저 비운다
@@ -907,23 +907,25 @@
       document.querySelector('#btnMyCode').click();
       for (let i = 0; i < 120 && !T.grannyButtons().length; i++) await wait(150);
       ok('"내 닭 코드" 창에 짧은 코드가 보인다', T.grannyText().includes(sc), T.grannyText().slice(0, 60));
-      const gb = T.grannyButtons(); if (gb.length) T.clickGranny(gb.length - 1);
+      T.grannyClose();                         // 느린 기기에서는 글자를 다 찍기 전이라 단추가 없을 수 있다 — 바로 닫는다
       T.ageVisitors();
     }
 
     // ── 37. 새로 생긴 것 ── 업데이트 뒤 처음 한 번만
     {
-      for (let i = 0; i < 20 && T.grannyOpen(); i++) { const b = T.grannyButtons(); if (b.length) T.clickGranny(b.length - 1); await wait(200); }
+      T.grannyClose();
+      T.setOnboarded(true);                    // 첫 병아리를 받으며 시작된 안내가 느린 기기에서는 아직 안 끝났을 수 있다 (새 소식은 안내를 마친 아이에게만)
       T.setNewsSeen('2000-01-01');
+      const before = JSON.stringify(T.talkState());
       T.tellOnce();
       for (let i = 0; i < 100 && !T.grannyButtons().length; i++) await wait(150);
-      ok('업데이트 뒤 들어오면 할머니가 새로 생긴 것을 알려 준다', /새로 생긴/.test(T.grannyText()), T.grannyText().slice(0, 40));
+      ok('업데이트 뒤 들어오면 할머니가 새로 생긴 것을 알려 준다', /새로 생긴/.test(T.grannyText()), T.grannyText().slice(0, 40) + ' · 부르기 전 ' + before);
       const gb = T.grannyButtons(); if (gb.length) T.clickGranny(0);
       await wait(200);
       T.tellOnce();
       await wait(300);
       ok('한 번 보면 다시 나오지 않는다', !/새로 생긴/.test(T.grannyText()) || !T.grannyOpen(), T.newsState().seen);
-      for (let i = 0; i < 20 && T.grannyOpen(); i++) { const b = T.grannyButtons(); if (b.length) T.clickGranny(b.length - 1); await wait(200); }
+      T.grannyClose();
     }
 
     // ── 38. 손가락(터치 화면) ──
@@ -963,7 +965,7 @@
         const fs2 = D.screenOf(k); const h = fs2 && T.pickAt(fs2.x, fs2.y);
         if (h && h.type === 'prop' && h.name === k) {
           const before = T.feedTypes();
-          await tap(fs2.x, fs2.y, 900);
+          await tap(fs2.x, fs2.y, 700 + 900 * SLOW);          // 꾹 누르기 판정(0.6초) 타이머가 느린 기기에서 늦게 돈다
           const after = T.feedTypes();
           fdOk = (k === 'feeder' ? after.a !== before.a : after.b !== before.b);
           break;
@@ -975,7 +977,8 @@
       g = emptyGround();
       D.set(NAME, 'aff', 95); T.holdStill(NAME, 1);
       let called = false;
-      for (let i = 0; i < 4 && !called && g; i++) { D.set(NAME, 'aff', 95); await tap(g.x, g.y); await wait(80); await tap(g.x, g.y); await wait(100); called = !!T.callTargetOf(NAME); }
+      const quickTap = (x, y) => { const t = tch(x, y); fireT('touchstart', [t]); fireT('touchend', [], [t]); };
+      for (let i = 0; i < 4 && !called && g; i++) { D.set(NAME, 'aff', 95); quickTap(g.x, g.y); quickTap(g.x, g.y); await wait(100); called = !!T.callTargetOf(NAME); await wait(450); }
       ok('빈 땅을 두 번 톡톡 누르면 닭을 부른다', called, '');
       // 두 손가락 벌리기 — 확대
       const z0 = T.view().zoom;
