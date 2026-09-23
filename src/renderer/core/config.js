@@ -2,10 +2,14 @@
 (function (g) {
   const TP = (g.TP = g.TP || {});
 
-  // 수업용으로 빠르게: 하루 돌보면 1 "돌본 날". 알 2 → 병아리 4 → 어린닭 6일이면 어른이 된다.
-  // (기획서 4-1 의 원래 값은 알7·병아리14·어린닭28·성계40·노년20, 1 돌본 날 = 실제 3일)
+  // 1 "돌본 날" = 실제 3일. (기획서 4-1)
   const DAY_SCALE = 3;
-  const STAGE_DAYS = { egg: 2, chick: 4, young: 6, adult: 14, old: 6 };
+  const STAGE_DAYS = { egg: 7, chick: 14, young: 28, adult: 40, old: 20 };
+  // 수업용 빠르게 — 선생님이 켠다 (설정 스위치 또는 링크 끝 ?fast=1). 알 2 → 병아리 4 → 어린닭 6 돌본 날이면 어른.
+  // 처음 제안: PR #1 (alsghgkgh1010-art). 한 차시·한 단원 안에 한살이를 다 보게 하려는 것이다.
+  // 기본은 느린 쪽이다 — '기다림도 배움'이고, 실제 닭(병아리 약 6주)과도 가깝다.
+  const STAGE_DAYS_FAST = { egg: 2, chick: 4, young: 6, adult: 14, old: 6 };
+  const BROOD_DROP = { normal: 1.2, fast: 3 };   // 성장이 빨라진 만큼 필요 온도도 가파르게 내려간다
 
   TP.config = {
     DAY_SCALE,
@@ -37,7 +41,7 @@
       feeder2: '두 번째 모이통 — 단계가 다른 닭에게 맞는 사료를 담아요',
     },
     // 병아리 보온: 필요 온도 = 35 − 2.8 × (병아리 돌본 날)  (기획서 4-2)
-    BROOD: { startC: 35, dropPerDay: 3, tolerance: 2, minC: 21 },   // 병아리 4일 동안 35℃ → 26℃로 내려간다 (성장이 빨라진 만큼 가파르게)
+    BROOD: { startC: 35, dropPerDay: BROOD_DROP.normal, tolerance: 2, minC: 21 },   // 실제 '주당 2.8℃'를 돌본 날(=3일) 단위로 환산
     // 사료 3단계: 단계에 맞는 사료를 줘야 잘 자란다
     FEED: {
       starter: { name: '스타터', protein: '18~20%', ok: ['chick'], desc: '0~6주. 단백질이 높아요' },
@@ -70,4 +74,14 @@
     return TP.config.prices;
   };
   TP.config.price = (key) => ((TP.config.prices || {}).품목 || {})[key] || null;
+  // 수업용 빠르게 켜기/끄기 — 읽는 쪽(RULE·BROOD)이 모두 이 값을 보므로 여기서 바꾸면 끝난다
+  TP.config.fast = false;
+  TP.config.setFast = function (on) {
+    const D = on ? STAGE_DAYS_FAST : STAGE_DAYS, R = TP.config.RULE;
+    R.daysEgg = D.egg; R.daysChick = D.chick; R.daysYoung = D.young;
+    R.daysToOld = D.adult; R.daysToLeave = D.adult + D.old;
+    TP.config.BROOD.dropPerDay = on ? BROOD_DROP.fast : BROOD_DROP.normal;
+    TP.config.fast = !!on;
+    return TP.config.fast;
+  };
 })(typeof window !== 'undefined' ? window : module.exports);

@@ -2563,9 +2563,9 @@
     if (poopAt(e.clientX, e.clientY) || propAt(e.clientX, e.clientY)) return;
     whistleAt(e.clientX, e.clientY);
   });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePanel(); $('#journalModal').classList.add('hidden'); $('#shopModal').classList.add('hidden'); grannyHide(); } });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePanel(); $('#journalModal').classList.add('hidden'); $('#shopModal').classList.add('hidden'); $('#chalModal').classList.add('hidden'); grannyHide(); } });
   // 창 바깥(어두운 곳)을 누르면 닫힌다 — ✕ 를 못 찾는 아이가 있다
-  for (const id of ['#journalModal']) $(id).addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
+  for (const id of ['#journalModal', '#chalModal']) $(id).addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
   function treat(b) {
     const k = b.d.sick && b.d.sick.type;
     if (k === 'pasty') { HLT.cure(b.d); showIcon(b, '✨', 3000); toast(`💧 ${b.d.name}(이)의 엉덩이를 닦아 줬어요. 다 나았어요`, true, 7000); markDirty(); renderCoop(); return true; }
@@ -2641,7 +2641,7 @@
       toast(pick(['🕳️ 흙만 나왔어요. 조금 옆을 파 볼까요?', '🪨 작은 돌멩이! 닭은 이런 돌을 삼켜서 모래주머니에서 먹이를 갈아요', '🌱 풀뿌리만 나왔어요. 한 번 더!']), false, 4500);
       return 'miss';
     }
-    dg.found += 1; dg.miss = 0; markDirty();
+    dg.found += 1; dg.miss = 0; questAct('dig'); markDirty();
     if (!worm) {
       const m = world.makeWorm(); world.scene.add(m.group);
       worm = { model: m, x: clamp(x, world.xMin + XMARGIN, world.xMax - XMARGIN), y: 0, z: clampZ(z), held: false, vy: 0, bornAt: now(), escapes: 0, dir: rand(0, Math.PI * 2), turnAt: 0, dartUntil: 0 };
@@ -3016,7 +3016,7 @@
     $('#chalBody').innerHTML = `<div class="big">${pct}점</div><div>${grade}${newBest && G.runs > 1 ? ' · 🎉 최고 기록!' : ''}</div>
       <div>😊 편안한 시간 ${m(c.ok)}<br>🥶 추웠던 시간 ${m(c.cold)}<br>🥵 더웠던 시간 ${m(c.hot)}<br>🔥 보온등을 바꾼 횟수 ${c.changes}번</div>
       <div>${tip}</div>`;
-    $('#chalNote').value = ''; $('#chalName').value = '';
+    $('#chalNote').value = '';
     document.body.classList.remove('printChal');
     $('#chalModal').classList.remove('hidden'); chime();
   }
@@ -3083,6 +3083,7 @@
     $('#wxLine').textContent = `${wx.icon} ${wx.name}${state.classCode ? ' · ' + state.classCode + '반' : ''}`;
     $('#soundOn').checked = state.settings.sound;
     $('#plainCursor').checked = !!state.settings.plainCursor;
+    $('#fastGrow').checked = !!state.settings.fast;
     const cal = !!state.settings.useCalendar;
     $('#useCalendar').checked = cal;
     $('#pauseWeekends').checked = state.settings.pauseWeekends !== false;
@@ -3416,6 +3417,11 @@
     markDirty(); renderSettings(); toast(`🗓️ ${d} 을(를) 쉬는 날로 저장했어요`, false, 6000);
   });
   $('#soundOn').addEventListener('change', (e) => { state.settings.sound = e.target.checked; markDirty(); if (e.target.checked) chime(); });
+  $('#fastGrow').addEventListener('change', (e) => {
+    state.settings.fast = e.target.checked; C.setFast(e.target.checked); markDirty(); renderCoop();
+    for (const b of birds) if (!b.visitor) growCheck(b);
+    toast(e.target.checked ? '🐣 수업용 빠르게 — 알 2 · 병아리 4 · 어린닭 6 돌본 날이면 자라요' : '🐢 원래 빠르기 — 알 7 · 병아리 14 · 어린닭 28 돌본 날', false, 7000);
+  });
   $('#plainCursor').addEventListener('change', (e) => { state.settings.plainCursor = e.target.checked; markDirty(); setCur(curKind, true); });
   $('#autostart').addEventListener('change', (e) => api.setAutostart(e.target.checked));
   $('#btnQuit').addEventListener('click', async () => { await persist(); api.quit(); });
@@ -3433,12 +3439,23 @@
   api.on('work-area', () => setTimeout(resize, 50));
 
   // ---- 시작 ----
+  // 링크의 ?fast=1 / ?fast=0 을 읽는다 (없으면 null — 아이가 정한 것을 그대로 둔다)
+  function fastParam(search) {
+    try { const q = new URLSearchParams(search || '').get('fast'); return q === '1' ? true : q === '0' ? false : null; } catch (e) { return null; }
+  }
   async function init() {
     await C.loadPrices(api);
     const saved = await api.loadState();
     const migrated = ST.migrate(saved);
     if (migrated) state = migrated;
     else if (saved) toast('저장 데이터를 읽지 못해 새로 시작합니다', true, 9000);
+    // 수업용 빠르게 — 선생님이 클래스룸에 올린 링크 끝의 ?fast=1 로 켠다 (학생 화면과 선생님 화면은 연결돼 있지 않다)
+    const fastFromLink = fastParam(location.search);
+    if (fastFromLink !== null && !!state.settings.fast !== fastFromLink) {
+      state.settings.fast = fastFromLink; markDirty();
+      later0(() => toast(fastFromLink ? '🐣 선생님이 「수업용 빠르게」를 켜셨어요 — 며칠이면 한살이를 다 볼 수 있어요' : '🐢 「수업용 빠르게」를 껐어요', true, 8000), 2500);
+    }
+    C.setFast(!!state.settings.fast);
     // 자리 비운 시간만큼 배고픔·목마름 (시간당 4, 최대 40)
     // 주말·방학은 시간이 흐르지 않는다. 그리고 한 번에 12시간을 넘겨 흐르지 않는다.
     const awayH = SCH.effectiveAwayHours(state.lastSeen, now(), state);
@@ -3650,6 +3667,17 @@
     grannyClose() { grannyHide(); return true; },
     setOnboarded(v) { state.onboarded = !!v; return state.onboarded; },
     talkState() { return { talking, open: !$('#granny').classList.contains('hidden'), onboarded: state.onboarded, seen: state.newsSeen, grown: birds.some((b) => b.d.stage !== 'egg') }; },
+    fastParam(q) { return fastParam(q); },
+    josa(w) { return josa(w, '이라고', '라고'); },
+    showStepAt(i) { stepIdx = i; showStep(); return GR.STEPS[i] ? GR.STEPS[i].id : null; },
+    stepNow() { return stepIdx; },
+    lampNow() { return state.lampPower; },
+    questNow() { questTick(); const c = $('#quest'); return { shown: !c.classList.contains('hidden'), title: $('#qTitle').textContent, count: $('#qCount').textContent }; },
+    chalStart() { chalStart(); return !!chal; },
+    chalEnd() { if (chal) chal.t = Math.max(chal.t, 1); chalEnd(); return !$('#chalModal').classList.contains('hidden'); },
+    chalOn() { return chal ? { wx: wx.key, lamp: state.lampPower } : null; },
+    wxKey() { return wx.key; },
+    fastState() { return { setting: !!state.settings.fast, cfg: C.fast, daysChick: RULE.daysChick }; },
     openMenu(tab) { openPanel(tab || 'coop'); return !document.querySelector('#panel').classList.contains('hidden'); },
     closeMenu() { closePanel(); return true; },
     grannyOpen() { return !document.querySelector('#granny').classList.contains('hidden'); },

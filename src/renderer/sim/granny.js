@@ -33,6 +33,8 @@
     { id: 'warm',  icon: '🔥', title: '보온등 세기 바꿔 보기', hint: '보온등을 눌러 세기를 바꿔 보세요. 병아리는 추위를 타니 끄지는 마세요', done: (c) => !!((c.s.quest || {}).acts || {}).lamp },
     { id: 'worm',  icon: '🐛', title: '병아리에게 벌레 주기', hint: '벌레통에서 벌레를 끌어다 병아리 앞에 놓아 보세요', done: (c) => !!((c.s.quest || {}).acts || {}).worm },
     { id: 'pet',   icon: '🤚', title: '병아리 쓰다듬기',     hint: '병아리를 마우스로 살살 문질러 보세요',          done: (c) => !!((c.s.quest || {}).acts || {}).pet },
+    { id: 'dex',   icon: '🔍', title: '닭의 행동 하나 찾기',  hint: '닭이 모래 목욕·깃털 다듬기 같은 행동을 하는 순간 눌러 보세요', done: (c) => Object.keys(c.s.dex || {}).length > 0 },
+    { id: 'dig',   icon: '🕳️', title: '땅 파서 지렁이 찾기',  hint: '빈 땅을 꾹 누르고 있어 보세요. 가끔 지렁이가 나와요', done: (c) => !!((c.s.quest || {}).acts || {}).dig },
     { id: 'poop',  icon: '🧹', title: '똥 치우기',           hint: '마당의 똥을 눌러 치우세요. 안 치우면 냄새가 나요', when: (c) => c.poops >= 2, done: (c) => c.poops === 0 },
     { id: 'young', icon: '🌱', title: '병아리를 어린닭으로 키우기', hint: '매일 모이와 물을 챙기면 며칠 뒤 어린닭이 돼요', done: (c) => c.birds.some((b) => ['young', 'hen', 'rooster'].includes(b.d.stage)) },
     { id: 'adult', icon: '🐔', title: '어른 닭으로 키우기',   hint: '어린닭도 매일 돌보면 암탉·수탉이 돼요',          done: (c) => c.birds.some((b) => ['hen', 'rooster'].includes(b.d.stage)) },

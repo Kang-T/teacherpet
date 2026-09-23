@@ -71,6 +71,8 @@
     <div class="card">
       <label class="sw"><span>🔊 소리</span><input type="checkbox" id="soundOn"><i></i></label>
       <label class="sw"><span>🖱️ 기본 화살표 쓰기</span><input type="checkbox" id="plainCursor"><i></i></label>
+      <label class="sw"><span>🐣 수업용 빠르게 키우기</span><input type="checkbox" id="fastGrow"><i></i></label>
+      <p class="tiny">켜면 알 2 · 병아리 4 · 어린닭 6 돌본 날이면 자라요 (원래는 7 · 14 · 28).<br>선생님이 링크 끝에 <code>?fast=1</code> 을 붙여 나눠 주면 저절로 켜져요.</p>
       <label class="sw"><span>🗓️ 주말에는 쉴래요</span><input type="checkbox" id="useCalendar"><i></i></label>
     </div>
 
@@ -168,7 +170,8 @@
   </div>
   <div id="chalBody"></div>
   <div class="chalWrite">
-    <label for="chalName">이름</label> <input id="chalName" maxlength="12">
+    <!-- 이름은 화면에서 묻지 않는다 (개인정보 0). 인쇄지에만 손으로 쓰는 빈 줄이 나온다. -->
+    <div class="chalNameLine">이름: ______________________</div>
     <label for="chalNote">✏️ 오늘 알게 된 것 한 줄</label>
     <textarea id="chalNote" rows="3" placeholder="예) 병아리는 추우면 ○○하고, 더우면 ○○해요."></textarea>
   </div>

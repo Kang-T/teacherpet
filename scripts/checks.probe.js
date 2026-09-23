@@ -609,7 +609,7 @@
       const shopF = front('.shopCard');
       document.querySelector('#closeShop').click(); await wait(100);
       document.querySelector('#btnDex').click(); await wait(200);
-      const jF = front('.jCard');
+      const jF = front('#journalModal .jCard');
       document.querySelector('#closeJournal').click(); await wait(100);
       T.openMenu('coop'); await wait(200);
       const pF = front('#panel');
@@ -991,6 +991,59 @@
       fireT('touchend', [a], [b]); fireT('touchend', [], [a]);
       ok('두 손가락을 벌리면 확대된다', T.view().zoom > z0 + 0.1, `확대 ${z0} → ${T.view().zoom}`);
       T.setView(1, 24);
+    }
+
+    // ── 39. PR #1 (alsghgkgh1010-art) 에서 받은 것 ──
+    {
+      T.grannyClose();
+      // 보온등 안내 — 이미 켜져 있는데 '켜라'고 해서, 따라 누르면 꺼지던 함정
+      const lamp0 = T.lampNow();
+      const sid = T.showStepAt(2);
+      for (let i = 0; i < 100 && !T.grannyButtons().length; i++) await wait(150);
+      const said = T.grannyText();
+      ok('첫날 보온등 안내가 "켜라"고 하지 않는다', sid === 'warm' && !/켜 두면|켜 줘|켜라/.test(said), said.slice(0, 50));
+      ok('보온등 안내에서 멈추지 않는다 (알겠어요로 넘어간다)', T.grannyButtons().includes('알겠어요'), T.grannyButtons().join(' / '));
+      T.clickGranny(0); await wait(200);
+      ok('안내를 따라도 보온등은 켜진 그대로다', T.lampNow() === lamp0 && T.stepNow() === 3, `보온등 ${lamp0} → ${T.lampNow()} · 다음 단계 ${T.stepNow()}`);
+      T.grannyClose();
+      ok('이름 뒤 조사가 받침에 맞다', T.josa('햇살') === '이라고' && T.josa('보리') === '라고', `햇살${T.josa('햇살')} · 보리${T.josa('보리')}`);
+
+      // 미션 카드 — '혼자 할래요'가 아니면 지금 할 일을 보여 준다
+      const set = window.__tp.settings(); const g0 = set.guide;
+      set.guide = 'often';
+      const q1 = T.questNow();
+      ok('미션 카드가 지금 할 일을 보여 준다', q1.shown && q1.title.length > 0, `${q1.count} ${q1.title}`);
+      set.guide = 'alone';
+      ok('"혼자 할래요"를 고른 아이에게는 미션 카드가 없다', !T.questNow().shown, '');
+      set.guide = g0;
+
+      // 온도 챌린지
+      const w0 = T.wxKey(), lampBefore = T.lampNow();
+      if (!D.birds().some((b) => T.stateOf(b.name) && T.stateOf(b.name).stage === 'chick')) T.addBird('chick', '챌린지');
+      const started = T.chalStart();
+      const on = T.chalOn();
+      ok('온도 챌린지가 추운 날로 시작한다', started && on && on.wx === 'cold', JSON.stringify(on));
+      const shown = T.chalEnd();
+      await wait(200);
+      const box = document.querySelector('#chalModal');
+      ok('챌린지가 끝나면 결과를 보여 준다', shown && /점/.test(document.querySelector('#chalBody').textContent), document.querySelector('#chalBody').textContent.slice(0, 40));
+      ok('결과 화면은 이름을 묻지 않는다 (인쇄지에만 손글씨 빈 줄)', !box.querySelector('input') && getComputedStyle(box.querySelector('.chalNameLine')).display === 'none', '');
+      ok('챌린지가 끝나면 날씨와 보온등이 돌아온다', T.wxKey() === w0 && T.lampNow() === lampBefore, `날씨 ${w0} → ${T.wxKey()} · 보온등 ${lampBefore} → ${T.lampNow()}`);
+      const r = box.querySelector('.jCard').getBoundingClientRect();
+      ok('챌린지 결과 창이 맨 앞에 뜬다', box.querySelector('.jCard').contains(document.elementFromPoint(r.left + r.width / 2, r.top + 30)), '');
+      box.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      ok('결과 창은 바깥을 눌러도 닫힌다', box.classList.contains('hidden'), '');
+
+      // 수업용 빠르게 — 선생님이 켠다
+      const f0 = T.fastState();
+      ok('수업용 빠르게는 기본으로 꺼져 있다', !f0.cfg && f0.daysChick === 14, JSON.stringify(f0));
+      const cb = document.querySelector('#fastGrow');
+      cb.checked = true; cb.dispatchEvent(new Event('change'));
+      const f1 = T.fastState();
+      ok('설정에서 켜면 병아리가 4일 만에 자란다', f1.cfg && f1.daysChick === 4, JSON.stringify(f1));
+      cb.checked = false; cb.dispatchEvent(new Event('change'));
+      ok('끄면 원래대로', T.fastState().daysChick === 14, '');
+      ok('선생님 링크의 ?fast=1 을 알아본다', T.fastParam('?fast=1') === true && T.fastParam('?fast=0') === false && T.fastParam('') === null && T.fastParam('?x=1') === null, '');
     }
 
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',

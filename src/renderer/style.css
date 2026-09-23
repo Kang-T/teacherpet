@@ -312,6 +312,7 @@ body.menuOpen #dim { display: block; }
 #chalBody .big { font-size: 34px; font-weight: 800; }
 .chalWrite { margin-top: 12px; display: grid; gap: 6px; font-size: 16px; }
 .chalWrite input, .chalWrite textarea { font: inherit; font-size: 18px; padding: 8px; border: 2px solid #2B1B0E; border-radius: 8px; }
+.chalNameLine { display: none; font-size: 18px; margin: 4px 0 8px; }
 .chalTeacher { margin-top: 12px; font-size: 15px; color: #4A4034; }
 .chalTeacher summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
 body.printChal #journalModal { display: none !important; }
@@ -320,6 +321,7 @@ body.printChal #journalModal { display: none !important; }
   body.printChal #chalModal { position: static !important; background: none !important; }
   body.printChal #chalModal .jCard { width: auto !important; max-height: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
   body.printChal #chalModal .chalTeacher, body.printChal #chalModal .jActs { display: none !important; }
+  body.printChal #chalModal .chalNameLine { display: block !important; }
 }
 
 #advBox.hidden, #helpBox.hidden { display: none; }
