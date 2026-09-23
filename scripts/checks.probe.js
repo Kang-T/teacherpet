@@ -920,7 +920,7 @@
       T.tellOnce();
       for (let i = 0; i < 100 && !T.grannyButtons().length; i++) await wait(150);
       ok('업데이트 뒤 들어오면 할머니가 새로 생긴 것을 알려 준다', /새로 생긴/.test(T.grannyText()), T.grannyText().slice(0, 40) + ' · 부르기 전 ' + before);
-      const gb = T.grannyButtons(); if (gb.length) T.clickGranny(0);
+      T.grannyClose();                         // 글이 길어 느린 기기에서는 다 찍히기(단추가 생기기) 전일 수 있다
       await wait(200);
       T.tellOnce();
       await wait(300);
