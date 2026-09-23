@@ -146,7 +146,10 @@ const BUILD = hash.digest('hex').slice(0, 10);
 fs.writeFileSync(path.join(OUT, 'sw.js'), `// 오프라인에서도 열리도록 캐시한다
 const CACHE = 'teacherpet-${pkg.version}-${BUILD}';
 const FILES = ${JSON.stringify(files.concat(['./']), null, 2)};
-self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
+// ⚠️ cache: 'reload' — 브라우저 임시 저장본을 건너뛰고 서버에서 새로 받는다.
+// GitHub Pages 는 파일마다 max-age=600 을 주므로, 그냥 받으면 10분 안의 옛 CSS·JS 가 새 캐시에 섞였다.
+// (새 HTML + 옛 CSS → 새 창·단추가 모양 없이 화면 맨 아래에 쌓여, 다음 배포 때까지 남았다)
+self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;

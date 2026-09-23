@@ -25,3 +25,8 @@ jobs:
         env:
           CHROME_PATH: /usr/bin/google-chrome
         run: node scripts/check.js
+      # 새 버전이 올라갈 때 아이 기기에 옛 CSS·JS 가 섞이지 않는지 (서비스 워커 캐시)
+      - name: 업데이트 검사
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node scripts/check-update.js
