@@ -46,7 +46,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   if (process.env.CI) args.unshift('--no-sandbox', '--disable-dev-shm-usage');
   const child = spawn(chrome, args, { stdio: 'ignore' });
   const done = (code, msg) => { if (msg) console.log(msg); try { child.kill(); } catch (_) {} srv.close(); setTimeout(() => { for (const d of [profile, site]) { try { fs.rmSync(d, { recursive: true, force: true }); } catch (_) {} } process.exit(code); }, 400); };
-  setTimeout(() => done(2, '시간 초과'), 180000);
+  setTimeout(() => done(2, '시간 초과'), 240000);
 
   let ws = null;
   for (let i = 0; i < 150 && !ws; i++) {
@@ -80,12 +80,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // 3) 아이가 다음 날 다시 연다 — 새 서비스 워커가 설치되고 한 번 새로고침된다
   await S('Page.navigate', { url });
+  // 브라우저는 페이지를 열 때 새 서비스 워커가 있는지 스스로 확인한다. 다만 CI 에서는 그 시점이 늦을 때가 있어
+  // 확인을 직접 한 번 더 요청한다 — 여기서 재려는 것은 '언제 확인하나'가 아니라 '받을 때 무엇이 담기나'다.
   let keysB = null;
-  for (let i = 0; i < 150; i++) {
+  for (let i = 0; i < 300; i++) {
     await sleep(200);
+    if (i % 25 === 5) { try { await ev('navigator.serviceWorker.getRegistration().then((r) => r && r.update()).then(() => 1, () => 0)'); } catch (_) {} }
     try { keysB = await ev('caches.keys()'); } catch (_) {}
     if (keysB && keysB.some((k) => k.endsWith('-B'))) break;
   }
+  const reg = await ev(`navigator.serviceWorker.getRegistration().then((r) => r ? { active: !!r.active, waiting: !!r.waiting, installing: !!r.installing } : null)`).catch(() => null);
   await sleep(1500);
   const got = await ev(`(async () => {
     const k = (await caches.keys()).find((x) => x.endsWith('-B'));
@@ -98,6 +102,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   const ok = got && got.cache && got.css && got.js;
   console.log(`  ${ok ? '✅' : '❌'}  새 버전을 올리면 새 파일만 캐시된다 (옛 CSS·JS 가 섞이지 않는다)`);
-  console.log(`      옛 캐시 ${JSON.stringify(keysA)} → 새 캐시 ${got && got.cache} · style.css 새 판 ${got && got.css} · app.js 새 판 ${got && got.js}`);
+  console.log(`      옛 캐시 ${JSON.stringify(keysA)} → 새 캐시 ${got && got.cache} · style.css 새 판 ${got && got.css} · app.js 새 판 ${got && got.js}` + (ok ? '' : ` · 등록 ${JSON.stringify(reg)} · 캐시 목록 ${JSON.stringify(keysB)}`));
   done(ok ? 0 : 1);
 })();
