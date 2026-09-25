@@ -323,6 +323,7 @@
   // 할머니가 먼저 말을 거는 건 '자주 여쭤볼래요'를 고른 아이에게만
   function nudge() {
     if (!guideCfg().nudge) return;
+    if (resting()) return;                          // 아무도 안 보고 있다 — 말을 걸지 않는다
     if (!$('#granny').classList.contains('hidden')) return;
     if (stepIdx >= 0) return;                       // 첫날 안내 중에는 끼어들지 않는다
     if (now() - lastNudge < 90000) return;
@@ -386,7 +387,14 @@
     }
     questInit = true;
     questCur = GR.QUESTS.find((q) => !Q.done.includes(q.id) && (!q.when || Q.seen.includes(q.id))) || null;
-    if (!questCur) { card.classList.add('hidden'); return; }   // 다 끝냈거나, 나타날 때가 아직 안 됐다
+    const done = allCaredToday();
+    card.classList.toggle('dayDone', done);
+    $('#qDone').classList.toggle('hidden', !done);
+    if (!questCur) {
+      if (!done) { card.classList.add('hidden'); return; }   // 다 끝냈거나, 나타날 때가 아직 안 됐다
+      card.classList.remove('hidden'); $('#qMission').classList.add('hidden'); return;
+    }
+    $('#qMission').classList.remove('hidden');
     card.classList.remove('hidden');
     const main = GR.QUESTS.filter((q) => !q.when);
     $('#qCount').textContent = questCur.when ? '추가' : `${main.filter((q) => Q.done.includes(q.id)).length + 1}/${main.length}`;
@@ -885,6 +893,14 @@
       if (gapTo(b, hm.nest.x, hm.nest.z) > 0.2) { goTo(b, hm.nest.x, 'gonest', hm.nest.z); return; }
       setAnim(b, 'brood', rand(8, 20)); return;
     }
+    // 화면을 켜 둔 채 아무도 안 보면 닭들도 자러 들어간다 (누가 다시 만지면 깬다)
+    if (resting() && !b.carrying) {
+      if (b.inCoop) { setAnim(b, 'sleep', rand(20, 40)); return; }
+      const ws = warmSpot();
+      if (d.stage === 'chick' && ws && !b.visitor) { goTo(b, ws.x + rand(-0.9, 0.9), 'golamp-sleep', ws.z + rand(-0.6, 0.6)); return; }
+      if (!b.visitor && propVisible('coop') && !isYoungling(b)) { goTo(b, hm.coop.x + (hm.flip ? -1 : 1) * 0.3, 'gocoop', hm.coop.z); return; }
+      setAnim(b, 'sleep', rand(20, 40)); return;
+    }
     const gp = (mouse.x >= 0 && now() - mouse.movedAt < 3000) ? world.screenToGround(mouse.x, mouse.y) : null;
     const cursorDist = gp ? gapTo(b, gp.x, gp.z) : 99;
     const mom = momOf(b), kids = kidsOf(b);
@@ -1264,6 +1280,7 @@
   // 커서가 멀리서 계속 얼쩡거리면 호기심이 쌓인다 (겁은 나지만 보고 싶은 상태)
   let lure = { x: 0, z: 0, active: 0, at: 0 };
   function trackLure(x, y, speed) {
+    if (resting()) return;
     if (speed > 2200) { lure.active = Math.max(0, lure.active - 0.03); return; }   // 휙 지나가면 유인이 아니라 위협
     if (speed < 90 && cursorStill < 0.5) { lure.active = Math.max(0, lure.active - 0.012); return; }
     const gp = world.screenToGround(x, y); if (!gp) return;
@@ -1293,6 +1310,7 @@
   function tickCursorPeck(dt) {
     peckScan -= dt; if (peckScan > 0) return; peckScan = 0.4;
     if (!cursorSpot) return;
+    if (resting()) return;                 // 아무도 없다 — 남아 있는 커서 자리를 궁금해하지 않고 자러 간다
     // 커서가 멈춰 있어야 관심을 보인다. 다만 너무 오래 그대로면 질린다 —
     // 움직이지 않는 것에 닭이 계속 매달려 있으면 그것대로 이상하다.
     const still = cursorStill > 0.7 && cursorStill < CURSOR_BORED;
@@ -2146,6 +2164,7 @@
       // 오버레이(아이콘·이름표) 위치
       const top = world.project(b.x, height(b) + b.y + 0.2, b.z);
       b.box = m.holder.visible ? { top: top.y, x: top.x } : null;
+      if (sleepingNow && b.anim === 'sleep' && !(b.icon && now() < b.iconUntil)) showIcon(b, '💤', 3000);
       const showIconNow = b.icon && now() < b.iconUntil && m.holder.visible;
       if (showIconNow) { if (!b.iconEl) { b.iconEl = document.createElement('div'); b.iconEl.className = 'icon'; overlay.appendChild(b.iconEl); } b.iconEl.textContent = b.icon; b.iconEl.style.left = top.x + 'px'; b.iconEl.style.top = (top.y - 4 + Math.sin(t * 4) * 2) + 'px'; b.iconEl.style.display = ''; }
       else if (b.iconEl) b.iconEl.style.display = 'none';
@@ -2153,7 +2172,7 @@
       if (showTag) { if (!b.tagEl) { b.tagEl = document.createElement('div'); b.tagEl.className = 'tag'; overlay.appendChild(b.tagEl); } b.tagEl.textContent = `${b.d.name} · ${STAGE_KO[b.d.stage]}${sexMark(b.d)}${b.visitor ? ' · 놀러 옴' : ''}`; b.tagEl.style.left = top.x + 'px'; b.tagEl.style.top = (top.y - (showIconNow ? 34 : 4)) + 'px'; b.tagEl.style.display = ''; }
       else if (b.tagEl) b.tagEl.style.display = 'none';
     }
-    tickDig();
+    tickDig(); tickZzz();
     if (worm) {
       if (!worm.held && !worm.carrier) {
         if (worm.y > 0 || worm.vy > 0) { worm.vy -= GRAV * dt; worm.y += worm.vy * dt; if (worm.y <= 0) { worm.y = 0; worm.vy = 0; } }
@@ -2704,6 +2723,7 @@
   // 용돈 조건과 도감은 알려 주지 않으면 아이들이 끝내 모른다 (실제로 "코인 어떻게 얻어요?"가 나왔다).
   function tellOnce() {
     if (!state.onboarded || talking || !$('#granny').classList.contains('hidden')) return;
+    if (resting()) return;                          // 닭들이 자는 동안(아무도 안 볼 때)은 말을 걸지 않는다
     if (!birds.some((b) => b.d.stage !== 'egg') && !(TP.news && TP.news.since(state.newsSeen).length)) return;
     const t = state.told;
     // 새로 생긴 것 — 업데이트 뒤 처음 한 번
@@ -2979,7 +2999,7 @@
     if (chal) return;
     if (!chalChicks().length) { toast('병아리가 있을 때 도전할 수 있어요', false, 4000); return; }
     closePanel();
-    chal = { t: 0, ok: 0, cold: 0, hot: 0, changes: 0, lamp0: state.lampPower ?? 1, last: 0.35 };
+    chal = { t: 0, ok: 0, cold: 0, hot: 0, changes: 0, lamp0: state.lampPower ?? 1, last: 0.35, wx0: wx.key };
     state.lampPower = 0.35; markDirty(); renderCoop(); lampEffect(0.35);
     applyWeather('cold');
     toast('❄️ 갑자기 추워졌어요! 보온등 세기를 바꿔 병아리를 지켜 주세요', true, 7000);
@@ -3006,14 +3026,15 @@
     clearInterval(c.timer); chal = null;
     $('#chalHud').classList.add('hidden');
     state.lampPower = c.lamp0; markDirty(); renderCoop(); lampEffect(c.lamp0);
-    applyWeather();                                   // 오늘의 진짜 날씨로 돌아온다
+    // 시작하기 전 날씨로 돌아온다 (보통은 오늘의 날씨. 선생님이 날씨를 바꿔 두었으면 그 날씨)
+    applyWeather(c.wx0 && c.wx0 !== WX.of(today(), state.classCode).key ? c.wx0 : undefined);
     const pct = Math.round(c.ok / Math.max(1, c.t) * 100);
-    const G = state.chal = state.chal || { best: 0, runs: 0 };
-    const newBest = pct > G.best; G.runs++; G.best = Math.max(G.best, pct); markDirty();
+    // 최고 기록은 보여 주지 않는다 — '한 판만 더'를 부른다. 그 판의 결과만.
+    const G = state.chal = state.chal || { runs: 0 }; G.runs++; markDirty();
     const grade = pct >= 80 ? '🏅 훌륭해요! 온도 박사예요' : pct >= 50 ? '👍 잘했어요' : '💪 괜찮아요. 다시 도전해 봐요';
     const tip = c.cold >= c.hot ? '추워한 시간이 더 길었어요. 추울 때는 보온등 세기를 <b>올려야</b> 해요.' : '더워한 시간이 더 길었어요. 더울 때는 보온등 세기를 <b>낮춰야</b> 해요.';
     const m = (s) => Math.floor(s / 60) + '분 ' + (s % 60) + '초';
-    $('#chalBody').innerHTML = `<div class="big">${pct}점</div><div>${grade}${newBest && G.runs > 1 ? ' · 🎉 최고 기록!' : ''}</div>
+    $('#chalBody').innerHTML = `<div class="big">${pct}점</div><div>${grade}</div>
       <div>😊 편안한 시간 ${m(c.ok)}<br>🥶 추웠던 시간 ${m(c.cold)}<br>🥵 더웠던 시간 ${m(c.hot)}<br>🔥 보온등을 바꾼 횟수 ${c.changes}번</div>
       <div>${tip}</div>`;
     $('#chalNote').value = '';
@@ -3021,6 +3042,54 @@
     $('#chalModal').classList.remove('hidden'); chime();
   }
   $('#btnChal').addEventListener('click', chalStart);
+
+  // ── 아무도 안 볼 때는 잔다 ──
+  // 화면을 켜 둔 채 10분 동안 아무도 만지지 않으면 닭들이 닭장·보온등 밑으로 자러 들어간다.
+  // 닭장 위에 💤 말풍선이 떠서 '없어진 게 아니라 자는 중'임을 알 수 있다.
+  // 누가 다시 화면을 만지면(마우스를 움직이기만 해도) 깨어나 나온다.
+  // 켜고 몇 분 뒤에 재우는 제한은 두지 않는다 — 수업에서 오래 쓸 수도 있다. 기존 행동은 그대로다.
+  let IDLE_SLEEP = 10 * 60000;
+  let lastInput = now(), sleepingNow = false, lastMoveMark = 0;
+  function activity(e) {
+    if (e && e.type === 'mousemove') { if (now() - lastMoveMark < 1000) return; lastMoveMark = now(); }   // 움직임은 1초에 한 번만 센다
+    lastInput = now();
+    if (sleepingNow) wakeAll();
+  }
+  for (const ev of ['pointerdown', 'mousedown', 'mousemove', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, activity, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) activity(); });
+  function resting() { return now() - lastInput > IDLE_SLEEP; }
+  function tickRest() {
+    if (!resting() || sleepingNow) return;
+    sleepingNow = true;
+    for (const b of birds) if (eligible(b) && b.anim !== 'chase') decide(b);
+  }
+  function wakeAll() {
+    sleepingNow = false;
+    const hm = home();
+    for (const b of birds) {
+      if (b.d.stage === 'egg' || b.d.brooding || b.hovering || b.tucked) continue;
+      if (b.inCoop) { b.inCoop = false; setVisible(b, true); b.x = hm.coop.x + (hm.flip ? -1 : 1) * rand(1.2, 2.2); b.z = clampZ(hm.coop.z + rand(-0.6, 0.8)); }
+      if (b.anim === 'sleep' || b.anim === 'gocoop' || b.anim === 'golamp-sleep') { b.targetX = null; decide(b); if (Math.random() < 0.6) showIcon(b, '❗', 1200); }
+    }
+  }
+  setInterval(tickRest, 5000);
+  // 닭장 위 💤 — 닭이 닭장에서 자고 있을 때
+  const coopZzz = document.createElement('div'); coopZzz.className = 'icon coopZzz'; coopZzz.textContent = '💤'; coopZzz.style.display = 'none'; overlay.appendChild(coopZzz);
+  function tickZzz() {
+    const hm = home();
+    const inside = propVisible('coop') && birds.some((b) => b.inCoop && b.d.stage !== 'egg') && (sleepingNow || birds.some((b) => b.inCoop && b.anim === 'sleep'));
+    if (!inside) { coopZzz.style.display = 'none'; return; }
+    const p = world.project(hm.coop.x, 3.4, hm.coop.z);
+    if (!p) { coopZzz.style.display = 'none'; return; }
+    coopZzz.style.display = ''; coopZzz.style.left = p.x + 'px'; coopZzz.style.top = (p.y + Math.sin(now() / 500) * 3) + 'px';
+  }
+  // 오늘 할 일을 다 했다 — 멈출 자리를 알려 준다 (멈출 곳이 없으면 아이들은 계속 무언가를 찾는다)
+  function dayDone(pay) {
+    const line = `🪙 오늘 용돈 ${pay}코인이다.\n오늘 할 일은 다 했구나. 닭들은 이제 쉴 테니, 내일 또 보러 오렴.`;
+    if ($('#granny').classList.contains('hidden') && !talking && stepIdx < 0) grannySay(line, [{ label: '네!', primary: true, fn: grannyHide }], 'proud');
+    else { toast(`🪙 할머니가 용돈 ${pay}코인을 주셨어요`, false, 7000); toast('✅ 오늘 할 일은 다 했어요. 내일 또 보러 와요', true, 8000); }
+  }
+  const allCaredToday = () => { const mine = birds.filter((b) => !b.visitor && b.d.stage !== 'egg'); return mine.length > 0 && mine.every((b) => ST.caredToday(b.d)); };
   $('#btnChalClose').addEventListener('click', () => $('#chalModal').classList.add('hidden'));
   $('#btnChalPrint').addEventListener('click', () => {
     const n = $('#chalNote'); n.textContent = n.value;                 // 인쇄에는 입력한 글이 그대로 나오게
@@ -3162,7 +3231,8 @@
   const DECO_MAX = 16;                     // 마당에 한 번에 놓을 수 있는 장식
   const placedOf = (id) => state.farm.decos.filter((q) => q.kind === id).length;
   const storedOf = (id) => (state.farm.stored || {})[id] || 0;
-  const seasonLabel = (it) => { const S = SHOP.SEASONS[it.season]; return S ? `${S.icon} ${S.name}에만 (${S.from.replace('-', '/')}~${S.to.replace('-', '/')})` : ''; };
+  // '지금 아니면 못 산다'가 되지 않게 — 해마다 돌아온다는 것을 먼저 말한다
+  const seasonLabel = (it) => { const S = SHOP.SEASONS[it.season]; return S ? `${S.icon} 해마다 ${S.name}에 돌아와요 (${S.from.replace('-', '/')}~${S.to.replace('-', '/')})` : ''; };
   function renderShop() {
     $('#shopCoins').textContent = '🪙 ' + state.coins;
     // 모자 칸: 누구에게 씌울지 위에서 고른다
@@ -3214,7 +3284,7 @@
       else if (!sell && !(has && !deco)) sp = seasonLabel(it);
       else if (has && !deco) sp = '가지고 있어요';
       else sp = '🪙 ' + it.price;
-      el.innerHTML = `${it.season && sell ? '<span class="sbadge">철 한정</span>' : ''}<span class="si">${esc(it.icon)}</span><span class="sn">${esc(it.name)}</span><span class="sp">${esc(sp)}</span>`
+      el.innerHTML = `${it.season && sell ? `<span class="sbadge">${esc((SHOP.SEASONS[it.season] || {}).name || '')}</span>` : ''}<span class="si">${esc(it.icon)}</span><span class="sn">${esc(it.name)}</span><span class="sp">${esc(sp)}</span>`
         + (deco && pl ? `<span class="sput">마당에 ${pl}개 <span class="sstore" data-store="${esc(it.id)}">보관</span></span>` : '');
       el.addEventListener('click', (e) => {
         if (e.target.dataset && e.target.dataset.store) { storeDeco(e.target.dataset.store); return; }
@@ -3238,7 +3308,7 @@
     // 장식물은 살 때마다 하나씩 더 놓인다. 나머지는 한 번 사면 계속 쓴다.
     const fromStore = it.kind === 'deco' && storedOf(it.id) > 0;          // 보관함에 있으면 꺼내 놓는다 (공짜)
     if (it.kind === 'deco' && state.farm.decos.length >= DECO_MAX) { toast(`마당이 꽉 찼어요 (${DECO_MAX}개). 장식 하나를 [보관]하고 다시 놓아 주세요`, false, 6000); return; }
-    if (!fromStore && (!has || it.kind === 'deco') && !SHOP.inSeason(it, today())) { toast(`🗓️ ${seasonLabel(it)} 팔아요`, false, 5000); return; }
+    if (!fromStore && (!has || it.kind === 'deco') && !SHOP.inSeason(it, today())) { toast(`🗓️ ${seasonLabel(it)}`, false, 5000); return; }
     if (fromStore) state.farm.stored[it.id] -= 1;
     else if (!has || it.kind === 'deco') {
       if (state.coins < it.price) { coinShort(it.price); return; }
@@ -3496,16 +3566,16 @@
 
     // 할머니 용돈 — 모이·물을 다 챙긴 날에만. 기다리면 쌓이는 게 아니라 돌봐야 쌓인다.
     // 연속으로 챙기면 조금 더 준다 (최대 +3).
+    const ALLOWANCE = 4;
     function payAllowance() {
       if (!birds.length || !state.onboarded) return;
       const day = today();
       if (state.allowance.day === day) return;
       if (!birds.every((b) => b.visitor || b.d.stage === 'egg' || ST.caredToday(b.d))) return;
-      const yest = U.addDays(day, -1);
-      state.allowance.streak = state.allowance.day === yest ? Math.min(3, (state.allowance.streak || 0) + 1) : 0;
-      const pay = 3 + state.allowance.streak;
-      state.allowance.day = day; state.coins += pay; markDirty(); renderCoop();
-      toast(`🪙 할머니가 용돈 ${pay}코인을 주셨어요${state.allowance.streak ? ` (${state.allowance.streak + 1}일 연속!)` : ''}`, false, 7000);
+      // 매일 똑같이. '연속 N일' 보너스는 빠진 날을 손해로 만든다 — 매일 접속하게 만드는 압박이라 뺐다.
+      const pay = ALLOWANCE;
+      state.allowance.day = day; state.allowance.streak = 0; state.coins += pay; markDirty(); renderCoop();
+      dayDone(pay);
     }
     payAllowanceRef = payAllowance;
     payAllowance();
@@ -3662,11 +3732,19 @@
     ownCount() { return birds.filter((b) => !b.visitor).length; },
     newsState() { return { seen: state.newsSeen, latest: TP.news.latest() }; },
     setNewsSeen(v) { state.newsSeen = v; return v; },
+    selectedName(clear) { const b = birds.find((q) => q.d.id === selectedId); if (clear) selectedId = null; return b ? b.d.name : null; },
     petsOf(name) { const b = birds.find((q) => q.d.name === name); return b ? { pets: b.d.pets, lastPet: b.lastPet || 0, selected: selectedId === b.d.id } : null; },
     feedTypes() { return { a: state.feedType || 'starter', b: state.feedType2 || 'grower' }; },
     grannyClose() { grannyHide(); return true; },
     setOnboarded(v) { state.onboarded = !!v; return state.onboarded; },
     talkState() { return { talking, open: !$('#granny').classList.contains('hidden'), onboarded: state.onboarded, seen: state.newsSeen, grown: birds.some((b) => b.d.stage !== 'egg') }; },
+    idleSleepMin(m) { IDLE_SLEEP = m * 60000; return m; },
+    idleFor(minAgo) { lastInput = now() - minAgo * 60000; tickRest(); return { resting: resting(), sleeping: sleepingNow }; },
+    poke() { activity(); return { resting: resting(), sleeping: sleepingNow }; },
+    restState(name) { const b = birds.find((q) => q.d.name === name); return { resting: resting(), sleeping: sleepingNow, anim: b ? b.anim : null, inCoop: b ? !!b.inCoop : null, zzz: coopZzz.style.display !== 'none', icon: b && now() < b.iconUntil ? b.icon : null }; },
+    allowanceNow() { payAllowanceRef && payAllowanceRef(); return state.coins; },
+    setAllowanceDay(d) { state.allowance.day = d; state.allowance.streak = 2; return d; },
+    seasonLabelOf(kind, id) { const it = SHOP.get(kind, id); return it ? seasonLabel(it) : null; },
     fastParam(q) { return fastParam(q); },
     josa(w) { return josa(w, '이라고', '라고'); },
     showStepAt(i) { stepIdx = i; showStep(); return GR.STEPS[i] ? GR.STEPS[i].id : null; },

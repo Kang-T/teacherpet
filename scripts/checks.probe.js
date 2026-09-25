@@ -24,6 +24,9 @@
     // 날씨가 마당 온도를 바꾼다(7단계). 날짜에 맡기면 온도 검사가 그날그날 결과가 달라진다.
     // 그래서 검사 내내 '맑음'으로 못 박는다 — 날씨 자체를 보는 검사는 따로 있다.
     T.setWeather('clear');
+    // 검사는 CI 에서 10분 넘게 걸리고, 훅으로 움직이는 동안에는 '아무도 안 만지는' 상태다.
+    // 그동안 닭들이 자러 가면 다른 검사가 흔들린다 — 자는 것은 따로 검사하고(40번), 여기서는 끈다.
+    T.idleSleepMin(100000);
 
     // 준비: 병아리 한 마리
     if (D.birds().length === 0) T.giveChick();
@@ -32,6 +35,7 @@
     if (!bird) { ok('준비: 병아리 받기', false, '병아리가 생기지 않음'); return out; }
     ok('준비: 병아리 받기', true, bird.name);
     const NAME = bird.name;
+    const U_yesterday = () => { const d = new Date(Date.now() - 86400000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
     const yard0 = D.world();
     const props0 = T.props();
 
@@ -946,13 +950,20 @@
       };
       // 닭을 톡 — 쓰다듬기
       const tb = T.addBird('hen', '톡톡이');
-      let petted = false; const tp0 = Date.now();
-      while (Date.now() - tp0 < 3000 * SLOW) {
+      // 닭끼리 겹쳐 있으면 손가락 밑의 다른 닭이 쓰다듬어진다 — 그것도 맞다. '손가락 밑의 닭'이 쓰다듬어졌는지 본다.
+      let petted = false, who = null; const tp0 = Date.now();
+      while (Date.now() - tp0 < 6000 * SLOW) {
         T.holdStill(tb, 4); const bs = T.screenOfBird(tb);
-        if (bs) { await tap(bs.x, bs.y); await wait(120); if (T.petsOf(tb).lastPet > 0) { petted = true; break; } }
+        const under = bs && T.pickAt(bs.x, bs.y);
+        if (under && under.type === 'bird') {
+          T.selectedName(true);                                 // 누가 골라졌는지 비워 두고
+          await tap(bs.x, bs.y); await wait(120);
+          who = T.selectedName();                               // 톡 누른 닭이 쓰다듬기(=골라짐)를 받았는가
+          if (who) { petted = true; break; }
+        }
         await wait(300);
       }
-      ok('손가락으로 닭을 톡 누르면 쓰다듬는다', petted, JSON.stringify(T.petsOf(tb)));
+      ok('손가락으로 닭을 톡 누르면 쓰다듬는다', petted, who ? `쓰다듬은 닭 ${who}` : JSON.stringify(T.petsOf(tb)));
       // 빈 땅을 꾹 — 땅 파기
       T.clearWorm();
       let g = emptyGround();
@@ -1044,6 +1055,49 @@
       cb.checked = false; cb.dispatchEvent(new Event('change'));
       ok('끄면 원래대로', T.fastState().daysChick === 14, '');
       ok('선생님 링크의 ?fast=1 을 알아본다', T.fastParam('?fast=1') === true && T.fastParam('?fast=0') === false && T.fastParam('') === null && T.fastParam('?x=1') === null, '');
+    }
+
+    // ── 40. 아무도 안 볼 때는 잔다 (켜고 몇 분 뒤에 재우는 제한은 없다) ──
+    {
+      T.grannyClose();
+      T.idleSleepMin(10);
+      const hen = T.addBird('hen', '낮잠이');
+      await wait(300);
+      ok('켠 뒤 오래 지나도 누군가 만지고 있으면 자지 않는다', !T.idleFor(9).resting, '9분 동안 안 만짐');
+      T.poke();
+      T.idleFor(11);
+      let slept = false; const ts = Date.now();
+      while (Date.now() - ts < 20000 * SLOW) { const st = T.restState(hen); if (st.inCoop || st.anim === 'sleep') { slept = true; break; } await wait(200); }   // 닭장까지 걸어가는 시간
+      okMotion('10분 동안 아무도 안 만지면 닭이 자러 들어간다', slept, JSON.stringify(T.restState(hen)));
+      let zzz = false; const tz = Date.now();
+      while (Date.now() - tz < 6000 * SLOW) { const st = T.restState(hen); if (st.zzz || st.icon === '💤') { zzz = true; break; } await wait(200); }
+      okMotion('자는 동안 닭장 위(또는 닭 위)에 💤 가 보인다', zzz, JSON.stringify(T.restState(hen)));
+      document.querySelector('#stageHost canvas').dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 300, bubbles: true }));
+      await wait(300);
+      const aw = T.restState(hen);
+      ok('누가 화면을 만지면 깨어난다', !aw.sleeping && !aw.inCoop, JSON.stringify(aw));
+      await wait(300);
+      ok('깨어나면 💤 가 사라진다', !T.restState(hen).zzz, '');
+      T.idleSleepMin(100000);
+
+      // 오늘 돌봄 끝 — 멈출 자리
+      for (const b of D.birds()) { window.__tp.care(b.name, 'ate'); window.__tp.care(b.name, 'drank'); }
+      T.setAllowanceDay(U_yesterday());
+      const c0 = T.coins();
+      T.grannyClose();
+      T.allowanceNow();
+      for (let i = 0; i < 60 && !T.grannyButtons().length && !/오늘 할 일/.test(document.querySelector('#toasts').textContent); i++) await wait(150);
+      ok('모두 챙기면 "오늘 할 일은 다 했다"고 알려 준다', /오늘 할 일은 다 했/.test(T.grannyText() + document.querySelector('#toasts').textContent), T.grannyText().slice(0, 40));
+      ok('용돈은 연속으로 와도 매일 같다 (연속 보너스 없음)', T.coins() === c0 + 4, `코인 ${c0} → ${T.coins()}`);
+      T.grannyClose();
+      const set = window.__tp.settings(); const g0 = set.guide; set.guide = 'often';
+      T.questNow();
+      ok('미션 카드에 "오늘 돌봄 끝"이 보인다', !document.querySelector('#qDone').classList.contains('hidden'), '');
+      set.guide = g0; T.questNow();
+      ok('철 한정 물건은 "해마다 돌아와요"로 안내한다', /해마다/.test(T.seasonLabelOf('hat', 'santa')), T.seasonLabelOf('hat', 'santa'));
+      T.chalStart(); T.chalEnd(); T.chalStart(); T.chalEnd();
+      ok('온도 챌린지는 최고 기록을 내세우지 않는다', !/최고 기록/.test(document.querySelector('#chalBody').textContent), document.querySelector('#chalBody').textContent.slice(0, 40));
+      document.querySelector('#chalModal').classList.add('hidden');
     }
 
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',

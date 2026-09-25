@@ -409,3 +409,8 @@ body.printChal #journalModal { display: none !important; }
 #quest .qHint { font-size: 16px; color: #4a3a28; }
 #quest.done { background: #FFE9A8; }
 body.uiIdle #quest { opacity: .55; }
+
+#quest .qDone { font-weight: 700; color: #2E7D32; }
+#quest.dayDone #qMission { opacity: .6; font-size: 15px; }
+#quest.dayDone #qMission .qHead::before { content: '더 해 보고 싶다면 · '; }
+.coopZzz { font-size: 28px; transform: translate(-50%, -100%); pointer-events: none; }
