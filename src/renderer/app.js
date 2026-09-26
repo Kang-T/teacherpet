@@ -3088,10 +3088,11 @@
     let any = false;
     for (const b of toyFans()) {
       if (now() < (b.toyTiredUntil || 0)) continue;
+      // 지쳤는지는 거리와 상관없이 먼저 본다 (먼 닭을 건너뛰면 놀이가 끝나지 않았다)
+      if ((b.toyPlay || 0) > TOY_PLAY) { b.toyPlay = 0; b.toyTiredUntil = now() + TOY_REST; if (b.callTarget && b.callTarget.toy) b.callTarget = null; setAnim(b, 'idle', 3); showIcon(b, '😪', 2500); continue; }
       any = true;
       if (!gp || gapTo(b, gp.x, gp.z) > 12) continue;
       b.toyPlay = (b.toyPlay || 0) + 0.3;
-      if (b.toyPlay > TOY_PLAY) { b.toyPlay = 0; b.toyTiredUntil = now() + TOY_REST; b.callTarget = null; setAnim(b, 'idle', 3); showIcon(b, '😪', 2500); continue; }
       if (!ACT.canInterrupt(b.anim, 'chase') && b.anim !== 'chase') continue;
       b.inCoop = false; setVisible(b, true); b.targetX = null;
       b.callTarget = { x: clamp(gp.x + rand(-0.5, 0.5), world.xMin + XMARGIN, world.xMax - XMARGIN), z: clampZ(gp.z + rand(-0.4, 0.4)), toy: true };
