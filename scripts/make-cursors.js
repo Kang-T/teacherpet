@@ -54,6 +54,12 @@ const CURSORS = {
     + `<g stroke="#A8743F" stroke-width="5" stroke-linecap="round"><line x1="50" y1="12" x2="27" y2="37"/></g>`
     + `<path d="M29 33 Q22 34 18 40 L6 58 Q18 54 30 46 Q34 40 29 33 Z" fill="#9AA6AE" stroke="${OUT}" stroke-width="3" stroke-linejoin="round"/>`
     + `<g transform="rotate(-45 46 17)">${shape([`<rect x="35" y="8" width="23" height="18" rx="7"/>`, `<circle cx="39" cy="9" r="4"/><circle cx="46" cy="7.5" r="4"/><circle cx="53" cy="9" r="4"/>`].join(''))}</g>` },
+  // 깃털 놀이 — 막대 끝에 깃털. 기준점은 깃털 가운데 — 병아리는 깃털을 쫓는다
+  feather: { hot: [42, 20], svg:
+      `<g stroke="${OUT}" stroke-width="8" stroke-linecap="round"><line x1="8" y1="58" x2="34" y2="28"/></g>`
+    + `<g stroke="#A8743F" stroke-width="3.5" stroke-linecap="round"><line x1="8" y1="58" x2="34" y2="28"/></g>`
+    + `<g transform="rotate(42 44 18)"><ellipse cx="44" cy="18" rx="9" ry="19" fill="#FFFFFF" stroke="${OUT}" stroke-width="3"/>`
+    + `<path d="M44 35 L44 2" stroke="#E8913A" stroke-width="2"/><path d="M44 12 l-6 -4 M44 20 l-7 -4 M44 12 l6 -4 M44 20 l7 -4 M44 28 l-6 -3 M44 28 l6 -3" stroke="#C9B9A0" stroke-width="1.5"/></g>` },
   // 닭에게 쪼인 순간 — 움찔 (손가락이 벌어지고 놀란 줄)
   flinch: { hot: [33, 38], svg: openHand(12)
     + `<g stroke="${OUT}" stroke-width="3" stroke-linecap="round"><line x1="6" y1="10" x2="11" y2="16"/><line x1="4" y1="22" x2="10" y2="23"/><line x1="14" y1="3" x2="16" y2="10"/></g>` },

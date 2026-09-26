@@ -314,9 +314,16 @@
   }
   // 닫으면 글자 찍기도 멈춘다 — 안 그러면 뒤에서 계속 '말하는 중'으로 남아 다른 안내가 뜨지 못한다
   function grannyHide() { stopTyping(); $('#granny').classList.add('hidden'); }
+  // 여쭤보기 — 지금 상황에 맞는 조언 한 마디, 그리고 궁금한 것을 골라 물어본다.
+  // 아이들이 "할머니와 대화를 할 수 있게 해 줘요" 했다. 인터넷·AI 없이 미리 적어 둔 답이다.
   function askGranny() {
     const line = GR.advise(state, birds, HYG, (d) => ST.caredToday(d));
-    grannySay(line, [{ label: '알겠어요', primary: true, fn: grannyHide }], adviceMood(line));
+    grannySay(line, [{ label: '궁금한 게 있어요', primary: true, fn: askList }, { label: '알겠어요', fn: grannyHide }], adviceMood(line));
+  }
+  function askList() {
+    const qs = GR.ASK.filter((q) => !q.when || q.when({ s: state, birds }));
+    grannySay('무엇이 궁금하니?', qs.slice(0, 9).map((q) => ({ label: q.q, fn: () => grannySay(q.a, [{ label: '또 물어볼래요', primary: true, fn: askList }, { label: '고마워요', fn: grannyHide }], 'smile') }))
+      .concat([{ label: '그만 물어볼래요', fn: grannyHide }]), 'think');
   }
   // 말의 내용에 따라 표정이 바뀐다
   const adviceMood = (line) => (/별일 없|잘했|고맙/.test(line) ? 'smile' : /아파|다쳤|비었|심하/.test(line) ? 'worry' : 'think');
@@ -352,7 +359,10 @@
     const s = GR.STEPS[stepIdx];
     if (!s) { stepIdx = -1; grannyHide(); return; }
     grannySay(s.say, s.last ? [{ label: '알겠어요', primary: true, fn: () => { stepIdx = -1; state.onboarded = true; markDirty(); grannyHide(); } }]
-      : s.next ? [{ label: '알겠어요', primary: true, fn: () => { stepIdx += 1; showStep(); } }] : []);
+      : s.next ? [{ label: '알겠어요', primary: true, fn: () => { stepIdx += 1; showStep(); } }]
+      // 시킨 일을 할 때까지 창이 화면을 덮고 있었다 ("할머니가 계속 화면을 가려요"). 닫을 수 있게 한다.
+      // 닫으면 안내는 여기서 끝나고, 할 일은 왼쪽 위 미션 카드에 남는다.
+      : [{ label: '나중에 할게요', fn: () => { stepIdx = -1; state.onboarded = true; markDirty(); grannyHide(); toast(state.settings.guide && state.settings.guide !== 'alone' ? '📋 할 일은 왼쪽 위 미션 카드에 있어요' : '👵 모르는 게 있으면 [여쭤보기]를 눌러요', false, 6000); } }]);
   }
   function checkStep() {
     if (stepIdx < 0) return;
@@ -678,6 +688,7 @@
   const CUR_NATIVE = { open: 'default', pet: 'grab', grab: 'grabbing', point: 'pointer', hoe: 'crosshair', flinch: 'default' };
   let curKind = 'open', curHold = 0;        // curHold: 이 시각까지는 움찔 모양을 유지한다
   function setCur(kind, force) {
+    if (kind === 'open' && toyOn()) kind = 'feather';     // 깃털 놀이 중에는 빈 땅 위에서 깃털을 든다
     if (!force && now() < curHold) { curKind = kind; return; }
     curKind = kind;
     const nat = CUR_NATIVE[kind] || 'default';
@@ -745,7 +756,8 @@
     return n ? { x: sx / n, z: sz / n } : null;
   }
   function chaseTarget(b) { const car = wormCarrier(); if (car && car !== b) return { x: car.x, z: car.z, kind: 'worm' };
-    if (worm && !(b.d.hunger > 95) && !((b.anim === 'sleep' || b.inCoop || b.anim === 'roost') && gapTo(b, worm.x, worm.z) > 2.5)) return { x: worm.x, z: worm.z, kind: 'worm' }; if (b.callTarget) { if (b.callTarget.follow) { const o = birds.find((q) => q.d.id === b.callTarget.follow); if (o) { b.callTarget.x = o.x; b.callTarget.z = o.z; } } return Object.assign({ kind: 'call' }, b.callTarget); } return null; }
+    // 벌레는 간식 — 배가 불러도 먹으러 온다 (예전에는 95% 넘으면 무시해서, 미션대로 모이부터 준 아이가 벌레 미션에서 막혔다)
+    if (worm && !((b.anim === 'sleep' || b.inCoop || b.anim === 'roost') && gapTo(b, worm.x, worm.z) > 2.5)) return { x: worm.x, z: worm.z, kind: 'worm' }; if (b.callTarget) { if (b.callTarget.follow) { const o = birds.find((q) => q.d.id === b.callTarget.follow); if (o) { b.callTarget.x = o.x; b.callTarget.z = o.z; } } return Object.assign({ kind: 'call' }, b.callTarget); } return null; }
   const HOLD_Y = 1.3;                       // 손에 들고 있을 때의 높이
   // 커서가 가리키는 '마당 바닥' 위의 자리. 마당 밖으로는 나가지 않는다.
   function wormSpot(px, py) {
@@ -1751,6 +1763,7 @@
         if (car && car !== b) { if (Math.random() < 0.45) stealWorm(car, b); else { setAnim(b, 'beg', rand(0.4, 0.8)); if (b.y === 0) b.vy = 3.2; } return; }
         if (!worm.held && worm.y <= 0.35 && !worm.carrier) { stabWorm(b); return; }
         setAnim(b, 'beg', rand(0.6, 1.2)); if (Math.random() < 0.35) { b.vy = 3.5; }
+      } else if (b.callTarget.toy) { b.callTarget = null; jump(b, 320); if (Math.random() < 0.5) showIcon(b, pick(['✨', '😆', '🪶']), 900); setAnim(b, 'idle', 0.4); return;
       } else { const wasPlay = !!b.callTarget.follow; b.callTarget = null; jump(b, 240); if (wasPlay) { b.d.boredom = clamp(b.d.boredom - 40, 0, 100); const o = birds.find((q) => q.playFlee === b.d.id); if (o) { o.playFlee = null; o.d.boredom = clamp(o.d.boredom - 40, 0, 100); showIcon(o, '😆', 1200); } showIcon(b, '😆', 1200); } else showIcon(b, '❤️', 1500); return; }
       b.animT += dt; if (b.animT > b.animDur) { b.callTarget = null; decide(b); }
       return;
@@ -2238,6 +2251,7 @@
     if (name === 'waterer') return `💧 물통 ${Math.round(state.water)}% — 클릭하면 채우기`;
     if (name === 'basket') return state.basket ? `🧺 달걀 ${state.basket}개 — 클릭하면 팔아요 (🪙 ${state.basket * EGG_PRICE})` : '🧺 달걀 바구니 — 아직 비었어요';
     if (name === 'wormbucket') return `🪱 벌레 ${state.worms}마리 — 잡아서 끌어다 놓기`;
+    if (name === 'coop' && birds.some((b) => b.d.stage === 'chick' && !b.visitor)) return '🏠 닭장 — 병아리는 아직 어려서 보온등 밑에서 자요. 어린닭이 되면 닭장에 들어가요';
     return PROP_KO[name] || name;
   }
   function propClick(name) {
@@ -3043,6 +3057,52 @@
   }
   $('#btnChal').addEventListener('click', chalStart);
 
+  // ── 깃털 놀이 ──
+  // 아이들이 "병아리랑 놀아 주는 기능"을 원했다. 깃털을 움직이면 병아리·어린닭이 쫓아와 폴짝 뛴다.
+  // 코인은 주지 않는다 — 놀면 코인을 주면 오래 할수록 더 받는 장치가 된다 (로드맵 부록 C).
+  // 닭마다 1분쯤 놀면 지쳐서(😪) 10분 동안 쉰다. 모두 지치면 놀이가 저절로 끝난다 — 멈출 자리가 있다.
+  const TOY_PLAY = 55, TOY_REST = 10 * 60000;
+  let toy = null;
+  function toyOn() { return !!toy; }
+  const toyFans = () => birds.filter((b) => eligible(b) && (b.d.stage === 'chick' || b.d.stage === 'young' || trait(b).playful >= 1.2) && !b.d.brooding && !b.hovering);
+  function toyStart() {
+    const fans = toyFans().filter((b) => now() > (b.toyTiredUntil || 0));
+    if (!fans.length) { toast(toyFans().length ? '😪 닭들이 아직 지쳐 있어요. 조금 쉬게 해 주세요' : '🪶 깃털을 쫓을 병아리나 어린닭이 없어요', false, 5000); return false; }
+    toy = { at: now(), moved: now() };
+    closePanel(); setCur(curKind === 'feather' ? 'open' : curKind, true);
+    toast('🪶 깃털을 살살 움직여 보세요. 병아리들이 쫓아와요 (다시 누르면 그만)', false, 6000);
+    $('#btnToy').classList.add('primary');
+    return true;
+  }
+  function toyStop(msg) {
+    if (!toy) return; toy = null;
+    for (const b of birds) if (b.callTarget && b.callTarget.toy) b.callTarget = null;
+    setCur('open', true); $('#btnToy').classList.remove('primary');
+    if (msg) toast(msg, false, 6000);
+  }
+  function tickToy() {
+    if (!toy) return;
+    if (mouse.x >= 0 && now() - mouse.movedAt < 300) toy.moved = now();
+    if (now() - toy.moved > 30000) { toyStop('🪶 깃털 놀이를 마쳤어요'); return; }
+    const gp = mouse.x >= 0 && now() - mouse.movedAt < 2500 ? world.screenToGround(mouse.x, mouse.y) : null;
+    let any = false;
+    for (const b of toyFans()) {
+      if (now() < (b.toyTiredUntil || 0)) continue;
+      any = true;
+      if (!gp || gapTo(b, gp.x, gp.z) > 12) continue;
+      b.toyPlay = (b.toyPlay || 0) + 0.3;
+      if (b.toyPlay > TOY_PLAY) { b.toyPlay = 0; b.toyTiredUntil = now() + TOY_REST; b.callTarget = null; setAnim(b, 'idle', 3); showIcon(b, '😪', 2500); continue; }
+      if (!ACT.canInterrupt(b.anim, 'chase') && b.anim !== 'chase') continue;
+      b.inCoop = false; setVisible(b, true); b.targetX = null;
+      b.callTarget = { x: clamp(gp.x + rand(-0.5, 0.5), world.xMin + XMARGIN, world.xMax - XMARGIN), z: clampZ(gp.z + rand(-0.4, 0.4)), toy: true };
+      if (b.anim !== 'chase') setAnim(b, 'chase', 8);
+      b.d.boredom = clamp(b.d.boredom - 1.2, 0, 100);
+    }
+    if (!any) toyStop('😪 모두 지쳤어요. 닭들도 쉬어야 해요 — 조금 있다 또 놀아 줘요');
+  }
+  setInterval(tickToy, 300);
+  $('#btnToy').addEventListener('click', () => { if (toy) toyStop('🪶 깃털 놀이를 마쳤어요'); else toyStart(); });
+
   // ── 아무도 안 볼 때는 잔다 ──
   // 화면을 켜 둔 채 10분 동안 아무도 만지지 않으면 닭들이 닭장·보온등 밑으로 자러 들어간다.
   // 닭장 위에 💤 말풍선이 떠서 '없어진 게 아니라 자는 중'임을 알 수 있다.
@@ -3745,6 +3805,13 @@
     allowanceNow() { payAllowanceRef && payAllowanceRef(); return state.coins; },
     setAllowanceDay(d) { state.allowance.day = d; state.allowance.streak = 2; return d; },
     seasonLabelOf(kind, id) { const it = SHOP.get(kind, id); return it ? seasonLabel(it) : null; },
+    toyStart() { return toyStart(); },
+    toyState(name) { const b = birds.find((q) => q.d.name === name); return { on: !!toy, anim: b && b.anim, target: !!(b && b.callTarget && b.callTarget.toy), tired: b ? now() < (b.toyTiredUntil || 0) : null }; },
+    toyTire(name) { const b = birds.find((q) => q.d.name === name); if (b) b.toyPlay = TOY_PLAY + 1; return true; },
+    toyStop() { toyStop(); return !toy; },
+    askListNow() { askList(); return GR.ASK.length; },
+    stepButtons(i) { stepIdx = i; showStep(); return true; },
+    coopLabel() { return propLabel('coop'); },
     fastParam(q) { return fastParam(q); },
     josa(w) { return josa(w, '이라고', '라고'); },
     showStepAt(i) { stepIdx = i; showStep(); return GR.STEPS[i] ? GR.STEPS[i].id : null; },

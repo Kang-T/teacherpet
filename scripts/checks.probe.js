@@ -1100,6 +1100,57 @@
       document.querySelector('#chalModal').classList.add('hidden');
     }
 
+    // ── 41. 할머니 편지(2026-09-25)로 고친 것 ──
+    {
+      T.grannyClose();
+      // 배부른 병아리도 벌레는 먹으러 온다 — 미션대로 모이부터 준 아이가 벌레 미션에서 막혔다
+      const full = T.addBird('chick', '배불러');
+      D.set(full, 'hunger', 99); T.place(full, 4, -8); T.holdStill(full, 1);
+      T.dropWormAt(5, -8);
+      let came = false; const tw = Date.now();
+      while (Date.now() - tw < 6000 * SLOW) { const st = T.stateOf(full); if (st && (st.anim === 'chase' || st.anim === 'eat' || st.anim === 'peckat')) { came = true; break; } await wait(150); }
+      T.clearWorm();
+      okMotion('배가 불러도 벌레(간식)는 먹으러 온다', came, JSON.stringify(T.stateOf(full)));
+      // 첫날 안내는 닫을 수 있다
+      T.stepButtons(0);
+      for (let i = 0; i < 100 && !T.grannyButtons().length; i++) await wait(150);
+      const sb = T.grannyButtons();
+      ok('첫날 안내에 [나중에 할게요]가 있다 (화면을 계속 가리지 않게)', sb.includes('나중에 할게요'), sb.join(' / '));
+      T.clickGranny(sb.indexOf('나중에 할게요')); await wait(200);
+      ok('[나중에 할게요]를 누르면 안내가 닫힌다', !T.grannyOpen() && T.stepNow() === -1, '');
+      // 닭장 — 병아리가 왜 안 들어가는지
+      ok('닭장 설명이 병아리가 왜 안 들어가는지 알려 준다', /보온등 밑에서 자요/.test(T.coopLabel()), T.coopLabel());
+      // 여쭤보기 — 질문 목록
+      T.askListNow();
+      for (let i = 0; i < 100 && T.grannyButtons().length < 3; i++) await wait(150);
+      const qb = T.grannyButtons();
+      ok('여쭤보기에서 궁금한 것을 골라 물을 수 있다', qb.length >= 4 && qb.some((t) => /코인/.test(t)), qb.slice(0, 4).join(' / '));
+      T.clickGranny(qb.findIndex((t) => /코인/.test(t)));
+      for (let i = 0; i < 100 && !T.grannyButtons().length; i++) await wait(150);
+      ok('할머니가 답해 준다', /용돈/.test(T.grannyText()), T.grannyText().slice(0, 40));
+      T.grannyClose();
+      // 깃털 놀이 — 코인 없이, 지치면 끝난다
+      const kid = T.addBird('chick', '깃털이'); T.place(kid, -2, -9); T.holdStill(kid, 1);
+      const c0 = T.coins();
+      ok('깃털 놀이를 시작할 수 있다', T.toyStart() === true, '');
+      const cv = document.querySelector('#stageHost canvas');
+      const sp = T.screenOfPoint(-4, 0, -9);
+      let chased = false; const tt = Date.now();
+      while (Date.now() - tt < 5000 * SLOW) {
+        cv.dispatchEvent(new MouseEvent('mousemove', { clientX: sp.x + Math.sin(Date.now() / 200) * 20, clientY: sp.y, bubbles: true }));
+        const st = T.toyState(kid); if (st.target || st.anim === 'chase') { chased = true; break; }
+        await wait(100);
+      }
+      okMotion('깃털을 움직이면 병아리가 쫓아온다', chased, JSON.stringify(T.toyState(kid)));
+      ok('깃털 놀이 중에는 커서가 깃털이다', /cursor\/feather/.test(T.cursor().css) || T.cursor().kind === 'feather', T.cursor().kind);
+      for (const b of D.birds()) T.toyTire(b.name);
+      cv.dispatchEvent(new MouseEvent('mousemove', { clientX: sp.x, clientY: sp.y, bubbles: true }));
+      await wait(900);
+      ok('모두 지치면 놀이가 저절로 끝난다', !T.toyState(kid).on && T.toyState(kid).tired, JSON.stringify(T.toyState(kid)));
+      ok('놀아 줘도 코인은 생기지 않는다', T.coins() === c0, `코인 ${c0} → ${T.coins()}`);
+      T.toyStop();
+    }
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));
