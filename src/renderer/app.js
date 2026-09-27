@@ -691,7 +691,8 @@
   const CUR_NATIVE = { open: 'default', pet: 'grab', grab: 'grabbing', point: 'pointer', hoe: 'crosshair', flinch: 'default' };
   let curKind = 'open', curHold = 0;        // curHold: 이 시각까지는 움찔 모양을 유지한다
   function setCur(kind, force) {
-    if (kind === 'open' && toyOn()) kind = 'feather';     // 깃털 놀이 중에는 빈 땅 위에서 깃털을 든다
+    // 깃털 놀이 중에는 계속 깃털을 든다 — 병아리가 깃털 밑으로 모여들어도 손으로 바뀌지 않게
+    if ((kind === 'open' || kind === 'pet') && toyOn()) kind = 'feather';
     if (!force && now() < curHold) { curKind = kind; return; }
     curKind = kind;
     const nat = CUR_NATIVE[kind] || 'default';
@@ -1785,15 +1786,21 @@
       const tz = (b.targetZ !== null && b.targetZ !== undefined) ? b.targetZ
         : (b.walkZ !== undefined ? b.walkZ : b.z);
       const gx = b.targetX - b.x, gz = tz - b.z;
-      const gd = Math.hypot(gx, gz);
+      let gd = Math.hypot(gx, gz);
       if (gd > 0.08) {
         const k = Math.min(1, speed * dt / gd);
         b.x += gx * k; b.z = clampZ(b.z + gz * k); keepOut(b);
         if (Math.abs(gx) > 0.05) faceDir(b, gx > 0 ? 1 : -1);
       }
+      // 닭장은 문 앞까지만 오면 들어간다 — 문 앞에 다른 닭이 있으면 딱 그 점에는 닿지 못한다
+      if (b.anim === 'gocoop') { const hc = home().coop; if (Math.hypot(b.x - hc.x, b.z - hc.z) < 1.5) gd = 0; }
+      // 3초 동안 거의 못 가면(닭끼리 밀리거나 막힘) 거기까지 온 것으로 친다 — 영영 '가는 중'으로 남지 않게
+      if (!b.goalProg || Math.hypot(b.x - b.goalProg.x, b.z - b.goalProg.z) > 0.3) b.goalProg = { x: b.x, z: b.z, t: now() };
+      else if (now() - b.goalProg.t > 3000) { b.goalProg = null; if (gd < 2.5) gd = 0; else { b.targetX = null; b.targetZ = null; decide(b); return; } }
       if (gd <= 0.08) {
+        b.goalProg = null;
         b.dashing = false;
-        b.x = b.targetX; if (b.targetZ !== null && b.targetZ !== undefined) b.z = b.targetZ;
+        if (Math.hypot(b.x - b.targetX, (b.targetZ ?? b.z) - b.z) < 0.3) { b.x = b.targetX; if (b.targetZ !== null && b.targetZ !== undefined) b.z = b.targetZ; }   // 멀리서 멈췄으면 순간이동하지 않는다
         b.targetX = null; b.targetZ = null; b.walkZ = undefined;
         if (b.anim === 'gofeed') { b.goal = 'eat'; setAnim(b, 'eat', 3); }
         else if (b.anim === 'gowater') { b.goal = 'drink'; setAnim(b, 'drink', 2.5); }

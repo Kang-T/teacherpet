@@ -343,9 +343,15 @@
     okMotion('횟대에 올라가면 그 높이에 선다', !!best,
       best ? `y ${best.y} (횟대 ${best.perchY})` : traj.join(' '));
     // 부르면 내려와야 한다 — 높은 데 있는 걸 잊고 부르면 공중을 걸어 다니게 된다
-    D.whistle();
-    await wait(2600);
-    const down = T.perchState(NAME);
+    // (닭은 성격대로 부름을 거절하기도 하고, 자는 닭은 친하지 않으면 무시한다 — 그건 여기서 재려는 게 아니다. 친하게 해 두고 몇 번 부른다)
+    let down = null;
+    for (let i = 0; i < 4; i++) {
+      D.set(NAME, 'aff', 95); D.set(NAME, 'energy', 90);
+      D.whistle();
+      await wait(2600);
+      down = T.perchState(NAME);
+      if (down && !down.onPerch && down.y < 0.4) break;
+    }
     okMotion('부르면 횟대에서 내려온다', down && !down.onPerch && down.y < 0.4,
       down ? `y ${down.y} · ${down.anim}` : '없음');
 
@@ -560,6 +566,7 @@
       const far = T.screenOfPoint(-4, 0, -20);
       let tgt = null;
       for (let i = 0; i < 5 && !tgt; i++) {
+        T.holdStill(NAME, 1);                  // 앞 검사의 부름을 비운다 — 이번 부름을 거절하면 옛 자리를 읽게 된다
         D.set(NAME, 'aff', 95);
         T.whistleAt(far.x, far.y);
         tgt = T.callTargetOf(NAME);
@@ -1067,8 +1074,13 @@
       T.poke();
       T.idleFor(11);
       let slept = false; const ts = Date.now();
-      while (Date.now() - ts < 40000 * SLOW) { const st = T.restState(hen); if (st.inCoop || st.anim === 'sleep') { slept = true; break; } await wait(200); }   // 닭장까지 걸어가는 시간 (마당 끝에서 20초쯤 걸린다)
-      okMotion('10분 동안 아무도 안 만지면 닭이 자러 들어간다', slept, JSON.stringify(T.restState(hen)));
+      const napTrail = []; let napTick = 0;
+      while (Date.now() - ts < 40000 * SLOW) {
+        const st = T.restState(hen); if (st.inCoop || st.anim === 'sleep') { slept = true; break; }
+        if (++napTick % 10 === 0) { const b = T.stateOf(hen); napTrail.push(`${b.anim}(${b.x.toFixed(1)},${b.z.toFixed(1)})`); }
+        await wait(200);
+      }   // 닭장까지 걸어가는 시간 (마당 끝에서 20초쯤 걸린다)
+      okMotion('10분 동안 아무도 안 만지면 닭이 자러 들어간다', slept, JSON.stringify(T.restState(hen)) + (slept ? '' : ' · 발자국 ' + napTrail.join(' ') + ' · 닭장 ' + JSON.stringify(D.propPos('coop'))));
       let zzz = false; const tz = Date.now();
       while (Date.now() - tz < 6000 * SLOW) { const st = T.restState(hen); if (st.zzz || st.icon === '💤') { zzz = true; break; } await wait(200); }
       okMotion('자는 동안 닭장 위(또는 닭 위)에 💤 가 보인다', zzz, JSON.stringify(T.restState(hen)));
