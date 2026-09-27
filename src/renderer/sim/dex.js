@@ -56,6 +56,21 @@
       why: '배고픈 닭은 사람을 졸졸 따라다니며 보채요. 모이통을 먼저 살펴 주세요.' },
     { id: 'spar', icon: '🥇', name: '서열 정하기 놀이', anims: ['spar', 'stomp'],
       why: '어린 닭끼리 가슴을 부풀리고 마주 서서 누가 먼저 먹을지 차례를 정해요. 금방 끝나요.' },
+    // ── 돼지 (2편, 2026-09-27) — 돼지를 들인 농장에서만 보인다. 순서 바꾸지 말 것(농장 코드에 칸 번호로 담긴다) ──
+    { id: 'pig_mud', animal: 'pig', icon: '🟤', name: '진흙 목욕', anims: ['mud'],
+      why: '돼지는 땀을 거의 흘리지 못해요. 진흙을 몸에 발라 열을 식히고, 햇볕과 벌레도 막아요.' },
+    { id: 'pig_root', animal: 'pig', icon: '🐽', name: '코로 땅 파기', anims: ['root'],
+      why: '돼지 코는 튼튼하고 냄새를 아주 잘 맡아요. 땅속에 숨은 먹이를 코로 파서 찾아요.' },
+    { id: 'pig_nurse', animal: 'pig', icon: '🍼', name: '젖 먹이기', anims: ['nurse', 'suckle'],
+      why: '돼지는 알이 아니라 새끼를 낳아 젖을 먹여요. 새끼들은 저마다 자기 젖꼭지 자리가 있어요.' },
+    { id: 'pig_pile', animal: 'pig', icon: '🫂', name: '새끼 돼지 뭉치기', anims: ['pile'],
+      why: '갓 난 새끼 돼지는 추위를 많이 타서 어미 곁이나 따뜻한 곳에 서로 붙어 자요.' },
+    { id: 'pig_toilet', animal: 'pig', icon: '🚽', name: '화장실 가리기', anims: ['toilet'],
+      why: '돼지는 먹고 자는 곳에서 멀리 떨어진 한쪽 구석에만 똥을 눠요. 알고 보면 깨끗한 동물이에요.' },
+    { id: 'pig_flop', animal: 'pig', icon: '🥰', name: '배 보이며 벌렁', anims: ['flop'],
+      why: '기분이 좋고 믿는 사람 앞에서 돼지는 옆으로 벌렁 누워 배를 보여요.' },
+    { id: 'pig_zoom', animal: 'pig', icon: '💨', name: '새끼 돼지 뛰어놀기', anims: ['zoom'],
+      why: '새끼 돼지는 신이 나면 이리저리 뛰고 폴짝거리며 놀아요. 건강하다는 뜻이에요.' },
   ];
   const BY_ANIM = {};
   for (const e of LIST) for (const a of e.anims) BY_ANIM[a] = e;

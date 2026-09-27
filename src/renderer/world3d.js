@@ -39,7 +39,7 @@
     // 마당 밖 풍경 — 바닥·울타리·나무·밭·언덕·구름. 마당 크기를 알아야 울타리를 세운다.
     const scenery = global.TP_SCENERY.build(THREE, scene, YARD);
     const world = {
-      renderer, scene, camera, birds: new Map(), props: {}, decos: new Map(), pxPerUnit: 40,
+      renderer, scene, camera, birds: new Map(), pigs: new Map(), props: {}, decos: new Map(), pxPerUnit: 40,
       xMin: -YARD.w / 2, xMax: YARD.w / 2, zMin: -YARD.d, zMax: 0.6,
       YARD, view: { zoom: 1, elev: 24, tx: 0, tz: -YARD.d * 0.42 },
       roamTop: 0.35, W: 1, H: 1,
@@ -121,6 +121,20 @@
       b.stage = stage; b.holder.add(b.model.group);
       b.meshes = []; b.model.group.traverse((o) => { if (o.isMesh) { o.userData.birdId = b.id; b.meshes.push(o); } });
     }
+    // ---- 돼지 (2편 확장) ---- 닭과 따로 둔다. 모형은 pig3d.js
+    function addPig(id, stage, spot) {
+      const holder = new THREE.Group(); scene.add(holder);
+      const p = { id, holder, model: null, stage: null, meshes: [], spot };
+      setPigStage(p, stage);
+      world.pigs.set(id, p); return p;
+    }
+    function setPigStage(p, stage) {
+      if (p.model) { p.holder.remove(p.model.group); disposeGroup(p.model.group); }
+      p.model = TP.pig3d.createPig(THREE, { stage, spot: p.spot });
+      p.stage = stage; p.holder.add(p.model.group);
+      p.meshes = []; p.model.group.traverse((o) => { if (o.isMesh) { o.userData.pigId = p.id; p.meshes.push(o); } });
+    }
+    function removePig(id) { const p = world.pigs.get(id); if (p) { scene.remove(p.holder); disposeGroup(p.holder); world.pigs.delete(id); } }
     function removeBird(id) { const b = world.birds.get(id); if (b) { scene.remove(b.holder); disposeGroup(b.holder); world.birds.delete(id); } }
     function heightOf(b) { // 모델 높이(월드 유닛)
       if (b.stage === 'egg') return 1.3;
@@ -385,6 +399,37 @@
       g.userData.warmSpot = { dx: 1.2, dz: 0 };
       return shadowed(g);
     }
+    // 돼지 여물통 — 나무 구유. 여물 높이가 차오른다
+    function makeTrough() {
+      const g = new THREE.Group();
+      const wood = hard(0x9B6B3E), woodD = hard(0x7A5230);
+      const base = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.5, 0.9), wood); base.position.y = 0.35; base.castShadow = true; g.add(base);
+      for (const x of [-1.25, 1.25]) { const end = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.62, 0.95), woodD); end.position.set(x, 0.4, 0); g.add(end); }
+      for (const x of [-0.9, 0.9]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.2, 0.8), woodD); leg.position.set(x, 0.1, 0); g.add(leg); }
+      const food = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 0.7), hard(0xC9A15A, { roughness: 1 })); food.position.y = 0.6; g.add(food);
+      g.userData.food = food;
+      return g;
+    }
+    // 진흙탕 — 물을 부으면 짙고 반들반들해진다
+    function makeWallow() {
+      const g = new THREE.Group();
+      const dry = new THREE.Color(0xB9956A), wet = new THREE.Color(0x6E4E33);
+      const mud = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.3, 0.1, 32), new THREE.MeshStandardMaterial({ color: dry.clone(), roughness: 0.9 }));
+      mud.position.y = 0.05; mud.scale.z = 0.7; g.add(mud);
+      for (let i = 0; i < 9; i++) {
+        const a = i / 9 * Math.PI * 2;
+        const lump = new THREE.Mesh(new THREE.SphereGeometry(0.22 + Math.random() * 0.12, 8, 6), hard(0x8C6B48, { roughness: 1 }));
+        lump.scale.y = 0.45; lump.position.set(Math.cos(a) * 2.25, 0.06, Math.sin(a) * 2.25 * 0.7); g.add(lump);
+      }
+      g.userData.mud = mud; g.userData.dry = dry; g.userData.wet = wet;
+      return g;
+    }
+    function setTrough(level) { const p = world.props.trough; if (!p) return; const f = p.userData.food; f.visible = level > 1; f.position.y = 0.42 + 0.2 * Math.min(1, level / 100); }
+    function setWallow(wet) {
+      const p = world.props.wallow; if (!p) return;
+      const m = p.userData.mud.material, w = Math.min(1, Math.max(0, wet / 100));
+      m.color.copy(p.userData.dry).lerp(p.userData.wet, w); m.roughness = 0.9 - w * 0.65; m.metalness = w * 0.05;
+    }
     function makeDustPit() {
       const g = new THREE.Group();
       const sand = hard(0xE8D5A8, { roughness: 1 }), sandD = hard(0xCDB584, { roughness: 1 });
@@ -475,7 +520,7 @@
       }
     }
     function setProps(layout) { // layout: { coop:{x,z}, nest:{x,z}, ... , flip }
-      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, feeder2: makeFeeder2, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket, lamp: makeLamp, dustpit: makeDustPit, perch: makePerch };
+      const makers = { coop: makeCoop, nest: makeNest, feeder: makeFeeder, feeder2: makeFeeder2, waterer: makeWaterer, basket: makeBasket, wormbucket: makeWormBucket, lamp: makeLamp, dustpit: makeDustPit, perch: makePerch, trough: makeTrough, wallow: makeWallow };
       for (const k of Object.keys(makers)) {
         if (!world.props[k]) { world.props[k] = makers[k](); world.props[k].userData.propName = k; scene.add(world.props[k]); }
         const p = world.props[k], L = layout[k];
@@ -789,12 +834,15 @@
       ndc.set((px / world.W) * 2 - 1, -(py / world.H) * 2 + 1); ray.setFromCamera(ndc, camera);
       const meshes = []; for (const b of world.birds.values()) if (b.holder.visible) meshes.push(...b.meshes);
       const birdHits = ray.intersectObjects(meshes, false);
+      const pigMeshes = []; for (const p of world.pigs.values()) if (p.holder.visible) pigMeshes.push(...p.meshes);
+      const pigHits = pigMeshes.length ? ray.intersectObjects(pigMeshes, false) : [];
       const propObjs = Object.values(world.props).filter((o) => o.visible);
       const propHits = propObjs.length ? ray.intersectObjects(propObjs, true) : [];
       const exObjs = Array.from(extras.keys());
       const exHits = exObjs.length ? ray.intersectObjects(exObjs, true) : [];
       const cands = [];
       if (birdHits[0]) cands.push({ d: birdHits[0].distance, v: { type: 'bird', id: birdHits[0].object.userData.birdId } });
+      if (pigHits[0]) cands.push({ d: pigHits[0].distance, v: { type: 'pig', id: pigHits[0].object.userData.pigId } });
       if (propHits[0]) {
         let o = propHits[0].object, part = null;
         while (o && !o.userData.propName) { if (!part && o.userData.part) part = o.userData.part; o = o.parent; }
@@ -816,6 +864,7 @@
     function render() { const t = performance.now(); const d = Math.min(0.1, (t - lastRender) / 1000); tickPuffs(d); tickSparks(d); scenery.tick(d); lastRender = t; tickShells(); renderer.render(scene, camera); if (pendingShot) takeShot(); }
 
     world.decoKinds = Object.keys(decoMakers);
+    Object.assign(world, { addPig, setPigStage, removePig, setTrough, setWallow });
     Object.assign(world, { makeWorm, setWormCount, addShells, puff, sparkle, makePoop, addPickable, removePickable, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
     // 관찰일지용 사진 — 화면에서 한 곳을 잘라 작은 JPEG 로 돌려준다.
     // WebGL 캔버스는 '그린 직후'에만 읽을 수 있다(preserveDrawingBuffer 가 꺼져 있어서).

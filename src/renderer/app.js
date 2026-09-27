@@ -134,6 +134,8 @@
       waterer: { x: bx(13.8), z: bz(0.52) },
       wormbucket: { x: bx(19.0), z: bz(0.86) },
       dustpit: { x: bx(22.6), z: bz(0.30) },
+      // 돼지우리 (2편) — 모래밭 앞쪽 구석. 먹는 곳과 뒹구는 곳, 그 너머 구석이 돼지 화장실
+      trough: { x: bx(19.6), z: bz(0.62) }, wallow: { x: bx(23.2), z: bz(0.66) },
     };
     const pos = (state.farm && state.farm.placements) || {}, hid = state.settings.propHidden || {};
     const out = { flip: !left };
@@ -141,16 +143,17 @@
       const u = pos[k];
       out[k] = (u && typeof u.x === 'number') ? { x: clamp(u.x, world.xMin + 1, world.xMax - 1), z: clampZ(u.z) } : def[k];
       out[k].visible = !hid[k];
+      if ((k === 'trough' || k === 'wallow') && !(state.pigs && state.pigs.on)) out[k].visible = false;
     }
     return (homeCache = out);
   }
-  const propVisible = (k) => !(state.settings.propHidden || {})[k];
+  const propVisible = (k) => !(state.settings.propHidden || {})[k] && ((k !== 'trough' && k !== 'wallow') || !!(state.pigs && state.pigs.on));
   // 소품의 '단단한 속' — 닭이 밀려나는 반지름 (0 이면 막지 않는다).
   // 먹고 마시려면 붙어서야 하므로 실제로 쓰는 자리보다 작게 잡는다.
   // 둥지(품는다)·모래밭(들어가 목욕한다)·횟대(올라탄다)는 닭이 겹쳐야 하는 물건이라 0 이다.
   const PROP_SOLID = {
     coop: 1.65, nest: 0, feeder: 0.6, feeder2: 0.6, waterer: 0.6,
-    basket: 0.5, wormbucket: 0.45, lamp: 0.2, dustpit: 0, perch: 0,
+    basket: 0.5, wormbucket: 0.45, lamp: 0.2, dustpit: 0, perch: 0, trough: 1.1, wallow: 0,
   };
   // 마당 장식의 몸통 — [반지름, 가로 반길이]. 가로 반길이가 있으면 원이 아니라 막대(울타리·벤치)로 막는다.
   // 0 이면 막지 않는다: 징검돌(밟고 지나간다), 그네·파라솔(밑으로 지나간다 — 기둥만 막는다).
@@ -908,6 +911,7 @@
     // 화면을 켜 둔 채 아무도 안 보면 닭들도 자러 들어간다 (누가 다시 만지면 깬다)
     if (resting() && !b.carrying) {
       if (b.inCoop) { setAnim(b, 'sleep', rand(20, 40)); return; }
+      if (now() - (b.lastStuckAt || 0) < 15000) { b.targetX = null; setAnim(b, 'sleep', rand(20, 40)); return; }   // 닭장 가는 길이 막혔으면 그 자리에서 잔다
       const ws = warmSpot();
       if (d.stage === 'chick' && ws && !b.visitor) { goTo(b, ws.x + rand(-0.9, 0.9), 'golamp-sleep', ws.z + rand(-0.6, 0.6)); return; }
       if (!b.visitor && propVisible('coop') && !isYoungling(b)) { goTo(b, hm.coop.x + (hm.flip ? -1 : 1) * 0.3, 'gocoop', hm.coop.z); return; }
@@ -1711,7 +1715,7 @@
       if (b.blockedAt && now() - b.blockedAt < 400) {
         if (!b.stuck || Math.hypot(b.x - b.stuck.x, b.z - b.stuck.z) > 0.35) b.stuck = { x: b.x, z: b.z, t: now() };
         else if (now() - b.stuck.t > 1500) {
-          b.stuck = null; b.blockedAt = 0;
+          b.stuck = null; b.blockedAt = 0; b.lastStuckAt = now();
           if (b.anim === 'chase' && b.callTarget) b.callTarget = null;
           b.targetX = null; b.targetZ = null; decide(b);
         }
@@ -2185,7 +2189,7 @@
       if (showTag) { if (!b.tagEl) { b.tagEl = document.createElement('div'); b.tagEl.className = 'tag'; overlay.appendChild(b.tagEl); } b.tagEl.textContent = `${b.d.name} · ${STAGE_KO[b.d.stage]}${sexMark(b.d)}${b.visitor ? ' · 놀러 옴' : ''}`; b.tagEl.style.left = top.x + 'px'; b.tagEl.style.top = (top.y - (showIconNow ? 34 : 4)) + 'px'; b.tagEl.style.display = ''; }
       else if (b.tagEl) b.tagEl.style.display = 'none';
     }
-    tickDig(); tickZzz();
+    tickDig(); tickZzz(); pigSys.tick(dt);
     if (worm) {
       if (!worm.held && !worm.carrier) {
         if (worm.y > 0 || worm.vy > 0) { worm.vy -= GRAV * dt; worm.y += worm.vy * dt; if (worm.y <= 0) { worm.y = 0; worm.vy = 0; } }
@@ -2244,7 +2248,7 @@
     sweepSound(); markDirty(); renderCoop();
     return true;
   }
-  let hoverProp = null;
+  let hoverProp = null, hoverPig = null;
   const propTag = document.createElement('div'); propTag.className = 'tag'; propTag.style.display = 'none'; $('#bubbles').appendChild(propTag);
   function propLabel(name) {
     if (name === 'feeder' || name === 'feeder2') return `🌾 ${name === 'feeder2' ? '파란' : '빨간'} 통 · ${C.FEED[feedKind(name)].name} ${Math.round(feedAmt(name))}% — 클릭 채우기 · 오른쪽 클릭 사료 바꾸기`;
@@ -2256,6 +2260,8 @@
   }
   function propClick(name) {
     const hm = home();
+    if (name === 'trough') { pigSys.fillTrough(); return; }
+    if (name === 'wallow') { pigSys.waterWallow(); return; }
     if (name === 'feeder' || name === 'feeder2') { fillFeeder(name); }
     else if (name === 'waterer') { if (now() - state.lastWaterRefill < RULE.refillCooldownMin * 60000) { toast(`물은 ${Math.ceil((RULE.refillCooldownMin * 60000 - (now() - state.lastWaterRefill)) / 60000)}분 후에 다시 채울 수 있어요`); return; } $('#btnWater').click(); }
     else if (name === 'nest') {
@@ -2304,6 +2310,7 @@
   addEventListener('mousemove', (e) => {
     if (drag) {
       if (drag.sweeping) { sweep(poopAt(e.clientX, e.clientY)); return; }
+      if (drag.pig) { if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) drag.moved = true; return; }   // 돼지는 무거워서 들어 옮기지 않는다
       if (drag.pan) {
         // 누른 자리의 땅이 손끝에 붙어 따라오게 한다 (휠 확대가 쓰는 방법과 같다).
         // 카메라가 움직인 뒤 다시 재므로, 몇 프레임이면 정확히 맞춰진다.
@@ -2366,12 +2373,13 @@
     const b = hit && hit.type === 'bird' ? birds.find((q) => q.d.id === hit.id) : null;
     hoverId = b ? b.d.id : null;
     hoverProp = hit && hit.type === 'prop' ? hit.name : null;
+    hoverPig = hit && hit.type === 'pig' ? hit.id : null;
     const hoverPoop = hit && hit.type === 'poop';
     if (b && b.d.stage !== 'egg') rubTick(b, e.clientX); else if (rub.id && now() - rub.lastT > 400) rubEnd();
     if (hoverPoop) { const e2 = ENT.get(hit.id); propTag.textContent = e2 && e2.cecal ? '💩 맹장 똥 — 흐물흐물하고 냄새가 나지만 정상이에요 (클릭·드래그로 치우기)' : '💩 똥 — 클릭하거나 드래그해서 치우세요'; propTag.style.display = ''; propTag.style.left = e.clientX + 'px'; propTag.style.top = (e.clientY - 14) + 'px'; }
     else if (hoverProp) { propTag.textContent = propLabel(hoverProp); propTag.style.display = ''; propTag.style.left = e.clientX + 'px'; propTag.style.top = (e.clientY - 14) + 'px'; }
     else propTag.style.display = 'none';
-    setCur(b ? 'pet' : (hoverProp || hoverPoop) ? 'point' : 'open');
+    setCur(b || hoverPig ? 'pet' : (hoverProp || hoverPoop) ? 'point' : 'open');
   });
   setInterval(() => { if (rub.id && now() - rub.lastT > 700) rubEnd(); }, 300);
   setInterval(() => { if (birds.length && state.onboarded) nudge(); }, 20000);
@@ -2385,6 +2393,8 @@
     const b = birdAt(e.clientX, e.clientY);
     if (e.button === 2) return;
     if (!b) {
+      const pg = world.pick(e.clientX, e.clientY);
+      if (pg && pg.type === 'pig') { drag = { pig: pg.id, sx: e.clientX, sy: e.clientY, moved: false }; setCur('pet'); return; }
       const pp = poopAt(e.clientX, e.clientY);
       if (pp) { sweep(pp); drag = { sweeping: true, sx: e.clientX, sy: e.clientY }; setCur('grab'); return; }
       const dc = world.pick(e.clientX, e.clientY);
@@ -2417,6 +2427,7 @@
   addEventListener('mouseup', (e) => {
     if (!drag) return;
     if (drag.sweeping) { drag = null; setCur('open'); return; }
+    if (drag.pig) { if (!drag.moved) pigSys.touch(drag.pig); drag = null; setCur('pet'); return; }
     if (drag.pan) { if (!drag.moved) closePanel(); else markDirty(); drag = null; setCur('open'); return; }
     if (drag.deco) {
       // 끌지 않고 눌렀다 떼면 '치울까?' 하고 묻는다 (마당에서 빼는 유일한 길)
@@ -2625,14 +2636,16 @@
     if (!state.dex[e.id]) {
       state.dex[e.id] = { day: today(), by: b.d.name };
       state.coins += 1; markDirty(); renderCoop(); chime();
-      toast(`📔 새 행동 발견! ${e.icon} ${e.name}  +1🪙  (${dexCount()}/${DEX.LIST.length})`, true, 6000);
+      toast(`📔 새 행동 발견! ${e.icon} ${e.name}  +1🪙  (${dexCount()}/${dexList().length})`, true, 6000);
       toast(e.why, false, 9000);
       return 'new';
     }
     if (now() - (b.dexSaidAt || 0) > 6000) { b.dexSaidAt = now(); toast(`${e.icon} ${b.d.name}: ${e.name} — ${e.why}`, false, 6000); }
     return 'seen';
   }
-  const dexCount = () => DEX.LIST.filter((e) => state.dex[e.id]).length;
+  // 이 농장에서 볼 수 있는 칸 — 돼지 칸은 돼지를 들인 농장에서만
+  const dexList = () => DEX.LIST.filter((e) => !e.animal || (e.animal === 'pig' && pigSys.on()));
+  const dexCount = () => dexList().filter((e) => state.dex[e.id]).length;
 
   // ── 땅 파기 ──
   // 빈 땅을 꾹 누르고 있으면 흙이 튀다가 가끔 지렁이가 나온다. 끌면 파기가 아니라 화면 옮기기다.
@@ -2692,7 +2705,7 @@
   function coinWays() {
     const ways = [];
     if (state.allowance.day !== today() && birds.some((b) => b.d.stage !== 'egg')) ways.push('모든 닭에게 모이와 물을 챙겨 주면 할머니가 용돈을 주세요');
-    if (dexCount() < DEX.LIST.length) ways.push('닭이 무언가 하는 순간 클릭하면 행동 도감이 채워지고 코인이 생겨요');
+    if (dexCount() < dexList().length) ways.push('닭이 무언가 하는 순간 클릭하면 행동 도감이 채워지고 코인이 생겨요');
     if (QUIZ.READY && quizLeft() > 0) ways.push('할머니 퀴즈를 맞혀 보세요');
     if (state.basket > 0) ways.push('달걀 바구니를 눌러 달걀을 팔 수 있어요');
     else if (birds.some((b) => b.d.stage === 'hen')) ways.push('암탉이 알을 낳으면 팔 수 있어요');
@@ -2715,8 +2728,9 @@
     if (!QUIZ.READY && !force) return null;
     const qs = quizToday();
     if (qs.n >= QUIZ.PER_DAY) { grannySay('오늘 문제는 다 풀었구나. 내일 또 내 주마.', [{ label: '네!', primary: true, fn: grannyHide }], 'smile'); return null; }
-    let pool = QUIZ.Q.filter((x) => !qs.done.includes(x.id));
-    if (!pool.length) { qs.done = []; pool = QUIZ.Q.slice(); }
+    const allQ = QUIZ.Q.filter((x) => !x.animal || (x.animal === 'pig' && pigSys.on()));   // 돼지 문제는 돼지를 들인 농장에서만
+    let pool = allQ.filter((x) => !qs.done.includes(x.id));
+    if (!pool.length) { qs.done = []; pool = allQ.slice(); }
     const item = pick(pool);
     const order = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
     const answer = (i) => {
@@ -2854,12 +2868,13 @@
 
   function renderCoop() {
     if (panel.classList.contains('hidden')) return;
+    renderPigs();
     $('#feedSay').textContent = propVisible('feeder2')
       ? `빨강 ${levelSay(state.feed, ['텅 빔', '거의 없음', '조금', '넉넉'])} · 파랑 ${levelSay(state.feed2 ?? 0, ['텅 빔', '거의 없음', '조금', '넉넉'])}`
       : levelSay(state.feed, ['텅 비었어요', '거의 없어요', '조금 남았어요', '넉넉해요']);
     $('#waterSay').textContent = levelSay(state.water, ['텅 비었어요', '거의 없어요', '조금 남았어요', '넉넉해요']);
     $('#basketCount').textContent = state.basket; $('#coinCount').textContent = state.coins; $('#wormCount').textContent = state.worms;
-    $('#dexCount').textContent = `${dexCount()}/${DEX.LIST.length}`;
+    $('#dexCount').textContent = `${dexCount()}/${dexList().length}`;
     $('#btnQuiz').classList.toggle('hidden', !QUIZ.READY);
     if (QUIZ.READY) $('#quizLeft').textContent = quizLeft();
     const lv = HYG.level(state.ammonia), n = HYG.count();
@@ -3123,9 +3138,11 @@
     if (!resting() || sleepingNow) return;
     sleepingNow = true;
     for (const b of birds) if (eligible(b) && b.anim !== 'chase') decide(b);
+    pigSys.decide();
   }
   function wakeAll() {
     sleepingNow = false;
+    pigSys.wakeAll();
     const hm = home();
     for (const b of birds) {
       if (b.d.stage === 'egg' || b.d.brooding || b.hovering || b.tucked) continue;
@@ -3144,13 +3161,57 @@
     if (!p) { coopZzz.style.display = 'none'; return; }
     coopZzz.style.display = ''; coopZzz.style.left = p.x + 'px'; coopZzz.style.top = (p.y + Math.sin(now() / 500) * 3) + 'px';
   }
+  // ── 돼지 가족 (2편) ── 닭과 따로 산다: farm/pigs.js · pig3d.js
+  function pushOutPig(rt, r) {
+    const hm = home();
+    for (const k of PROP_NAMES) {
+      if (k === 'trough' || k === 'wallow') continue;
+      const R = PROP_SOLID[k]; if (!R || !propVisible(k)) continue;
+      const L = hm[k]; if (!L) continue;
+      const dx = rt.x - L.x, dz = (rt.z - L.z) * 1.35, d = Math.hypot(dx, dz), rr = R + r;
+      if (d < rr && d > 0.001) { rt.x = clamp(rt.x + dx / d * (rr - d), world.xMin + 1.5, world.xMax - 1.5); rt.z = clampZ(rt.z + (dz / d) * (rr - d) / 1.35); }
+    }
+    for (const sh of decoShapes()) { const o = outOfDeco(sh, rt.x, rt.z, sh.r + r); if (o) { rt.x = clamp(o.x, world.xMin + 1.5, world.xMax - 1.5); rt.z = clampZ(o.z); } }
+  }
+  const pigSys = TP.pigs.create({
+    world, now, today, rand, clamp, clampZ, pick, toast, markDirty, addDays: U.addDays,
+    state: () => state, home, layout: () => layoutHome(), refresh: () => renderCoop(),
+    later: (fn, ms) => setTimeout(fn, ms || 0),
+    say: (text, mood) => {
+      if ($('#granny').classList.contains('hidden') && !talking && stepIdx < 0) grannySay(text, [{ label: '네!', primary: true, fn: grannyHide }], mood || 'smile');
+      else toast(text.split('\n')[0], true, 8000);
+    },
+    note: (kind, rt) => { JR.record(state, kind, rt); markDirty(); },
+    hot: () => wx.key === 'hot', cold: () => wx.key === 'cold',
+    warmSpot: () => warmSpot(), resting: () => resting(), sleeping: () => sleepingNow,
+    overlay, hoverPig: () => hoverPig,
+    dex: (rt) => dexSpot(rt),
+    poop: (x, z) => { HYG.dropPoop(x, z, false); markDirty(); },
+    keepOut: pushOutPig,
+    cared: () => { if (payAllowanceRef) payAllowanceRef(); },
+  });
+  $('#pigOn').addEventListener('change', (e) => { pigSys.enable(e.target.checked); renderSettings(); });
+  // 닭장 메뉴의 돼지 가족 칸
+  function renderPigs() {
+    const box = $('#pigBox'); if (!box) return;
+    const sm = pigSys.summary();
+    box.classList.toggle('hidden', !sm.on);
+    if (!sm.on) return;
+    const lv = (v) => (v > 70 ? '넉넉' : v > 30 ? '조금' : v > 0 ? '거의 없음' : '텅 빔');
+    box.innerHTML = `<div class="petCard pigCard"><div class="head"><span class="name">🐷 돼지 가족</span><span class="stage">${sm.list.every((q) => q.caredToday) ? '✅ 오늘 여물 먹음' : '여물을 기다려요'}</span></div>
+      <div class="stat"><b>🐖 여물통</b><span class="say">${lv(sm.trough)} (${sm.trough}%)</span><button class="small primary" data-pig="trough">채우기</button></div>
+      <div class="stat"><b>🟤 진흙탕</b><span class="say">${sm.wallow > 60 ? '촉촉해요' : sm.wallow > 20 ? '말라 가요' : '말랐어요'}</span><button class="small" data-pig="wallow">물 붓기</button></div>
+      <div class="pigList">${sm.list.map((q) => `<div>${q.stage === 'sow' ? '🐖' : '🐷'} <b>${esc(q.name)}</b> · ${q.ko}${q.pregnant ? ` · 새끼까지 ${q.left}번 더 돌보면` : q.left !== null ? ` · 자라기까지 ${q.left}번 더` : ''}</div>`).join('')}</div>
+      <div class="hint">닭은 알을 낳지만 돼지는 새끼를 낳아 젖을 먹여요. 새끼는 어미 젖을 먹으니 여물통만 하루 한 번 채워 주세요.${sm.album ? ` · 큰 농장으로 이사 간 돼지 ${sm.album}마리` : ''}</div></div>`;
+    box.querySelectorAll('[data-pig]').forEach((el) => el.addEventListener('click', () => { if (el.dataset.pig === 'trough') pigSys.fillTrough(); else pigSys.waterWallow(); }));
+  }
   // 오늘 할 일을 다 했다 — 멈출 자리를 알려 준다 (멈출 곳이 없으면 아이들은 계속 무언가를 찾는다)
   function dayDone(pay) {
     const line = `🪙 오늘 용돈 ${pay}코인이다.\n오늘 할 일은 다 했구나. 닭들은 이제 쉴 테니, 내일 또 보러 오렴.`;
     if ($('#granny').classList.contains('hidden') && !talking && stepIdx < 0) grannySay(line, [{ label: '네!', primary: true, fn: grannyHide }], 'proud');
     else { toast(`🪙 할머니가 용돈 ${pay}코인을 주셨어요`, false, 7000); toast('✅ 오늘 할 일은 다 했어요. 내일 또 보러 와요', true, 8000); }
   }
-  const allCaredToday = () => { const mine = birds.filter((b) => !b.visitor && b.d.stage !== 'egg'); return mine.length > 0 && mine.every((b) => ST.caredToday(b.d)); };
+  const allCaredToday = () => { const mine = birds.filter((b) => !b.visitor && b.d.stage !== 'egg'); return mine.length > 0 && mine.every((b) => ST.caredToday(b.d)) && pigSys.caredToday(); };
   $('#btnChalClose').addEventListener('click', () => $('#chalModal').classList.add('hidden'));
   $('#btnChalPrint').addEventListener('click', () => {
     const n = $('#chalNote'); n.textContent = n.value;                 // 인쇄에는 입력한 글이 그대로 나오게
@@ -3172,9 +3233,9 @@
     const box = $('#journalList'); box.innerHTML = '';
     // 행동 도감 — 못 본 행동도 이름은 보여 준다. 무엇을 찾아야 할지 알아야 지켜보게 된다.
     const dx = document.createElement('div'); dx.className = 'dexBox'; dx.id = 'dexBox';
-    dx.innerHTML = `<div class="dexHead"><b>🔍 행동 도감</b><span>${dexCount()} / ${DEX.LIST.length}</span></div>
+    dx.innerHTML = `<div class="dexHead"><b>🔍 행동 도감</b><span>${dexCount()} / ${dexList().length}</span></div>
       <p class="hint">닭이 그 행동을 하는 순간 눌러 보세요. 처음 찾으면 🪙 1코인!</p>
-      <div class="dexGrid">${DEX.LIST.map((e) => {
+      <div class="dexGrid">${dexList().map((e) => {
         const got = state.dex[e.id];
         return `<div class="dexCell ${got ? 'got' : ''}" title="${got ? esc(e.why) : '아직 못 봤어요'}"><span class="di">${got ? e.icon : '❔'}</span><span class="dn">${esc(e.name)}</span>${got ? `<span class="dw">${esc(e.why)}</span><span class="dd">${esc(got.day.slice(5).replace('-', '/'))} · ${esc(got.by || '')}</span>` : ''}</div>`;
       }).join('')}</div>`;
@@ -3214,6 +3275,7 @@
     $('#soundOn').checked = state.settings.sound;
     $('#plainCursor').checked = !!state.settings.plainCursor;
     $('#fastGrow').checked = !!state.settings.fast;
+    $('#pigOn').checked = pigSys.on();
     const cal = !!state.settings.useCalendar;
     $('#useCalendar').checked = cal;
     $('#pauseWeekends').checked = state.settings.pauseWeekends !== false;
@@ -3598,6 +3660,10 @@
     resize();
     birds = state.flock.map(makeRuntime);
     loadVisitors();
+    pigSys.load();
+    // 선생님 링크의 ?pig=1 — 돼지 식구를 들인다 (?pig=0 이면 이웃 농장에 보낸다)
+    const pigLink = (() => { try { const q = new URLSearchParams(location.search).get('pig'); return q === '1' ? true : q === '0' ? false : null; } catch (e) { return null; } })();
+    if (pigLink !== null && pigLink !== pigSys.on()) pigSys.enable(pigLink, !state.onboarded);
     checkNeglect();        // 지난 등교일을 먼저 정산한 뒤 오늘을 시작한다
     SCH.markOpened(state); markDirty();
     tryReturn();
@@ -3633,6 +3699,7 @@
       const day = today();
       if (state.allowance.day === day) return;
       if (!birds.every((b) => b.visitor || b.d.stage === 'egg' || ST.caredToday(b.d))) return;
+      if (!pigSys.caredToday()) return;              // 돼지 가족도 여물을 먹어야 오늘 돌봄이 끝난다
       // 매일 똑같이. '연속 N일' 보너스는 빠진 날을 손해로 만든다 — 매일 접속하게 만드는 압박이라 뺐다.
       const pay = ALLOWANCE;
       state.allowance.day = day; state.allowance.streak = 0; state.coins += pay; markDirty(); renderCoop();
@@ -3746,7 +3813,7 @@
     clickGranny(i) { const b = document.querySelectorAll('#gBtns button')[i || 0]; if (!b) return false; b.click(); return true; },
     dexTry(name, anim) { const b = birds.find((q) => q.d.name === name); if (!b) return null; setAnim(b, anim, 5); b.animT = 0; return dexSpot(b); },
     dexClick(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; touch(b); return dexCount(); },
-    dexState() { return { count: dexCount(), total: DEX.LIST.length, ids: Object.keys(state.dex) }; },
+    dexState() { return { count: dexCount(), total: dexList().length, ids: Object.keys(state.dex) }; },
     digAt(x, z, force) { return digAt(x, z, force); },
     digState() { return Object.assign({}, digToday(), { max: DIG_MAX, holding: !!digging, worm: !!worm, bucket: state.worms }); },
     clearWorm() { if (worm) removeWorm(); return !worm; },
@@ -3806,6 +3873,18 @@
     allowanceNow() { payAllowanceRef && payAllowanceRef(); return state.coins; },
     setAllowanceDay(d) { state.allowance.day = d; state.allowance.streak = 2; return d; },
     seasonLabelOf(kind, id) { const it = SHOP.get(kind, id); return it ? seasonLabel(it) : null; },
+    pigs() { return pigSys.summary(); },
+    lookAt(x, z, zoom, elev) { if (zoom) state.settings.zoom = zoom; if (elev) state.settings.elev = elev; resize(); world.view.tx = x; world.view.tz = z; world.fit(W, H); return { x, z }; },
+    trough() { const h = home(); return { x: h.trough.x, z: h.trough.z }; },
+    pigEnable(v) { pigSys.enable(v, true); return pigSys.on(); },
+    pigFeed() { return pigSys.fillTrough(); },
+    pigWallow() { return pigSys.waterWallow(); },
+    pigTouch(name) { const rt = pigSys._rt(name); return rt ? pigSys.touch(rt.d.id) : null; },
+    pigState(name) { const rt = pigSys._rt(name); return rt ? { anim: rt.anim, x: +rt.x.toFixed(2), z: +rt.z.toFixed(2), mud: +(rt.d.mud || 0).toFixed(2), stage: rt.d.stage, pregnant: !!rt.d.pregnant, hunger: Math.round(rt.d.hunger) } : null; },
+    pigDays(n) { pigSys._forceDays(n); return pigSys.summary(); },
+    pigSetAnim(name, a) { const rt = pigSys._rt(name); if (!rt) return null; rt.tx = null; rt.anim = a; rt.animT = 0; rt.animDur = 6; return a; },
+    pigScreen(name) { const rt = pigSys._rt(name); if (!rt) return null; const p = world.project(rt.x, rt.m.model.height * 0.5, rt.z); return { x: Math.round(p.x), y: Math.round(p.y) }; },
+    pigCaredToday() { return pigSys.caredToday(); },
     toyStart() { return toyStart(); },
     toyState(name) { const b = birds.find((q) => q.d.name === name); return { on: !!toy, anim: b && b.anim, target: !!(b && b.callTarget && b.callTarget.toy), tired: b ? now() < (b.toyTiredUntil || 0) : null }; },
     toyTire(name) { const b = birds.find((q) => q.d.name === name); if (b) b.toyPlay = TOY_PLAY + 1; return true; },

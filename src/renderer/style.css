@@ -414,3 +414,7 @@ body.uiIdle #quest { opacity: .55; }
 #quest.dayDone #qMission { opacity: .6; font-size: 15px; }
 #quest.dayDone #qMission .qHead::before { content: '더 해 보고 싶다면 · '; }
 .coopZzz { font-size: 28px; transform: translate(-50%, -100%); pointer-events: none; }
+
+/* 돼지 가족 (2편) */
+.pigCard { background: #FFF1EE; border-color: #E8A79C; }
+.pigCard .pigList { font-size: 13px; line-height: 1.7; margin: 4px 0; }

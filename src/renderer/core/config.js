@@ -32,8 +32,9 @@
     SPEED: { egg: 0, chick: 1.6, young: 1.9, hen: 1.5, rooster: 1.8 },  // 유닛/초
     RANK: { rooster: 3, hen: 2, young: 1, chick: 0, egg: -1 },
     NAMES: ['삐약이', '노랑이', '콩콩', '햇살', '보리', '구름', '달걀이', '방울', '초코', '땅콩', '꼬꼬', '모카', '레몬', '솜이', '토리', '봄이'],
-    PROP_NAMES: ['coop', 'nest', 'feeder', 'feeder2', 'waterer', 'basket', 'wormbucket', 'lamp', 'dustpit', 'perch'],
+    PROP_NAMES: ['coop', 'nest', 'feeder', 'feeder2', 'waterer', 'basket', 'wormbucket', 'lamp', 'dustpit', 'perch', 'trough', 'wallow'],
     PROP_KO: {
+      trough: '🐷 돼지 여물통 — 클릭하면 여물 채우기', wallow: '🟤 진흙탕 — 클릭하면 물 붓기 (더운 날 돼지가 뒹굴어요)',
       coop: '닭장 — 클릭하면 메뉴', nest: '둥지 — 클릭하면 알 품어주기', feeder: '모이통', waterer: '물통',
       basket: '달걀 바구니', wormbucket: '벌레통 — 끌어다 놓으면 닭들이 달려와요', lamp: '보온등 — 병아리들이 따뜻한 불빛 아래 모여요',
       dustpit: '모래밭 — 여기서 모래 목욕을 해요 (깃털이 깨끗해져요)',

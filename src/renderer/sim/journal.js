@@ -20,6 +20,8 @@
     healed:    { icon: '💚', title: '다 나았어요', line: (n) => `${n}(이)가 아팠다가 나았어요.` },
     left:      { icon: '🌾', title: '떠남',       line: (n) => `${n}(이)가 넓은 농장으로 떠났어요.` },
     back:      { icon: '🏡', title: '돌아옴',     line: (n) => `${n}(이)가 돌아왔어요.` },
+    pigArrive: { icon: '🐷', title: '돼지 식구',   line: (n) => `이웃 농장에서 어미 돼지 ${n}(이)가 왔어요. 곧 새끼를 낳는대요.` },
+    pigBirth:  { icon: '🐖', title: '새끼 돼지',   line: (n) => `${n}(이)가 새끼를 낳았어요. 돼지는 알이 아니라 새끼를 낳아 젖을 먹여요.` },
   };
 
   function record(state, kind, bird, photo) {

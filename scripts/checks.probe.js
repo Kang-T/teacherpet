@@ -1067,7 +1067,7 @@
       T.poke();
       T.idleFor(11);
       let slept = false; const ts = Date.now();
-      while (Date.now() - ts < 20000 * SLOW) { const st = T.restState(hen); if (st.inCoop || st.anim === 'sleep') { slept = true; break; } await wait(200); }   // 닭장까지 걸어가는 시간
+      while (Date.now() - ts < 40000 * SLOW) { const st = T.restState(hen); if (st.inCoop || st.anim === 'sleep') { slept = true; break; } await wait(200); }   // 닭장까지 걸어가는 시간 (마당 끝에서 20초쯤 걸린다)
       okMotion('10분 동안 아무도 안 만지면 닭이 자러 들어간다', slept, JSON.stringify(T.restState(hen)));
       let zzz = false; const tz = Date.now();
       while (Date.now() - tz < 6000 * SLOW) { const st = T.restState(hen); if (st.zzz || st.icon === '💤') { zzz = true; break; } await wait(200); }
@@ -1134,7 +1134,10 @@
       const c0 = T.coins();
       ok('깃털 놀이를 시작할 수 있다', T.toyStart() === true, '');
       const cv = document.querySelector('#stageHost canvas');
-      const sp = T.screenOfPoint(-4, 0, -9);
+      // 기구 위가 아닌 빈 땅을 고른다 (기구 위에서는 가리키는 손이 맞다)
+      let sp = null;
+      for (const [gx, gz] of [[-4, -9], [-6, -12], [-2, -14], [2, -16], [-8, -16]]) { const q = T.screenOfPoint(gx, 0, gz); const h = T.pickAt(q.x, q.y); if (!h || h.type === 'ground') { sp = q; break; } }
+      sp = sp || T.screenOfPoint(-4, 0, -9);
       let chased = false; const tt = Date.now();
       while (Date.now() - tt < 5000 * SLOW) {
         cv.dispatchEvent(new MouseEvent('mousemove', { clientX: sp.x + Math.sin(Date.now() / 200) * 20, clientY: sp.y, bubbles: true }));
@@ -1142,13 +1145,73 @@
         await wait(100);
       }
       okMotion('깃털을 움직이면 병아리가 쫓아온다', chased, JSON.stringify(T.toyState(kid)));
-      ok('깃털 놀이 중에는 커서가 깃털이다', /cursor\/feather/.test(T.cursor().css) || T.cursor().kind === 'feather', T.cursor().kind);
+      cv.dispatchEvent(new MouseEvent('mousemove', { clientX: sp.x, clientY: sp.y, bubbles: true }));
+      let featherCur = false;
+      for (let i = 0; i < 8 && !featherCur; i++) { featherCur = /cursor\/feather/.test(T.cursor().css) || T.cursor().kind === 'feather'; if (!featherCur) await wait(200); }
+      ok('깃털 놀이 중에는 커서가 깃털이다', featherCur, T.cursor().kind);
       for (const b of D.birds()) T.toyTire(b.name);
       cv.dispatchEvent(new MouseEvent('mousemove', { clientX: sp.x, clientY: sp.y, bubbles: true }));
       await wait(900);
       ok('모두 지치면 놀이가 저절로 끝난다', !T.toyState(kid).on && T.toyState(kid).tired, JSON.stringify(T.toyState(kid)));
       ok('놀아 줘도 코인은 생기지 않는다', T.coins() === c0, `코인 ${c0} → ${T.coins()}`);
       T.toyStop();
+    }
+
+    // ── 42. 돼지 가족 (2편) — 닭과 따로 산다 ──
+    {
+      T.grannyClose();
+      const chickensBefore = D.birds().length;
+      ok('돼지는 선생님이 켜기 전에는 없다', !T.pigs().on && !document.querySelector('#pigBox:not(.hidden)'), JSON.stringify(T.pigs()).slice(0, 60));
+      ok('돼지를 켜면 새끼 밴 어미 돼지가 온다', T.pigEnable(true) && T.pigs().list.length === 1 && T.pigs().list[0].pregnant, JSON.stringify(T.pigs().list));
+      ok('돼지가 와도 닭은 그대로다', D.birds().length === chickensBefore, `닭 ${chickensBefore} → ${D.birds().length}`);
+      const sowName = T.pigs().list[0].name;
+      // 여물 — 하루 돌봄은 여물통 한 번
+      T.pigFeed();
+      let ate = false; const te = Date.now();
+      while (Date.now() - te < 20000 * SLOW) { if (T.pigCaredToday()) { ate = true; break; } await wait(250); }
+      okMotion('여물통을 채우면 어미 돼지가 와서 먹는다 (오늘 돌봄)', ate, JSON.stringify(T.pigState(sowName)));
+      // 새끼 낳기 — 알이 아니라 새끼
+      T.grannyClose();
+      const born = T.pigDays(6);
+      const piglets = born.list.filter((q) => q.stage === 'piglet');
+      ok('돌본 날이 차면 어미가 새끼를 낳는다 (알이 아니라 새끼)', piglets.length >= 2 && !born.list.find((q) => q.stage === 'sow').pregnant, `새끼 ${piglets.length}마리`);
+      T.grannyClose();
+      // 젖 먹이기
+      T.pigSetAnim(sowName, 'nurse');
+      const pn = piglets[0].name;
+      let suckled = false; const tn = Date.now();
+      window.__tp && T.pigState(pn);
+      while (Date.now() - tn < 8000 * SLOW) { const st = T.pigState(pn); if (st && (st.anim === 'suckle' || st.anim === 'walk')) { suckled = true; break; } await wait(200); }
+      okMotion('어미가 누워 젖을 주면 새끼들이 달려온다', suckled, JSON.stringify(T.pigState(pn)));
+      // 도감 — 돼지 칸은 돼지 농장에서만
+      const dx0 = T.dexState();
+      T.pigSetAnim(sowName, 'mud');
+      T.pigTouch(sowName);
+      const dx1 = T.dexState();
+      ok('돼지 행동도 도감에 오른다 (진흙 목욕)', dx1.ids.includes('pig_mud'), `도감 ${dx0.count}/${dx0.total} → ${dx1.count}/${dx1.total}`);
+      // 쓰다듬기 — 배 보이며 벌렁
+      T.pigSetAnim(sowName, 'idle');
+      const fl = T.pigTouch(sowName);
+      ok('어미 돼지를 쓰다듬으면 배를 보이며 벌렁 눕는다', fl === 'flop', fl);
+      // 진흙탕
+      T.pigWallow();
+      ok('진흙탕에 물을 부을 수 있다', T.pigs().wallow >= 95, `진흙탕 ${T.pigs().wallow}`);
+      // 메뉴 칸
+      T.openMenu('coop'); await wait(300);
+      ok('닭장 메뉴에 돼지 가족 칸이 보인다', !document.querySelector('#pigBox').classList.contains('hidden') && /돼지 가족/.test(document.querySelector('#pigBox').textContent), '');
+      T.closeMenu();
+      // 할머니 질문 — 고기 질문은 선생님과 이야기하도록
+      const ASK = window.TP.granny.ASK;
+      const meat = ASK.find((q) => /고기/.test(q.q));
+      ok('"돼지는 고기가 되나요?"는 선생님과 이야기해 보라고 답한다', !!meat && /선생님/.test(meat.a), meat ? meat.a.slice(0, 30) : '');
+      // 끄면 이웃 농장으로 — 다시 켜면 그대로 돌아온다
+      const n1 = T.pigs().list.length;
+      T.pigEnable(false);
+      ok('돼지를 끄면 마당에서 사라진다', !T.pigs().on && T.pigs().list.length === 0, '');
+      T.pigEnable(true);
+      ok('다시 켜면 돼지 가족이 그대로 돌아온다', T.pigs().list.length === n1, `${n1} → ${T.pigs().list.length}`);
+      T.pigEnable(false);
+      ok('돼지를 끈 농장에서는 도감에 돼지 칸이 없다', T.dexState().total === dx0.total - (dx0.total - T.dexState().total) && !/진흙 목욕/.test((() => { document.querySelector('#btnDex').click(); const t = document.querySelector('#journalList').textContent; document.querySelector('#closeJournal').click(); return t; })()), `도감 칸 ${T.dexState().total}`);
     }
 
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
