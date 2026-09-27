@@ -12,7 +12,10 @@
     const stage = opts.stage || 'sow';
     const k = SIZE[stage] || 1;
     const group = new THREE.Group();
-    const body = new THREE.Group(); group.add(body);          // 눕기·뒹굴기는 body 를 돌린다
+    // 눕기·뒹굴기는 몸통 가운데를 축으로 굴린다 (발바닥을 축으로 굴리면 몸이 비스듬히 뜨고 다리가 들린다)
+    const CY = 1.15 * k;                                       // 몸통 가운데 높이
+    const roll = new THREE.Group(); roll.position.y = CY; group.add(roll);
+    const body = new THREE.Group(); body.position.y = -CY; roll.add(body);
     const PINK = new THREE.Color(0xF6BFB8), BELLY = new THREE.Color(0xFBD9D3), MUD = new THREE.Color(0x8A6848);
     const skinMats = [];
     const skin = (c) => { const m = new THREE.MeshStandardMaterial({ color: c.clone(), roughness: 0.85 }); m.userData.base = c.clone(); skinMats.push(m); return m; };
@@ -64,7 +67,7 @@
       const sp = mesh(S(0.32, 12, 10), skin(new THREE.Color(opts.spot)), 0.45, 1.35, -0.2); sp.scale.set(0.35, 0.7, 0.8);
     }
 
-    const st = { t: Math.random() * 10, lie: 0, headPitch: 0, earFlap: 0, mud: 0, blink: 0, blinkAt: 2 + Math.random() * 3 };
+    const st = { t: Math.random() * 10, lie: 0, sit: 0, headPitch: 0, earFlap: 0, mud: 0, blink: 0, blinkAt: 2 + Math.random() * 3 };
     const lerp = (a, b, t) => a + (b - a) * t;
     function update(dt, s) {
       s = s || {};
@@ -72,22 +75,38 @@
       const a = s.anim || 'idle';
       const moving = !!s.moving;
       const fast = s.speed || 1;
-      // 눕기: 잠·젖 먹이기·진흙 목욕·배 보이기
-      const lieT = (a === 'sleep' || a === 'nurse' || a === 'mud' || a === 'flop') ? 1 : 0;
-      st.lie = lerp(st.lie, lieT, 1 - Math.exp(-dt * 4));
-      const side = a === 'flop' ? -1 : 1;
-      body.rotation.z = side * st.lie * 1.25 + (a === 'mud' ? Math.sin(st.t * 3) * 0.25 * st.lie : 0);
-      body.position.y = -st.lie * 0.45 * k;
-      // 걸음 — 다리를 번갈아 흔든다
+      // 자세 두 가지
+      //  · 옆으로 눕기(어미·어린 돼지의 잠, 젖 먹이기, 진흙 목욕, 배 보이기) — 옆구리를 바닥에 대고 다리를 옆으로 뻗는다
+      //  · 엎드리기(새끼 돼지의 잠) — 배를 깔고 다리를 몸 밑에 접는다
+      const sternal = stage === 'piglet' && a === 'sleep';
+      const lieT = !sternal && (a === 'sleep' || a === 'nurse' || a === 'mud' || a === 'flop') ? 1 : 0;
+      const sitT = sternal ? 1 : 0;
+      st.lie = lerp(st.lie, lieT, 1 - Math.exp(-dt * 3.5));
+      st.sit = lerp(st.sit || 0, sitT, 1 - Math.exp(-dt * 4));
+      // 옆으로 누우면 몸통 너비(반지름 1.0)가 높이가 된다. 살이 바닥에 조금 눌리게 0.92
+      const flopExtra = a === 'flop' ? 0.35 : 0;                // 배를 더 드러낸다
+      roll.rotation.z = st.lie * (Math.PI / 2 + flopExtra) + (a === 'mud' ? Math.sin(st.t * 2.6) * 0.3 * st.lie : 0);
+      roll.position.y = CY + (0.92 * k - CY) * st.lie - st.sit * 0.5 * k;
+      // 다리 — 걸을 때는 번갈아, 누우면 앞다리는 앞으로 뒷다리는 뒤로 편하게 뻗고, 엎드리면 몸 밑에 접는다
       const sw = moving ? Math.sin(st.t * 11 * fast) * 0.55 : 0;
-      legs[0].rotation.x = sw; legs[3].rotation.x = sw; legs[1].rotation.x = -sw; legs[2].rotation.x = -sw;
-      for (const l of legs) l.rotation.z = st.lie * 0.4;
-      body.position.y += moving ? Math.abs(Math.sin(st.t * 11 * fast)) * 0.06 * k : Math.sin(st.t * 2) * 0.012 * k;
+      const relax = st.lie * 0.35, tuck = st.sit * 1.35;
+      legs[0].rotation.x = sw - relax + tuck; legs[1].rotation.x = -sw - relax * 0.8 + tuck;   // 앞다리
+      legs[2].rotation.x = -sw + relax - tuck; legs[3].rotation.x = sw + relax * 0.8 - tuck;   // 뒷다리
+      // 위쪽 다리(몸의 +x 쪽, 누우면 위로 오는 쪽)는 아래 다리 위로 축 늘어뜨린다 — 공중에 뻣뻣하게 뜨지 않게
+      legs[0].rotation.z = legs[2].rotation.z = st.lie * 0.12;
+      legs[1].rotation.z = legs[3].rotation.z = -st.lie * 0.55;
+      legs[1].rotation.x += st.lie * 0.25; legs[3].rotation.x -= st.lie * 0.25;             // 살짝 굽혀 편하게
+      if (a === 'flop') { legs[0].rotation.x += Math.sin(st.t * 3) * 0.15; legs[2].rotation.x -= Math.sin(st.t * 3) * 0.15; }   // 배 보이며 발을 까딱
+      body.position.y = -CY + (moving ? Math.abs(Math.sin(st.t * 11 * fast)) * 0.06 * k : 0);
+      // 숨쉬기 — 누워 있으면 배가 오르내리는 게 보인다
+      const breath = 1 + Math.sin(st.t * (lieT || sitT ? 1.6 : 2.2)) * (lieT || sitT ? 0.025 : 0.012);
+      torso.scale.set(1.0 * breath, 0.88 * breath, 1.45);
       // 머리 — 먹기·코로 파기·젖 먹기는 고개를 숙인다
       const down = (a === 'eat' || a === 'root' || a === 'suckle' || a === 'drink') ? 0.7 : a === 'sniff' ? 0.3 : 0;
       st.headPitch = lerp(st.headPitch, down, 1 - Math.exp(-dt * 6));
-      head.rotation.x = st.headPitch + (a === 'root' ? Math.sin(st.t * 14) * 0.12 : 0);
-      head.rotation.y = a === 'root' ? Math.sin(st.t * 3) * 0.3 : Math.sin(st.t * 0.7) * 0.08;
+      head.rotation.x = st.headPitch + (a === 'root' ? Math.sin(st.t * 14) * 0.12 : 0) + st.sit * 0.25;
+      head.rotation.y = a === 'root' ? Math.sin(st.t * 3) * 0.3 : Math.sin(st.t * 0.7) * 0.08 * (1 - st.lie);
+      head.rotation.z = -st.lie * 0.18;                          // 누우면 머리를 땅에 기댄다
       // 코를 씰룩 — 늘 조금, 냄새 맡을 때 크게
       snout.scale.y = 1 + Math.sin(st.t * (a === 'sniff' || a === 'root' ? 18 : 4)) * 0.06;
       // 귀 — 걸으면 펄럭

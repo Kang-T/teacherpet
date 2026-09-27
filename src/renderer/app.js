@@ -3892,6 +3892,7 @@
     pigSetAnim(name, a) { const rt = pigSys._rt(name); if (!rt) return null; rt.tx = null; rt.anim = a; rt.animT = 0; rt.animDur = 6; return a; },
     pigScreen(name) { const rt = pigSys._rt(name); if (!rt) return null; const p = world.project(rt.x, rt.m.model.height * 0.5, rt.z); return { x: Math.round(p.x), y: Math.round(p.y) }; },
     pigCaredToday() { return pigSys.caredToday(); },
+    pigNurse(dur) { return pigSys._nurse(dur); },
     toyStart() { return toyStart(); },
     toyState(name) { const b = birds.find((q) => q.d.name === name); return { on: !!toy, anim: b && b.anim, target: !!(b && b.callTarget && b.callTarget.toy), tired: b ? now() < (b.toyTiredUntil || 0) : null }; },
     toyTire(name) { const b = birds.find((q) => q.d.name === name); if (b) b.toyPlay = TOY_PLAY + 1; return true; },

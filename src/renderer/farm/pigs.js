@@ -145,6 +145,20 @@
     // ── 행동 ──
     function goTo(rt, x, z, arrive, goal) { rt.tx = clamp(x, world.xMin + 1.5, world.xMax - 1.5); rt.tz = clampZ(z); rt.arrive = arrive; rt.goal = goal || null; setAnim(rt, 'walk', 30); }
     function setAnim(rt, a, dur) { rt.anim = a; rt.animT = 0; rt.animDur = dur; }
+    // 젖 먹는 자리 — 어미 배 쪽에 새끼마다 제 자리가 있다 (진짜 새끼 돼지도 자기 젖꼭지 자리가 정해져 있다)
+    // 어미는 오른쪽 옆구리를 대고 누우므로 배는 몸의 +x 쪽을 향한다
+    function teat(s0, rt) {
+      const kids = pigs.filter((q) => q.d.stage === 'piglet');
+      const i = Math.max(0, kids.indexOf(rt)), n = Math.max(1, kids.length);
+      const h = s0.heading || 0;
+      const bx = Math.cos(h), bz = -Math.sin(h);                 // 배 쪽 (몸의 +x)
+      const fx = Math.sin(h), fz = Math.cos(h);                  // 머리 쪽 (몸의 +z)
+      const along = (i - (n - 1) / 2) * 0.55;                     // 몸통을 따라 나란히
+      return { x: s0.x + bx * 1.45 + fx * along, z: s0.z + bz * 1.45 + fz * along };
+    }
+    // 젖을 줄 때는 배를 화면 쪽(+z)으로 두고 눕는다 — 새끼들이 어미 등 뒤에 가려지지 않게.
+    // 배는 몸의 +x 쪽이므로 머리를 왼쪽(-x)으로 두면 배가 앞을 본다.
+    function faceBellyToView(rt) { rt.heading = -Math.PI / 2 + 0.62 + rand(-0.15, 0.15); }   // 정면보다 비스듬히 — 옆모습과 젖 먹는 새끼가 함께 보인다
     function toilet() { const h = ctx.home(); return { x: h.wallow.x + (h.flip ? -3.2 : 3.2), z: h.wallow.z + 2.2 }; }
     function decide(rt) {
       const d = rt.d, h = ctx.home(), p = P(), s0 = sow();
@@ -156,7 +170,7 @@
       }
       if (d.stage === 'piglet') {
         // 어미가 젖을 주면 달려간다 · 어미가 자면 곁에 붙어 잔다 · 아니면 따라다니며 논다
-        if (s0 && s0.anim === 'nurse') { goTo(rt, s0.x + (s0.dir > 0 ? 0.3 : -0.3) + rand(-0.6, 0.6), s0.z + 0.9 + rand(-0.2, 0.2), 'suckle'); return; }
+        if (s0 && s0.anim === 'nurse') { const t = teat(s0, rt); goTo(rt, t.x, t.z, 'suckle'); return; }
         if (s0 && s0.anim === 'sleep') { goTo(rt, s0.x + rand(-1, 1), s0.z + rand(-1, 1), 'pile'); return; }
         const cold = ctx.cold();
         const ws = ctx.warmSpot();
@@ -169,7 +183,7 @@
       }
       // 어미·어린 돼지
       const kids = pigs.filter((q) => q.d.stage === 'piglet');
-      if (d.stage === 'sow' && kids.length && Math.random() < 0.35) { setAnim(rt, 'nurse', rand(8, 14)); for (const q of kids) decide(q); return; }
+      if (d.stage === 'sow' && kids.length && Math.random() < 0.35) { faceBellyToView(rt); setAnim(rt, 'nurse', rand(8, 14)); for (const q of kids) decide(q); return; }
       if (d.hunger < 60 && p.trough > 5) { goTo(rt, h.trough.x + rand(-0.9, 0.9), h.trough.z + 0.85, 'eat', 'trough'); return; }
       // 더운 날은 꼭, 아니어도 진흙이 촉촉하면 가끔 뒹군다 (돼지는 진흙을 좋아한다)
       if (p.wallow > 20 && (d.mud || 0) < 0.5 && (ctx.hot() || (p.wallow > 40 && Math.random() < 0.18))) { goTo(rt, h.wallow.x + rand(-1, 1), h.wallow.z + rand(-0.5, 0.5), 'mud', 'wallow'); return; }
@@ -190,7 +204,7 @@
       } else if (a === 'mud') { setAnim(rt, 'mud', rand(5, 8)); p.wallow = Math.max(0, p.wallow - 6); world.setWallow(p.wallow); markDirty(); }
       else if (a === 'toilet') { setAnim(rt, 'toilet', 2); ctx.poop(rt.x, rt.z); }
       else if (a === 'root') { setAnim(rt, 'root', rand(3, 5)); }
-      else if (a === 'suckle') { const s0 = sow(); if (s0 && s0.anim === 'nurse') setAnim(rt, 'suckle', Math.max(1.5, s0.animDur - s0.animT)); else decide(rt); }
+      else if (a === 'suckle') { const s0 = sow(); if (s0 && s0.anim === 'nurse') { rt.heading = Math.atan2(s0.x - rt.x, s0.z - rt.z); setAnim(rt, 'suckle', Math.max(1.5, s0.animDur - s0.animT)); } else decide(rt); }
       else if (a === 'pile') { setAnim(rt, 'pile', rand(12, 25)); }
       else setAnim(rt, a, rand(2, 4));
     }
@@ -286,6 +300,7 @@
     return {
       load, enable, on, tick, touch, fillTrough, waterWallow, caredToday, summary, decide: () => pigs.forEach(decide),
       list: () => pigs, wakeAll: () => pigs.forEach(decide),
+      _nurse: (dur) => { const s0 = sow(); if (!s0) return false; s0.tx = null; faceBellyToView(s0); setAnim(s0, 'nurse', dur || 20); for (const q of pigs) if (q.d.stage === 'piglet') decide(q); return true; },
       // 검사용
       _grow: grow, _rt: (name) => pigs.find((q) => q.d.name === name), _feedAll: () => { for (const rt of pigs) markAte(rt); },
       _forceDays: (n) => { for (const rt of pigs) { for (let i = 1; i <= n; i++) { const day = ctx.addDays(today(), -i); rt.d.care[day] = { ate: true }; } rt.d.stageSince = ctx.addDays(today(), -n - 1); } grow(); },
