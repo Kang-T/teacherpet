@@ -1226,6 +1226,27 @@
       ok('돼지를 끈 농장에서는 도감에 돼지 칸이 없다', T.dexState().total === dx0.total - (dx0.total - T.dexState().total) && !/진흙 목욕/.test((() => { document.querySelector('#btnDex').click(); const t = document.querySelector('#journalList').textContent; document.querySelector('#closeJournal').click(); return t; })()), `도감 칸 ${T.dexState().total}`);
     }
 
+    // ── 43. 궂은 날에도 배고프면 먹고 목마르면 마신다 (2026-09-29 아이가 알려 준 버그) ──
+    // 비 피하기가 'gocoop' 으로 걸어가 처마 밑에서 닭장에 들어가 잠들었고, 비 피하기·보온등이 먹기를 늘 이겼다.
+    // ⚠️ 여기서는 D.why() 를 쓰지 않는다 — why 는 결정을 다시 하게 만들어 가던 길을 끊는다(관찰을 망친다).
+    {
+      T.grannyClose();
+      T.setWeather('rain');
+      const ck = T.addBird('chick', '비오는날'), hn = T.addBird('hen', '처마밑');
+      await wait(300);
+      for (const n of [ck, hn]) { D.set(n, 'hunger', 15); D.set(n, 'thirst', 15); D.set(n, 'stress', 0); D.set(n, 'energy', 90); T.holdStill(n, 0.1); }
+      const today0 = () => { const c = D.careOf(ck).care; return c[Object.keys(c).sort().pop()] || {}; };
+      let fed = false, henIn = 0; const tr = Date.now();
+      while (Date.now() - tr < 60000 * SLOW) {
+        const c = today0(); if (c.ate && c.drank) { fed = true; break; }
+        if (T.restState(hn).inCoop) henIn++;
+        await wait(500);
+      }
+      okMotion('비 오는 날에도 배고프고 목마른 병아리가 먹고 마신다', fed, JSON.stringify(today0()) + ' · ' + T.stateOf(ck).anim);
+      ok('비를 피하러 가도 낮에 닭장에 들어가 잠들지 않는다', henIn === 0, `암탉이 닭장 안에 있던 횟수 ${henIn}`);
+      T.setWeather('clear');
+    }
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));

@@ -23,6 +23,7 @@
     gofeed:      { pose: 'walk',   moving: 1, goal: 1, priority: 1 },
     gowater:     { pose: 'walk',   moving: 1, goal: 1, priority: 1 },
     gocoop:      { pose: 'walk',   moving: 1, goal: 1, priority: 1 },
+    goshelter:   { pose: 'walk',   moving: 1, goal: 1, priority: 1 },   // 처마 밑으로 — 닭장에 들어가 자는 것(gocoop)과 다르다
     gonest:      { pose: 'walk',   moving: 1, goal: 1, priority: 2 },
     gokid:       { pose: 'walk',   moving: 1, goal: 1, priority: 1 },
     'gomom-sleep': { pose: 'walk', moving: 1, goal: 1, priority: 1 },

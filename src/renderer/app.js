@@ -926,13 +926,16 @@
     const add = (name, score, run) => { if (score > 0) cands.push({ name, score, run }); };
     const feedOk = anyFeed >= RULE.feedPerMeal && now() - b.lastMeal > 60000, waterOk = state.water >= RULE.waterPerDrink && now() - b.lastDrink > 60000;
     // 생리 욕구
-    add('eat', ((100 - d.hunger) / 100) ** 1.5 * 2.2 * T.appetite * (feedOk ? 1 : 0) * (d.stress > 60 ? 0.3 : 1), () => {
+    // 몹시 배고프거나 목마르면(35 아래) 비가 와도, 추워도 먼저 먹고 마신다 — 비 피하기(최대 3.4)·보온등(3.2)이
+    // 먹기(최대 1.7)를 늘 이겨서, 궂은 날 병아리가 배고프다·목마르다 하면서도 먹지 못했다.
+    const URGENT = 2.6;
+    add('eat', (((100 - d.hunger) / 100) ** 1.5 * 2.2 * T.appetite + (d.hunger < 35 ? URGENT : 0)) * (feedOk ? 1 : 0) * (d.stress > 60 && d.hunger >= 35 ? 0.3 : 1), () => {
       const fd2 = feederFor(b);
       b.feederKey = fd2 ? fd2.key : null;                 // 어느 통에서 먹었는지 기억한다
       if (!fd2) { goTo(b, b.x, 'gofeed'); return; }
       goTo(b, fd2.L.x + (hm.flip ? -1 : 1) * rand(1.1, 1.6), 'gofeed', fd2.L.z + rand(-0.4, 0.4));
     });
-    add('drink', ((100 - d.thirst) / 100) ** 1.5 * 2.2 * (waterOk ? 1 : 0), () => goTo(b, propVisible('waterer') ? hm.waterer.x + (hm.flip ? -1 : 1) * rand(1.1, 1.5) : b.x, 'gowater', propVisible('waterer') ? hm.waterer.z + rand(-0.4, 0.4) : undefined));
+    add('drink', (((100 - d.thirst) / 100) ** 1.5 * 2.2 + (d.thirst < 35 ? URGENT : 0)) * (waterOk ? 1 : 0), () => goTo(b, propVisible('waterer') ? hm.waterer.x + (hm.flip ? -1 : 1) * rand(1.1, 1.5) : b.x, 'gowater', propVisible('waterer') ? hm.waterer.z + rand(-0.4, 0.4) : undefined));
     // 어미가 품고 있으면 새끼는 혼자 자지 않는다 — 품에 들어가 잔다
     const momHover = d.stage === 'chick' && !b.tucked && (momOf(b) || {}).hovering;
     const sleepGate = !momHover && (M.sleepy > 0.6 || (d.stage === 'chick' && M.sleepy > 0.45));
@@ -1018,7 +1021,12 @@
       const far = gapTo(b, ex, ez) > 2.4;
       add('shelter', wx.indoor * (far ? 2.6 : 0.9) * (d.stage === 'chick' ? 1.3 : 1),
         () => {
-          if (far) goTo(b, ex + rand(-1.1, 1.1), 'gocoop', ez + rand(-0.5, 0.5));
+          // 예전에는 'gocoop'(닭장에 자러 가기)으로 걸어가서, 처마 밑에 닿는 순간 닭장에 들어가 잠들어 버렸다.
+          // 병아리는 닭장이 춥고 먹이·물과도 멀어, 배고프고 목말라도 못 나왔다 (아이가 알려 준 버그).
+          // 병아리의 처마 밑은 보온등이다.
+          const ws2 = d.stage === 'chick' ? warmSpot() : null;
+          if (ws2) { if (gapTo(b, ws2.x, ws2.z) > 1.2) goTo(b, ws2.x + rand(-0.7, 0.7), 'gowarm', ws2.z + rand(-0.6, 0.6)); else setAnim(b, 'huddle', rand(4, 8)); return; }
+          if (far) goTo(b, ex + rand(-1.1, 1.1), 'goshelter', ez + rand(-0.5, 0.5));
           else if (d.stage === 'chick') setAnim(b, 'huddle', rand(4, 8));   // 뭉치기는 병아리 자세다
           else setAnim(b, 'preen', rand(3, 6));                             // 어른은 처마 밑에서 깃털을 다듬는다
         });
@@ -1805,6 +1813,7 @@
         if (b.anim === 'gofeed') { b.goal = 'eat'; setAnim(b, 'eat', 3); }
         else if (b.anim === 'gowater') { b.goal = 'drink'; setAnim(b, 'drink', 2.5); }
         else if (b.anim === 'gocoop') { b.inCoop = true; setVisible(b, false); setAnim(b, 'sleep', rand(15, 30)); showIcon(b, '💤', 3000); }
+        else if (b.anim === 'goshelter') { if (b.d.stage === 'chick') setAnim(b, 'huddle', rand(4, 8)); else setAnim(b, 'preen', rand(3, 6)); }   // 처마 밑 — 닭장에는 들어가지 않는다
         else if (b.anim === 'gonest') setAnim(b, 'brood', rand(8, 20));
         else if (b.anim === 'gohover') startHover(b);
         else if (b.anim === 'gotuck') { const m2 = momOf(b); if (m2 && m2.hovering) tuckUnder(b, m2); else decide(b); }
@@ -1859,7 +1868,7 @@
       if (b.anim === 'preen') b.d.clean = clamp((b.d.clean ?? 85) + C.CLEAN.preenGain, 0, 100);
       if (b.anim === 'sunbathe') { setAnim(b, 'preen', rand(3, 5)); return; }
       if (b.anim === 'scratch' && Math.random() < 0.65) { goTo(b, b.x + rand(-1, 1) * rand(0.8, 2.6), 'walk'); return; }   // 볕을 쬐면 반드시 깃털을 다듬는다
-      if (b.anim === 'sleep' && b.inCoop && Math.random() < 0.5) { setAnim(b, 'sleep', rand(15, 30)); return; }
+      if (b.anim === 'sleep' && b.inCoop && Math.random() < 0.5 && b.d.hunger >= 35 && b.d.thirst >= 35) { setAnim(b, 'sleep', rand(15, 30)); return; }   // 배고프거나 목마르면 깨어 나온다
       decide(b);
     }
   }
