@@ -1247,6 +1247,25 @@
       T.setWeather('clear');
     }
 
+    // ── 44. 모이통·물통은 보온등 가장자리 안에 — 멀리 두면 할머니가 알려 준다 ──
+    {
+      document.querySelector('#btnResetProps').click();
+      await wait(200);
+      const R = T.lampR(), dF = T.distFromLamp('feeder'), dW = T.distFromLamp('waterer');
+      ok('기본 배치에서 모이통·물통이 보온등 가장자리 안에 있다 (실제 육추 공간처럼)', dF < R && dW < R, `보온등 반경 ${R} · 모이통 ${dF} · 물통 ${dW}`);
+      const cks = D.birds().filter((b) => T.stateOf(b.name).stage === 'chick').map((b) => b.name);
+      for (const n of cks) { D.set(n, 'hunger', 30); D.set(n, 'thirst', 30); }
+      ok('가까이 있으면 할머니가 옮기라고 하지 않는다', T.farSupplies().length === 0, JSON.stringify(T.farSupplies()));
+      const w = D.world();
+      T.movePropTo('waterer', w.xMax - 3, -4);
+      const far = T.farSupplies();
+      const msg = T.tellFar();
+      ok('물통을 멀리 두면 병아리가 목마를 때 할머니가 옮기라고 알려 준다', far.includes('waterer') && /물통을 보온등 곁으로/.test(msg || ''), msg || JSON.stringify(far));
+      document.querySelector('#btnResetProps').click();
+      await wait(200);
+      for (const n of cks) { D.set(n, 'hunger', 80); D.set(n, 'thirst', 80); }
+    }
+
     ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
       seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
       seq.join(' → '));

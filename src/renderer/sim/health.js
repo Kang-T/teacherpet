@@ -7,7 +7,7 @@
   const U = TP.util, C = TP.config;
 
   // 마당 기본 온도. 날씨가 이 값을 올리고 내린다 (추운 날엔 마당 전체가 춥다).
-  const BASE_ROOM_C = 21, LAMP_MAX_C = 15;
+  const BASE_ROOM_C = 21, LAMP_MAX_C = 15, LAMP_R = 6.5;
   let ROOM_C = BASE_ROOM_C;
   const setRoom = (shift) => { ROOM_C = BASE_ROOM_C + (Number(shift) || 0); };
   const roomC = () => ROOM_C;
@@ -24,7 +24,8 @@
     // 마당이 깊어져 앞뒤 거리도 봐야 한다. 좌우만 보면 저 뒤에 있어도 따뜻하다고 나온다.
     const dz = (z === undefined || lamp.z === undefined) ? 0 : (z - lamp.z);
     const d = Math.hypot(x - lamp.x, dz);
-    const fall = Math.max(0, 1 - (d / 4.5) ** 1.6);       // 유효 반경 4.5유닛
+    // 유효 반경 — 실제 육추 공간처럼 모이통·물통이 불빛 가장자리 안에 들어오게 넓혔다 (4.5 → 6.5, 2026-09-29)
+    const fall = Math.max(0, 1 - (d / LAMP_R) ** 1.6);
     // 보온등 바로 아래는 날씨를 덜 탄다.
     // 이게 없으면 추운 날(마당 −5℃)에 등을 최대로 켜도 35℃ 에 못 미쳐,
     // 아이가 무엇을 해도 병아리가 계속 추워하게 된다. 그건 벌이지 배움이 아니다.
@@ -88,5 +89,5 @@
     d.stress = Math.min(100, (d.stress || 0) + dt * (4 / 3600));
   }
 
-  TP.health = { roomC, setRoom, needC, tempAt, comfort, DISEASE, info, fallSick, cure, riskTick, sickTick };
+  TP.health = { LAMP_R, roomC, setRoom, needC, tempAt, comfort, DISEASE, info, fallSick, cure, riskTick, sickTick };
 })(typeof window !== 'undefined' ? window : module.exports);

@@ -130,8 +130,10 @@
       coop: { x: bx(2.0), z: bz(0.06) }, nest: { x: bx(6.2), z: bz(0.20) }, lamp: { x: bx(4.0), z: bz(0.40) },
       basket: { x: bx(7.8), z: bz(0.30) },                 // 달걀은 둥지에서 나온다 — 바구니도 그 옆에
       perch: { x: bx(13.2), z: bz(0.18) },
-      feeder: { x: bx(9.4), z: bz(0.62) }, feeder2: { x: bx(11.0), z: bz(0.86) },
-      waterer: { x: bx(13.8), z: bz(0.52) },
+      // 병아리 모이통(빨강)·물통은 보온등 가장자리 안에 — 실제 육추 공간처럼. 멀면 병아리가 추워서 먹으러 가기 힘들다.
+      // 파란 통(중병아리 이상)은 조금 떨어져 있어도 된다.
+      feeder: { x: bx(8.0), z: bz(0.52) }, feeder2: { x: bx(11.0), z: bz(0.86) },
+      waterer: { x: bx(4.8), z: bz(0.60) },
       wormbucket: { x: bx(19.0), z: bz(0.86) },
       dustpit: { x: bx(22.6), z: bz(0.30) },
       // 돼지우리 (2편) — 모래밭 앞쪽 구석. 먹는 곳과 뒹구는 곳, 그 너머 구석이 돼지 화장실
@@ -3177,6 +3179,36 @@
     if (!p) { coopZzz.style.display = 'none'; return; }
     coopZzz.style.display = ''; coopZzz.style.left = p.x + 'px'; coopZzz.style.top = (p.y + Math.sin(now() / 500) * 3) + 'px';
   }
+  // ── 모이통·물통이 보온등에서 너무 멀 때 ──
+  // 아이가 통을 멀리 옮겨 두면 병아리가 추워서 먹으러 가기 힘들어한다. 아이는 그걸 모르고 '버그인가' 하게 된다.
+  // 할머니가 오른쪽 아래 알림으로 무엇을 하면 되는지 알려 준다 (한 통마다 8분에 한 번까지).
+  const farTold = {};
+  function farSupplies() {
+    const ws = warmSpot(); if (!ws || !propVisible('lamp')) return [];
+    const chicks = birds.filter((b) => b.d.stage === 'chick' && !b.visitor && !b.inCoop);
+    if (!chicks.length) return [];
+    const hm = home(), out = [];
+    const far = (L) => L && Math.hypot(L.x - ws.x, L.z - ws.z) > HLT.LAMP_R;
+    const hungry = chicks.filter((b) => b.d.hunger < 45);
+    const fk = hungry.length ? (feederFor(hungry[0]) || {}).key : null;
+    if (fk && propVisible(fk) && far(hm[fk])) out.push({ key: fk, what: fk === 'feeder2' ? '파란 모이통' : '빨간 모이통' });
+    if (chicks.some((b) => b.d.thirst < 45) && propVisible('waterer') && far(hm.waterer)) out.push({ key: 'waterer', what: '물통' });
+    return out;
+  }
+  function tellFarSupplies(force) {
+    if (!state.onboarded || resting()) return null;
+    const list = farSupplies();
+    for (const f of list) {
+      if (!force && now() - (farTold[f.key] || 0) < 8 * 60000) continue;
+      farTold[f.key] = now();
+      const msg = `👵 ${f.what}이 보온등에서 너무 멀구나. 병아리는 추워서 ${f.key === 'waterer' ? '마시러' : '먹으러'} 가기 힘들단다. ${f.what}을 보온등 곁으로 끌어다 놓아 주렴`;
+      toast(msg, true, 12000);
+      return msg;
+    }
+    return null;
+  }
+  setInterval(() => tellFarSupplies(false), 15000);
+
   // ── 돼지 가족 (2편) ── 닭과 따로 산다: farm/pigs.js · pig3d.js
   function pushOutPig(rt, r) {
     const hm = home();
@@ -3889,6 +3921,10 @@
     allowanceNow() { payAllowanceRef && payAllowanceRef(); return state.coins; },
     setAllowanceDay(d) { state.allowance.day = d; state.allowance.streak = 2; return d; },
     seasonLabelOf(kind, id) { const it = SHOP.get(kind, id); return it ? seasonLabel(it) : null; },
+    farSupplies() { return farSupplies().map((f) => f.key); },
+    tellFar() { return tellFarSupplies(true); },
+    distFromLamp(k) { const ws = warmSpot(), L = home()[k]; return ws && L ? +Math.hypot(L.x - ws.x, L.z - ws.z).toFixed(2) : null; },
+    lampR() { return HLT.LAMP_R; },
     pigs() { return pigSys.summary(); },
     lookAt(x, z, zoom, elev) { if (zoom) state.settings.zoom = zoom; if (elev) state.settings.elev = elev; resize(); world.view.tx = x; world.view.tz = z; world.fit(W, H); return { x, z }; },
     trough() { const h = home(); return { x: h.trough.x, z: h.trough.z }; },
