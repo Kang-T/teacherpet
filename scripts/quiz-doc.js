@@ -21,7 +21,8 @@ const out = [
   '',
 ];
 Q.forEach((x, i) => {
-  out.push(`### ${i + 1}. ${x.q}`, '');
+  const tag = x.animal === 'pig' ? ' (돼지 — 돼지를 들인 농장만)' : x.animal === 'soil' ? ' (흙 속 퀴즈 — 땅 파기에서 두 번 허탕 치면)' : '';
+  out.push(`### ${i + 1}. ${x.q}${tag}`, '');
   x.c.forEach((c, j) => out.push(`${L[j]}. ${c}${j === x.a ? '  ✅' : ''}`));
   out.push('', `> 할머니: ${x.why}`, '');
 });

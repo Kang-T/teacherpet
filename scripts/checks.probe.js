@@ -35,7 +35,8 @@
     if (!bird) { ok('준비: 병아리 받기', false, '병아리가 생기지 않음'); return out; }
     ok('준비: 병아리 받기', true, bird.name);
     const NAME = bird.name;
-    const U_yesterday = () => { const d = new Date(Date.now() - 86400000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+    // 앱의 '오늘'(TP.util.today — UTC 날짜)에서 하루 전. 컴퓨터 시계의 날짜로 셈하면 한국 시각 새벽(0~9시)에 어긋난다.
+    const U_yesterday = () => window.TP.util.addDays(window.TP.util.today(), -1);
     const yard0 = D.world();
     const props0 = T.props();
 
@@ -410,7 +411,7 @@
     // 껐다 켰다만 되면 '온도를 맞춘다'가 메뉴 속에 숨는다. 눌러서 한 칸씩 돌아야 한다.
     const seq = [];
     D.lamp(0);
-    for (let i = 0; i < 5; i++) { T.clickProp('lamp'); await wait(160); seq.push(D.lamp()); }
+    for (let i = 0; i < 7; i++) { T.clickProp('lamp'); await wait(160); seq.push(D.lamp()); }
     // ── 19. 소품을 뚫고 다니지 않는가 ──
     // 모이통·바구니를 그대로 통과해서 몸이 반쯤 박혀 보였다.
     // 소품 한가운데에 놓고 제자리에 붙잡은 뒤, 스스로 밀려 나오는지 본다.
@@ -706,6 +707,26 @@
     for (let i = 0; i < 40 && !T.grannyButtons().length; i++) await wait(150);
     const gb = T.grannyButtons();
     if (gb.length) T.clickGranny(gb.length - 1);
+
+    // ── 31b. 흙 속 퀴즈 — 땅 파기에서 두 번 허탕이면, 맞히면 그 자리에 지렁이 (아이 편지, 2026-10-03) ──
+    {
+      T.grannyClose && T.grannyClose();
+      T.clearWorm(); T.digReset();
+      await wait(200);
+      const sid = T.soilQuiz(4, -6);
+      for (let i = 0; i < 100 && T.grannyButtons().length < 5; i++) await wait(150);
+      const item = window.TP.quiz.get(sid);
+      ok('흙 속 퀴즈는 지렁이·흙 문제를 보기 4개와 "그냥 팔래요"로 묻는다', !!item && item.animal === 'soil' && T.grannyButtons().length === 5, `문제 ${sid} · 단추 ${T.grannyButtons().join('/')}`);
+      const ri = item ? T.grannyButtons().indexOf(item.c[item.a]) : -1;
+      if (ri >= 0) T.clickGranny(ri);
+      for (let i = 0; i < 100 && !/맞았다/.test(T.grannyText()); i++) await wait(150);
+      for (let i = 0; i < 40 && !T.grannyButtons().length; i++) await wait(150);
+      if (T.grannyButtons().length) T.clickGranny(0);
+      await wait(300);
+      ok('흙 속 퀴즈를 맞히면 그 자리에서 지렁이가 나온다', T.digState().worm && T.digState().found === 1, JSON.stringify(T.digState()));
+      ok('흙 속 퀴즈는 하루 퀴즈 3문제에 들지 않는다 (코인 없음)', !window.TP.quiz.Q.filter((q) => !q.animal).some((q) => q.id === sid), '');
+      T.clearWorm();
+    }
 
     // ── 32. 손 커서 ──
     // 모양이 곧 '여기서 무엇을 할 수 있는지'다. 진짜 마우스 움직임으로 바뀌는지 본다.
@@ -1216,6 +1237,15 @@
       const ASK = window.TP.granny.ASK;
       const meat = ASK.find((q) => /고기/.test(q.q));
       ok('"돼지는 고기가 되나요?"는 선생님과 이야기해 보라고 답한다', !!meat && /선생님/.test(meat.a), meat ? meat.a.slice(0, 30) : '');
+      // 여물통을 뚫고 지나가지 않는다 (아이 편지, 2026-10-03)
+      const tg = T.troughAt();
+      const put = T.pigPut(sowName, tg.x, tg.z - 0.1);
+      ok('돼지가 여물통 한가운데에 있어도 여물통 밖으로 밀려난다 (뚫고 지나가지 않는다)', !!put && Math.abs(put.z - tg.z) > 0.9, JSON.stringify({ trough: tg, pig: put }));
+      // 이름 바꾸기 (아이 편지 2통)
+      ok('돼지 가족 카드에 이름 바꾸기 단추(✏️)가 있다', !!document.querySelector('#pigBox [data-pigname]'), '');
+      const renamed = T.pigRename(sowName, '이름검사돼지');
+      ok('돼지 이름을 바꿀 수 있다', renamed && T.pigs().list.some((q) => q.name === '이름검사돼지'), JSON.stringify(T.pigs().list.map((q) => q.name)));
+      T.pigRename('이름검사돼지', sowName);
       // 끄면 이웃 농장으로 — 다시 켜면 그대로 돌아온다
       const n1 = T.pigs().list.length;
       T.pigEnable(false);
@@ -1266,9 +1296,36 @@
       for (const n of cks) { D.set(n, 'hunger', 80); D.set(n, 'thirst', 80); }
     }
 
-    ok('보온등이 꺼짐→약→중→강→꺼짐 으로 돈다',
-      seq.length === 5 && seq[0] === 0.35 && seq[1] === 0.65 && seq[2] === 1 && seq[3] === 0 && seq[4] === 0.35,
-      seq.join(' → '));
+    // ── 45. 2026-10-03 편지 — 공중부양·보온등 커짐·보온등 칸·더운 병아리 ──
+    {
+      const ck = D.birds().map((b) => b.name).find((n) => T.stateOf(n).stage === 'chick') || D.birds()[0].name;
+      T.holdStill(ck, 3);
+      await wait(400);
+      const v1 = T.jumpBird(ck);
+      let top = 0;
+      await wait(60);
+      for (let i = 0; i < 8; i++) { T.jumpBird(ck); top = Math.max(top, T.birdY(ck) || 0); await wait(40); }
+      const tj = Date.now();
+      while (Date.now() - tj < 2500) { top = Math.max(top, T.birdY(ck) || 0); await wait(30); }
+      ok('공중에서 다시 눌러도 더 높이 뜨지 않는다 (땅에 있을 때만 뛴다)', top < 2.2 && T.birdY(ck) <= 0.05, `첫 점프 속도 ${v1} · 최고 높이 ${top} · 지금 ${T.birdY(ck)}`);
+      D.lamp(0.6);
+      T.lampPop(8);
+      let big = 0; const tl = Date.now();
+      while (Date.now() - tl < 700) { big = Math.max(big, T.lampScale()); await wait(20); }
+      await wait(200);
+      ok('보온등을 연달아 눌러도 커지지 않는다', big <= 1.13 && T.lampScale() === 1, `가장 클 때 ${big} · 끝난 뒤 ${T.lampScale()}`);
+      T.openMenu && T.openMenu();
+      const labels = T.lampLabels();
+      ok('보온등 칸이 온도(℃)로 적혀 있다', labels.length === 6 && labels[0] === '끔' && labels.slice(1).every((l) => /℃$/.test(l)), labels.join(' · '));
+      T.closeMenu && T.closeMenu();
+      D.lamp(1);
+      const cs = T.comfortSpot(ck);
+      ok('더운 병아리가 찾아가는 자리는 등 밑이 아니라 알맞은 온도의 자리다', !!cs && Math.abs(cs.t - cs.need) <= 2 && (cs.need >= 34 || cs.r > 0.5), JSON.stringify(cs));
+      D.lamp(0.6);
+    }
+
+    ok('보온등이 꺼짐→24→27→30→33→36℃→꺼짐 으로 돈다 (3℃ 간격 5칸)',
+      seq.join(',') === '0.2,0.4,0.6,0.8,1,0,0.2', seq.join(' → '));
   } catch (e) {
     ok('검사 도중 오류', false, String(e && e.stack || e));
   }

@@ -158,6 +158,13 @@
     }
     // 젖을 줄 때는 배를 화면 쪽(+z)으로 두고 눕는다 — 새끼들이 어미 등 뒤에 가려지지 않게.
     // 배는 몸의 +x 쪽이므로 머리를 왼쪽(-x)으로 두면 배가 앞을 본다.
+    // 여물통에서 먹는 자리 — 가까운 쪽 긴 변 앞. 여물통은 단단해서 뚫고 지나가지 않는다 (ctx.keepOut).
+    // 예전에는 늘 앞쪽 자리로 가서, 뒤에 있던 돼지가 여물통을 통과해 와서 먹었다 (아이 편지, 2026-10-03).
+    function eatSpot(rt) {
+      const h = ctx.home(), side = rt.z < h.trough.z ? -1 : 1;
+      const off = 0.45 + rt.m.model.height * 0.28 + 0.05;          // 여물통 반폭 + 돼지 몸 반지름
+      return { x: h.trough.x + rand(-0.8, 0.8), z: h.trough.z + side * off, side };
+    }
     function faceBellyToView(rt) { rt.heading = -Math.PI / 2 + 0.62 + rand(-0.15, 0.15); }   // 정면보다 비스듬히 — 옆모습과 젖 먹는 새끼가 함께 보인다
     function toilet() { const h = ctx.home(); return { x: h.wallow.x + (h.flip ? -3.2 : 3.2), z: h.wallow.z + 2.2 }; }
     function decide(rt) {
@@ -184,7 +191,7 @@
       // 어미·어린 돼지
       const kids = pigs.filter((q) => q.d.stage === 'piglet');
       if (d.stage === 'sow' && kids.length && Math.random() < 0.35) { faceBellyToView(rt); setAnim(rt, 'nurse', rand(8, 14)); for (const q of kids) decide(q); return; }
-      if (d.hunger < 60 && p.trough > 5) { goTo(rt, h.trough.x + rand(-0.9, 0.9), h.trough.z + 0.85, 'eat', 'trough'); return; }
+      if (d.hunger < 60 && p.trough > 5) { const e = eatSpot(rt); goTo(rt, e.x, e.z, 'eat', 'trough'); return; }
       // 더운 날은 꼭, 아니어도 진흙이 촉촉하면 가끔 뒹군다 (돼지는 진흙을 좋아한다)
       if (p.wallow > 20 && (d.mud || 0) < 0.5 && (ctx.hot() || (p.wallow > 40 && Math.random() < 0.18))) { goTo(rt, h.wallow.x + rand(-1, 1), h.wallow.z + rand(-0.5, 0.5), 'mud', 'wallow'); return; }
       const r = Math.random();
@@ -199,7 +206,7 @@
       rt.tx = null; rt.tz = null;
       if (a === 'eat') {
         const h = ctx.home(), near = Math.hypot(rt.x - h.trough.x, rt.z - h.trough.z) < 3.2;
-        if (p.trough > 5 && near) { setAnim(rt, 'eat', 4); rt.eating = true; }
+        if (p.trough > 5 && near) { rt.heading = rt.z < h.trough.z ? 0 : Math.PI; setAnim(rt, 'eat', 4); rt.eating = true; }   // 여물통 쪽을 본다
         else { setAnim(rt, 'sniff', 2); showIcon(rt, '❓', 1500); }
       } else if (a === 'mud') { setAnim(rt, 'mud', rand(5, 8)); p.wallow = Math.max(0, p.wallow - 6); world.setWallow(p.wallow); markDirty(); }
       else if (a === 'toilet') { setAnim(rt, 'toilet', 2); ctx.poop(rt.x, rt.z); }
@@ -299,6 +306,7 @@
 
     return {
       load, enable, on, tick, touch, fillTrough, waterWallow, caredToday, summary, decide: () => pigs.forEach(decide),
+      rename: (id, nm) => { const d = P().list.find((q) => q.id === id); if (!d || !nm) return false; d.name = nm; markDirty(); return true; },
       list: () => pigs, wakeAll: () => pigs.forEach(decide),
       _nurse: (dur) => { const s0 = sow(); if (!s0) return false; s0.tx = null; faceBellyToView(s0); setAnim(s0, 'nurse', dur || 20); for (const q of pigs) if (q.d.stage === 'piglet') decide(q); return true; },
       // 검사용

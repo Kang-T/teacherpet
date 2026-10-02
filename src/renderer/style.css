@@ -92,10 +92,12 @@ label { display: inline-flex; align-items: center; gap: 4px; }
 .bar.bed > i { background: #D9B86A; }
 .lampDial { display: flex; gap: 3px; }
 .lampDial button { padding: 3px 9px; font-size: 12px; box-shadow: 1px 1px 0 #2B1B0E; }
+.stat .lampDial button { padding: 3px 6px; }   /* 보온등 다섯 칸(℃) — 한 줄에 들어가게 */
 .supply .stat span { font-size: 12px; color: #7A6A4F; }
 .bar.exp > i { background: #7EC8E3; }
 .stat { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px; }
-.stat b { width: 44px; }
+.stat b { width: 44px; flex-shrink: 0; white-space: nowrap; }
+.pigCard .stat b { width: 62px; }
 .petCard .actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 #adoptButtons { display: flex; gap: 6px; flex-wrap: wrap; }
 
@@ -339,6 +341,7 @@ body.printChal #journalModal { display: none !important; }
 .saveRow .big:hover { background: #FFE9A8; }
 /* 닭 카드 */
 .petCard { position: relative; }
+.pigList .iconBtn { margin: 0 2px 0 3px; }
 .iconBtn { border: 0; background: none; font-size: 13px; cursor: pointer; padding: 0 2px; line-height: 1; opacity: .55; }
 .iconBtn:hover { opacity: 1; }
 .petShot {

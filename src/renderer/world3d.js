@@ -903,7 +903,7 @@
       u.light.intensity = 30 * p;
       u.light.visible = on;
       u.glow.material.opacity = 0.10 + 0.34 * p;
-      u.glow.scale.setScalar(0.8 + 0.5 * p);
+      u.glow.scale.setScalar(1);                 // 불빛 둘레는 그대로, 밝기만 바뀐다 (세기를 올렸다고 등이 커지는 게 아니다)
       u.glow.visible = on;
       u.beam.material.opacity = 0.07 + 0.16 * p;
       u.beam.visible = on;
