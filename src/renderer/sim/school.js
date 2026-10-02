@@ -43,11 +43,12 @@
   function effectiveAwayHours(lastSeenMs, nowMs, st) {
     if (!lastSeenMs || nowMs <= lastSeenMs) return 0;
     let ms = 0;
-    const startDay = new Date(key(new Date(lastSeenMs)));
-    for (let d = new Date(startDay); d.getTime() <= nowMs; d = new Date(d.getTime() + 86400000)) {
-      if (!isSchoolDay(d, st)) continue;
-      const dayStart = Math.max(lastSeenMs, d.getTime());
-      const dayEnd = Math.min(nowMs, d.getTime() + 86400000);
+    // 그 기기의 자정부터 자정까지를 하루로 센다 (U.today 와 같은 기준)
+    const d = new Date(lastSeenMs); d.setHours(0, 0, 0, 0);
+    while (d.getTime() <= nowMs) {
+      const t0 = d.getTime(); d.setDate(d.getDate() + 1); const t1 = d.getTime();
+      if (!isSchoolDay(U.ymd(new Date(t0)), st)) continue;
+      const dayStart = Math.max(lastSeenMs, t0), dayEnd = Math.min(nowMs, t1);
       if (dayEnd > dayStart) ms += dayEnd - dayStart;
     }
     return Math.min(C.RULE.offlineCapHours, ms / 3600000);
@@ -66,7 +67,7 @@
   // 오늘 앱을 켰다고 기록
   function markOpened(st) {
     const t = U.today();
-    st.openedDays = (st.openedDays || []).filter((d) => d >= new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10));
+    st.openedDays = (st.openedDays || []).filter((d) => d >= U.addDays(t, -120));
     if (!st.openedDays.includes(t)) st.openedDays.push(t);
   }
   // 프리즈를 써서 빠진 날을 덮는다

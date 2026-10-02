@@ -50,7 +50,7 @@
     const blob = new Blob([data], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `티처펫_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `티처펫_${window.TP && window.TP.util ? window.TP.util.today() : new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };

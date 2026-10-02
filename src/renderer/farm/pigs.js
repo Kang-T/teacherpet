@@ -134,7 +134,7 @@
           d.stage = 'grower'; d.stageSince = today(); world.setPigStage(rt.m, 'grower'); markDirty();
           toast(`🐷 ${d.name}(이)가 젖을 떼고 어린 돼지가 됐어요. 이제 여물을 먹어요`, true, 7000);
         } else if (d.stage === 'grower' && caredSince(d) >= need('grower')) {
-          p.album.push({ name: d.name, born: new Date(d.born).toISOString().slice(0, 10), left: today() });
+          p.album.push({ name: d.name, born: TP.util.ymd(new Date(d.born)), left: today() });
           p.list = p.list.filter((x) => x.id !== d.id); despawn(rt); markDirty();
           ctx.say(`${d.name}(이)가 다 자랐구나. 우리 마당은 좁아서, 큰 농장으로 이사 간단다.\n거기엔 친구 돼지들이 많아. 잘 키워 줘서 고맙다.`, 'smile');
         }

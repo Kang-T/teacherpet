@@ -37,6 +37,10 @@
     const NAME = bird.name;
     // 앱의 '오늘'(TP.util.today — UTC 날짜)에서 하루 전. 컴퓨터 시계의 날짜로 셈하면 한국 시각 새벽(0~9시)에 어긋난다.
     const U_yesterday = () => window.TP.util.addDays(window.TP.util.today(), -1);
+    {
+      const n = new Date(), loc = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+      ok('하루는 그 기기의 자정에 바뀐다 (세계 표준시가 아니라 이 컴퓨터의 날짜)', window.TP.util.today() === loc, `앱 ${window.TP.util.today()} · 기기 ${loc}`);
+    }
     const yard0 = D.world();
     const props0 = T.props();
 

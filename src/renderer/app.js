@@ -2102,7 +2102,7 @@
     if (safe && reason === 'neglect') return false;
     const rec = {
       id: b.d.id, name: b.d.name, stage: STAGE_KO[b.d.stage], trait: b.d.trait,
-      born: new Date(b.d.born).toISOString().slice(0, 10), left: today(),
+      born: U.ymd(new Date(b.d.born)), left: today(),
       eggs: b.d.eggsLaid || 0, children: b.d.children || 0, reason,
     };
     if (reason === 'neglect') {
