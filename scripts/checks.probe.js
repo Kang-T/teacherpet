@@ -770,11 +770,15 @@
       // 닭은 계속 움직인다 — 고른 자리에 닭이 걸어 들어오면 파기가 아니라 쓰다듬기가 된다.
       // 누르는 바로 그 순간에 빈 땅인지 다시 보고, 아니면 다른 자리로 다시 한다.
       let during = 'open', hitAt = null, holding0 = false, g0 = null;
+      const SPOTS = [[8, -12], [-8, -12], [5, -6], [-5, -6], [6, 2], [-6, 2], [0, 4], [10, -18], [-10, -18]];
       for (let attempt = 0; attempt < 6 && during !== 'hoe'; attempt++) {
         T.clearWorm();
-        for (const [gx, gz] of [[8, -12], [-8, -12], [5, -6], [-5, -6], [6, 2], [-6, 2], [0, 4], [10, -18], [-10, -18]]) {
-          const sp = T.screenOfPoint(gx, 0, gz); const hit = sp && T.pickAt(sp.x, sp.y);
-          if (sp && (!hit || hit.type === 'ground')) { g0 = sp; break; }
+        // 시도마다 다른 자리부터 — 같은 자리에 똥·닭이 있으면 여섯 번 다 같은 데서 막혔다 (CI 2026-10-03)
+        g0 = null;
+        for (let k = 0; k < SPOTS.length; k++) {
+          const [gx, gz] = SPOTS[(k + attempt) % SPOTS.length];
+          const sp = T.screenOfPoint(gx, 0, gz);
+          if (sp && T.digSpotOk(sp.x, sp.y)) { g0 = sp; break; }
         }
         if (!g0) break;
         hitAt = T.pickAt(g0.x, g0.y);
