@@ -4038,11 +4038,11 @@
     pigRename(name, nm) { const q = pigSys.summary().list.find((x) => x.name === name); return q ? pigSys.rename(q.id, nm) : false; },
     soilQuiz(x, z) { return soilQuiz(x, z); },
     // 그 화면 자리를 누르면 땅 파기가 시작되는가 — 마우스 처리(mousedown)와 같은 순서로 본다
-    digSpotOk(px, py) {
-      if (birdAt(px, py)) return false;
-      const pg = world.pick(px, py); if (pg && (pg.type === 'pig' || pg.type === 'deco')) return false;
-      if (poopAt(px, py) || propAt(px, py)) return false;
-      const g = world.screenToGround(px, py); return !!g && inYard(g.x, g.z);
+    digSpotOk(px, py) { return this.digSpotWhy(px, py) === 'ok'; },
+    digSpotWhy(px, py) {
+      const pg = world.pick(px, py); if (pg && pg.type !== 'ground') return pg.type + (pg.name ? ':' + pg.name : '');
+      const g = world.screenToGround(px, py); if (!g) return 'noground';
+      return inYard(g.x, g.z) ? 'ok' : `out(${g.x.toFixed(1)},${g.z.toFixed(1)})`;
     },
     digReset() { state.dig = { day: today(), found: 0, tries: 0, miss: 0 }; markDirty(); return true; },
     pigFeed() { return pigSys.fillTrough(); },

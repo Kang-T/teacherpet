@@ -792,7 +792,8 @@
         mv('mouseup', g0.x, g0.y);
         await wait(100);
       }
-      ok('땅을 꾹 누르면 호미 쥔 손', during === 'hoe' && T.cursor().kind !== 'hoe', `누르는 중 ${during} → 뗀 뒤 ${T.cursor().kind}` + (during === 'hoe' ? '' : ` · 누른 곳 ${hitAt ? hitAt.type : '빈 곳'} · 파기 시작 ${holding0}`));
+      const why = during === 'hoe' ? '' : ' · 자리 ' + SPOTS.map(([gx, gz]) => { const sp = T.screenOfPoint(gx, 0, gz); return `${gx},${gz}=${sp ? T.digSpotWhy(sp.x, sp.y) : 'off'}`; }).join(' ') + ` · 화면 ${JSON.stringify(D.world())} · 시점 ${JSON.stringify(T.view())} · 할머니 ${T.grannyButtons().length}`;
+      ok('땅을 꾹 누르면 호미 쥔 손', during === 'hoe' && T.cursor().kind !== 'hoe', `누르는 중 ${during} → 뗀 뒤 ${T.cursor().kind}` + (during === 'hoe' ? '' : ` · 누른 곳 ${hitAt ? hitAt.type : '빈 곳'} · 파기 시작 ${holding0}`) + why);
       T.clearWorm();
       T.setCursorKind('open');
       T.peckHand();
