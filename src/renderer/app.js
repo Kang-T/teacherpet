@@ -4061,7 +4061,12 @@
     // 그 화면 자리를 누르면 땅 파기가 시작되는가 — 마우스 처리(mousedown)와 같은 순서로 본다
     digSpotOk(px, py) { return this.digSpotWhy(px, py) === 'ok'; },
     digSpotWhy(px, py) {
-      const pg = world.pick(px, py); if (pg && pg.type !== 'ground') return pg.type + (pg.name ? ':' + pg.name : '');
+      const pg = world.pick(px, py);
+      if (pg && pg.type === 'bird') {        // 어느 닭이 화면을 가리는지 (CI 에서만 모든 자리가 '닭'으로 잡혔다 — 원인 확인용)
+        const b = birds.find((q) => q.d.id === pg.id), h = b && b.b3 && b.b3.holder;
+        return b ? `bird:${b.d.name}/${b.d.stage}/${b.anim}@${b.x.toFixed(1)},${(b.y || 0).toFixed(1)},${b.z.toFixed(1)}${h ? ' s' + h.scale.x.toFixed(2) : ''}${b.visitor ? ' 손님' : ''}${b.tucked ? ' 품' : ''}` : 'bird:?' + pg.id;
+      }
+      if (pg && pg.type !== 'ground') return pg.type + (pg.name ? ':' + pg.name : '');
       const g = world.screenToGround(px, py); if (!g) return 'noground';
       return inYard(g.x, g.z) ? 'ok' : `out(${g.x.toFixed(1)},${g.z.toFixed(1)})`;
     },
