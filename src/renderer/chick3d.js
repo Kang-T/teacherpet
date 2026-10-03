@@ -204,8 +204,14 @@
       // 아프면 깃털을 부풀려 몸이 커 보인다
       st.ill = lerp(st.ill || 0, ctl.sick ? 1 : 0, 1 - Math.exp(-dt * 2.5));
       let sy = (1 + br) * (1 + st.ill * 0.05), sx = (1 - br * 0.5) * (1 + st.ill * 0.1);
-      // 착지 찌그러짐 (스프링)
-      st.squashV += (-st.squash * 140 - st.squashV * 14) * dt; st.squash += st.squashV * dt;
+      // 착지 찌그러짐 (스프링) — 1/60초씩 잘게 나눠 계산한다.
+      // 한 번에 dt 만큼 계산하면 화면이 느릴 때(dt 0.1초, 초당 10장 이하) 이 스프링이 출렁일수록 커져서,
+      // 착지한 병아리가 화면을 덮을 만큼 부풀었다 (CI 에서 발견, 2026-10-03 — 느린 크롬북에서도 생길 수 있었다).
+      for (let rem = dt; rem > 1e-6; rem -= 1 / 60) {
+        const h = Math.min(rem, 1 / 60);
+        st.squashV += (-st.squash * 140 - st.squashV * 14) * h; st.squash += st.squashV * h;
+      }
+      st.squash = Math.max(-0.5, Math.min(0.5, st.squash));
       sy *= 1 - st.squash; sx *= 1 + st.squash * 0.7;
       // 앉기(잠·품기): 몸을 찌그러뜨리지 않고 다리를 접어 몸을 내린다
       // 옆으로 눕는 자세(햇볕·모래목욕 4단계)는 몸 전체를 굴린다

@@ -1350,6 +1350,8 @@
       for (let i = 0; i < 8; i++) { T.jumpBird(ck); top = Math.max(top, T.birdY(ck) || 0); await wait(40); }
       const tj = Date.now();
       while (Date.now() - tj < 2500) { top = Math.max(top, T.birdY(ck) || 0); await wait(30); }
+      const big2 = T.slowLand(ck);
+      ok('화면이 느려도(초당 10장) 착지한 병아리가 부풀지 않는다', big2 !== null && big2 < 4, `100번 뒤 몸 크기 ${big2}`);
       ok('공중에서 다시 눌러도 더 높이 뜨지 않는다 (땅에 있을 때만 뛴다)', top < 2.2 && T.birdY(ck) <= 0.05, `첫 점프 속도 ${v1} · 최고 높이 ${top} · 지금 ${T.birdY(ck)}`);
       D.lamp(0.6);
       T.lampPop(8);

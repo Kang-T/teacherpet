@@ -4048,6 +4048,14 @@
     trough() { const h = home(); return { x: h.trough.x, z: h.trough.z }; },
     pigEnable(v) { pigSys.enable(v, true); return pigSys.on(); },
     // 2026-10-03 편지 — 공중부양·보온등·여물통·이름·흙 속 퀴즈
+    // 느린 화면(초당 10장)에서 착지 출렁임이 가라앉는가 — 병아리 모형을 0.1초씩 100번 돌려 몸 크기를 잰다
+    slowLand(name) {
+      const b = birds.find((q) => q.d.name === name); if (!b || !b.b3.model || !b.b3.model.land) return null;
+      const m = b.b3.model; m.land();
+      for (let i = 0; i < 100; i++) m.update(0.1, { anim: 'idle', moving: false, dir: b.dir, heading: b.heading, jumpY: 0, lookTarget: b.look });
+      const sz = new THREE.Box3().setFromObject(m.group).getSize(new THREE.Vector3());
+      return +Math.max(sz.x, sz.y, sz.z).toFixed(2);
+    },
     jumpBird(name) { const b = birds.find((q) => q.d.name === name); if (!b) return null; jump(b); return +b.vy.toFixed(2); },
     birdY(name) { const b = birds.find((q) => q.d.name === name); return b ? +b.y.toFixed(3) : null; },
     lampPop(n) { for (let i = 0; i < (n || 1); i++) lampEffect(state.lampPower || 0.6); },
