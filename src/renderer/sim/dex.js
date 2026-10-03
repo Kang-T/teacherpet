@@ -71,6 +71,8 @@
       why: '기분이 좋고 믿는 사람 앞에서 돼지는 옆으로 벌렁 누워 배를 보여요.' },
     { id: 'pig_zoom', animal: 'pig', icon: '💨', name: '새끼 돼지 뛰어놀기', anims: ['zoom'],
       why: '새끼 돼지는 신이 나면 이리저리 뛰고 폴짝거리며 놀아요. 건강하다는 뜻이에요.' },
+    { id: 'pig_find', animal: 'pig', icon: '🥔', name: '코로 먹이 찾기', anims: ['seek', 'dig'],
+      why: '돼지는 냄새로 흙 속 먹이를 찾아내요. 멈춰서 킁킁 냄새를 맡고, 가까워지면 코로 파요.' },
   ];
   const BY_ANIM = {};
   for (const e of LIST) for (const a of e.anims) BY_ANIM[a] = e;

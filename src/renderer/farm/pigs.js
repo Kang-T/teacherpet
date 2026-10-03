@@ -7,6 +7,8 @@
 //   · 닭은 알, 돼지는 새끼를 낳아 젖을 먹인다 — 과학 [4과04-03] 한살이 유형이 다양하다
 //   · 돼지는 땀을 거의 못 흘려 진흙으로 몸을 식힌다
 //   · 돼지는 똥 누는 곳을 한쪽 구석으로 가린다 — '더럽다'는 오해
+//   · 돼지는 한살이를 되풀이한다 — 새끼들이 다 자라 이사 가면 어미가 또 새끼를 밴다 (2026-10-03)
+//   · 돼지 코는 냄새를 아주 잘 맡는다 — 흙 속에 숨긴 고구마를 코로 찾는다 (하루 한 번, 2026-10-03)
 //
 // 붙잡아 두지 않는다 (로드맵 부록 C)
 //   · 돼지 가족의 하루 돌봄은 여물통 한 번 채우기뿐이다. 새끼는 어미 젖을 먹는다(따로 먹이지 않는다).
@@ -16,7 +18,10 @@
 
   // 돌본 날 — 어미가 여물을 먹은 날. [보통, 수업용 빠르게]
   const DAYS = { pregnant: [5, 2], piglet: [10, 3], grower: [20, 5] };
-  const LITTER = 4;                            // 실제 한 배 8~12마리. 느린 크롬북과 화면을 생각해 넷만 보여 준다
+  const LITTER = 4;                            // 실제 한 배 8~12마리. 느린 크롬북과 화면을 생각해 3~5마리만 보여 준다 (평균 4)
+  const litterSize = () => 3 + Math.floor(Math.random() * 3);
+  const NTH = ['', '첫', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열'];
+  const nth = (n) => (NTH[n] ? NTH[n] + ' 번째' : n + '번째');
   const SPEED = { sow: 1.1, grower: 1.5, piglet: 1.9 };
   const SPOTS = [0xD99A8F, 0xB98A7A, 0xF2D2C0, 0x9C7B6E];
   const NAMES = ['꿀꿀이', '분홍이', '콩떡이', '말랑이', '동글이', '호빵이', '두부', '보리떡', '감자', '고구마', '도토리', '찹쌀이'];
@@ -37,6 +42,8 @@
       if (!Array.isArray(p.list)) p.list = [];
       for (const k of ['trough', 'wallow', 'lastTrough', 'lastWallow']) if (typeof p[k] !== 'number') p[k] = 0;
       if (!Array.isArray(p.album)) p.album = [];
+      // 지금까지 낳은 횟수 — 이 칸이 생기기 전(첫판) 저장은 이미 낳았으면 1
+      if (typeof p.litters !== 'number') p.litters = (p.album.length || p.list.some((d) => d.stage !== 'sow' || !d.pregnant)) ? 1 : 0;
       return p;
     }
     const on = () => !!P().on;
@@ -59,6 +66,7 @@
     // ── 켜기·끄기 ──
     function load() {
       for (const rt of pigs.slice()) despawn(rt);
+      world.setMound(on() && P().hide ? P().hide : null);
       if (!on()) return;
       for (const d of P().list) {
         if (typeof d.x !== 'number' || !isFinite(d.x)) { const h = ctx.home(); d.x = h.trough.x + rand(-2, 2); d.z = h.trough.z + rand(-1, 2); }
@@ -119,14 +127,15 @@
       const s0 = sow();
       if (s0 && s0.d.pregnant && caredSince(s0.d) >= need('pregnant')) {
         s0.d.pregnant = false; s0.d.stageSince = today();
-        const n = LITTER;
+        const n = litterSize();
+        p.litters += 1;
         for (let i = 0; i < n; i++) {
-          const d = newRec('piglet', { x: s0.x + rand(-1, 1), z: s0.z + rand(-0.8, 0.8), mom: s0.d.id });
+          const d = newRec('piglet', { x: s0.x + rand(-1, 1), z: s0.z + rand(-0.8, 0.8), mom: s0.d.id, litter: p.litters });
           p.list.push(d); const rt = spawn(d); rt.anim = 'pile';
         }
         markDirty();
         ctx.note('pigBirth', s0);
-        ctx.later(() => ctx.say(`복순이가 새끼 ${n}마리를 낳았구나!\n닭은 알을 품어 병아리가 깨어나지만, 돼지는 이렇게 새끼로 태어난단다.\n새끼들은 한동안 어미 젖만 먹을 게다. 추위를 많이 타니 보온등 곁에 있게 해 주렴.`, 'proud'), 800);
+        ctx.later(() => ctx.say(`${s0.d.name}(이)가 ${p.litters > 1 ? nth(p.litters) + ' ' : ''}새끼 ${n}마리를 낳았구나!\n닭은 알을 품어 병아리가 깨어나지만, 돼지는 이렇게 새끼로 태어난단다.\n새끼들은 한동안 어미 젖만 먹을 게다. 추위를 많이 타니 보온등 곁에 있게 해 주렴.`, 'proud'), 800);
       }
       for (const rt of pigs.slice()) {
         const d = rt.d;
@@ -138,6 +147,14 @@
           p.list = p.list.filter((x) => x.id !== d.id); despawn(rt); markDirty();
           ctx.say(`${d.name}(이)가 다 자랐구나. 우리 마당은 좁아서, 큰 농장으로 이사 간단다.\n거기엔 친구 돼지들이 많아. 잘 키워 줘서 고맙다.`, 'smile');
         }
+      }
+      // 새끼들이 모두 이사 가면 어미가 또 새끼를 밴다 — 한살이는 되풀이된다.
+      // (실제로는 젖을 떼고 1주쯤 뒤에 다시 배지만, 그러면 마당에 돼지가 아홉까지 늘어 느린 크롬북이 버거워한다)
+      const s1 = sow();
+      if (s1 && !s1.d.pregnant && p.litters >= 1 && !pigs.some((q) => q.d.stage !== 'sow')) {
+        s1.d.pregnant = true; s1.d.stageSince = today(); markDirty();
+        ctx.note('pigAgain', s1);
+        ctx.later(() => ctx.say(`${s1.d.name}(이)가 또 새끼를 뱄구나! 이번이 ${nth(p.litters + 1)} 새끼란다.\n돼지도 닭처럼 한살이를 되풀이하지.\n여물을 잘 챙겨 주면 곧 새끼를 낳을 게다.`, 'smile'), 2500);
       }
       ctx.refresh();
     }
@@ -156,8 +173,6 @@
       const along = (i - (n - 1) / 2) * 0.55;                     // 몸통을 따라 나란히
       return { x: s0.x + bx * 1.45 + fx * along, z: s0.z + bz * 1.45 + fz * along };
     }
-    // 젖을 줄 때는 배를 화면 쪽(+z)으로 두고 눕는다 — 새끼들이 어미 등 뒤에 가려지지 않게.
-    // 배는 몸의 +x 쪽이므로 머리를 왼쪽(-x)으로 두면 배가 앞을 본다.
     // 여물통에서 먹는 자리 — 가까운 쪽 긴 변 앞. 여물통은 단단해서 뚫고 지나가지 않는다 (ctx.keepOut).
     // 예전에는 늘 앞쪽 자리로 가서, 뒤에 있던 돼지가 여물통을 통과해 와서 먹었다 (아이 편지, 2026-10-03).
     function eatSpot(rt) {
@@ -165,6 +180,8 @@
       const off = 0.45 + rt.m.model.height * 0.28 + 0.05;          // 여물통 반폭 + 돼지 몸 반지름
       return { x: h.trough.x + rand(-0.8, 0.8), z: h.trough.z + side * off, side };
     }
+    // 젖을 줄 때는 배를 화면 쪽(+z)으로 두고 눕는다 — 새끼들이 어미 등 뒤에 가려지지 않게.
+    // 배는 몸의 +x 쪽이므로 머리를 왼쪽(-x)으로 두면 배가 앞을 본다.
     function faceBellyToView(rt) { rt.heading = -Math.PI / 2 + 0.62 + rand(-0.15, 0.15); }   // 정면보다 비스듬히 — 옆모습과 젖 먹는 새끼가 함께 보인다
     function toilet() { const h = ctx.home(); return { x: h.wallow.x + (h.flip ? -3.2 : 3.2), z: h.wallow.z + 2.2 }; }
     function decide(rt) {
@@ -190,6 +207,8 @@
       }
       // 어미·어린 돼지
       const kids = pigs.filter((q) => q.d.stage === 'piglet');
+      // 흙 속에 고구마가 있으면 냄새를 따라 찾으러 간다 (돼지는 먹이 찾기를 무엇보다 좋아한다)
+      if (p.hide && now() - p.hide.at > 1500 && rt.anim !== 'nurse') { seek(rt, p.hide); return; }
       if (d.stage === 'sow' && kids.length && Math.random() < 0.35) { faceBellyToView(rt); setAnim(rt, 'nurse', rand(8, 14)); for (const q of kids) decide(q); return; }
       if (d.hunger < 60 && p.trough > 5) { const e = eatSpot(rt); goTo(rt, e.x, e.z, 'eat', 'trough'); return; }
       // 더운 날은 꼭, 아니어도 진흙이 촉촉하면 가끔 뒹군다 (돼지는 진흙을 좋아한다)
@@ -200,6 +219,40 @@
       if (r < 0.5) { setAnim(rt, 'sleep', rand(10, 20)); return; }
       if (r < 0.75) { goTo(rt, h.trough.x + rand(-5, 5), h.trough.z + rand(-3, 4), 'sniff'); return; }
       setAnim(rt, 'idle', rand(2, 5));
+    }
+    // 냄새를 따라 지그재그로 다가간다 — 곧장 가면 '코로 찾는' 모습이 안 보인다. 멀리 숨길수록 오래 걸린다.
+    function seek(rt, hd) {
+      const dx = hd.x - rt.x, dz = hd.z - rt.z, dist = Math.hypot(dx, dz);
+      if (dist < 1.1) { rt.heading = Math.atan2(dx, dz); setAnim(rt, 'dig', 3.2); return; }
+      const ux = dx / dist, uz = dz / dist, step = Math.min(Math.max(0.5, dist - 0.7), rand(1.6, 2.6));
+      const side = rand(-1, 1) * Math.min(1.3, dist * 0.35);
+      goTo(rt, rt.x + ux * step - uz * side, rt.z + uz * step + ux * side, 'seek');
+    }
+    // 하루 한 번 — 흙 속에 고구마를 묻는다. 돌봄 점수·코인과는 상관없는 놀이다.
+    function hideFood(x, z) {
+      const p = P();
+      if (!on()) return false;
+      if (p.hideDay === today()) { toast('🥔 고구마는 하루에 한 번 숨길 수 있어요. 내일 또 해 봐요', false, 5000); return false; }
+      if (!pigs.some((q) => q.d.stage !== 'piglet')) return false;
+      p.hideDay = today(); p.hide = { x, z, at: now() }; markDirty();
+      world.setMound(p.hide); world.puff(x, z, 8, 0.5, 0x8B6B47);
+      toast('🥔 고구마를 흙 속에 묻었어요. 돼지들이 냄새로 찾아낼까요?', false, 5000);
+      for (const rt of pigs) if (rt.d.stage !== 'piglet' && rt.anim !== 'nurse' && !rt.eating) ctx.later(() => { if (rt.anim !== 'nurse' && !rt.eating) decide(rt); }, 1600 + Math.random() * 1500);
+      ctx.refresh();
+      return true;
+    }
+    function found(rt) {
+      const p = P();
+      p.hide = null; p.found = (p.found || 0) + 1; markDirty();
+      world.setMound(null); world.puff(rt.x + Math.sin(rt.heading) * 0.8, rt.z + Math.cos(rt.heading) * 0.8, 10, 0.5, 0x8B6B47);
+      showIcon(rt, '😋', 2200);
+      if (p.found === 1) ctx.note('pigFind', rt);   // 관찰일지에는 처음 한 번만
+      if (!p.toldFind) {
+        p.toldFind = now();
+        ctx.later(() => ctx.say(`${rt.d.name}(이)가 찾아냈구나!\n돼지 코는 냄새를 아주 잘 맡는단다. 땅속 버섯(송로버섯)을 찾아내는 돼지도 있지.\n돼지는 심심하면 힘들어해서, 이렇게 찾는 놀이도 돼지를 돌보는 일이란다.`, 'proud'), 1200);
+      } else toast(`🥔 ${rt.d.name}(이)가 코로 고구마를 찾아냈어요!`, false, 5000);
+      for (const q of pigs) if (q !== rt && (q.arrive === 'seek' || q.anim === 'seek')) decide(q);
+      ctx.refresh();
     }
     function arrived(rt) {
       const p = P(), a = rt.arrive || 'idle';
@@ -213,6 +266,7 @@
       else if (a === 'root') { setAnim(rt, 'root', rand(3, 5)); }
       else if (a === 'suckle') { const s0 = sow(); if (s0 && s0.anim === 'nurse') { rt.heading = Math.atan2(s0.x - rt.x, s0.z - rt.z); setAnim(rt, 'suckle', Math.max(1.5, s0.animDur - s0.animT)); } else decide(rt); }
       else if (a === 'pile') { setAnim(rt, 'pile', rand(12, 25)); }
+      else if (a === 'seek') { const hd = P().hide; if (hd) { rt.heading = Math.atan2(hd.x - rt.x, hd.z - rt.z); setAnim(rt, 'seek', rand(0.9, 1.7)); } else decide(rt); }   // 멈춰서 킁킁
       else setAnim(rt, a, rand(2, 4));
     }
     function finished(rt) {
@@ -222,6 +276,7 @@
         rt.d.hunger = 100; showIcon(rt, '😋', 1500); markAte(rt);
       }
       if (rt.anim === 'mud') { rt.d.mud = 1; showIcon(rt, '😌', 1500); markDirty(); }
+      if (rt.anim === 'dig') { const hd = P().hide; if (hd && Math.hypot(hd.x - rt.x, hd.z - rt.z) < 1.8) found(rt); }
       decide(rt);
     }
     function showIcon(rt, icon, ms) { rt.icon = icon; rt.iconUntil = now() + (ms || 2000); }
@@ -265,7 +320,7 @@
           rt.heading = rt.zoomDir; moving = true;
           if (rt.y === 0 && Math.random() < dt * 2.5) rt.vy = 2.6;
         }
-        if (rt.anim === 'root' && Math.random() < dt * 2) world.puff(rt.x + Math.sin(rt.heading) * 0.7, rt.z + Math.cos(rt.heading) * 0.7, 2, 0.25, 0x8B6B47);
+        if ((rt.anim === 'root' || rt.anim === 'dig') && Math.random() < dt * (rt.anim === 'dig' ? 4 : 2)) world.puff(rt.x + Math.sin(rt.heading) * 0.7, rt.z + Math.cos(rt.heading) * 0.7, 2, 0.25, 0x8B6B47);
         // 뛰기
         if (rt.y > 0 || rt.vy > 0) { rt.vy -= 14 * dt; rt.y = Math.max(0, rt.y + rt.vy * dt); if (rt.y === 0) rt.vy = 0; }
         ctx.keepOut(rt, rt.m.model.height * 0.28);
@@ -275,7 +330,7 @@
         // 그리기
         rt.m.holder.position.set(rt.x, 0, rt.z);
         rt.m.holder.rotation.y = rt.heading;
-        rt.m.model.update(dt, { anim: rt.anim === 'pile' ? 'sleep' : rt.anim === 'toilet' ? 'idle' : rt.anim, moving, speed: rt.anim === 'zoom' ? 1.8 : 1, mud: d.mud, jumpY: rt.y });
+        rt.m.model.update(dt, { anim: ({ pile: 'sleep', toilet: 'idle', seek: 'sniff', dig: 'root' })[rt.anim] || rt.anim, moving, speed: rt.anim === 'zoom' ? 1.8 : 1, mud: d.mud, jumpY: rt.y });
         const top = world.project(rt.x, rt.m.model.height + 0.3 + rt.y, rt.z);
         const showI = rt.icon && now() < rt.iconUntil;
         if (showI) { if (!rt.iconEl) { rt.iconEl = document.createElement('div'); rt.iconEl.className = 'icon'; ctx.overlay.appendChild(rt.iconEl); } rt.iconEl.textContent = rt.icon; rt.iconEl.style.left = top.x + 'px'; rt.iconEl.style.top = top.y + 'px'; rt.iconEl.style.display = ''; }
@@ -301,15 +356,20 @@
           return { id: d.id, name: d.name, stage: d.stage, ko: KO[d.stage], pregnant: !!d.pregnant, left, caredToday: caredOn(d), anim: rt.anim };
         }),
         album: p.album.length,
+        litters: p.litters,
+        hideToday: p.hideDay === today(), hiding: !!p.hide,
+        canHide: on() && p.hideDay !== today() && pigs.some((q) => q.d.stage !== 'piglet'),
       };
     }
 
     return {
-      load, enable, on, tick, touch, fillTrough, waterWallow, caredToday, summary, decide: () => pigs.forEach(decide),
+      load, enable, on, tick, touch, fillTrough, waterWallow, caredToday, summary, hideFood, decide: () => pigs.forEach(decide),
       rename: (id, nm) => { const d = P().list.find((q) => q.id === id); if (!d || !nm) return false; d.name = nm; markDirty(); return true; },
       list: () => pigs, wakeAll: () => pigs.forEach(decide),
       _nurse: (dur) => { const s0 = sow(); if (!s0) return false; s0.tx = null; faceBellyToView(s0); setAnim(s0, 'nurse', dur || 20); for (const q of pigs) if (q.d.stage === 'piglet') decide(q); return true; },
       // 검사용
+      _hide: () => { const p = P(); return { hide: p.hide ? { x: +p.hide.x.toFixed(2), z: +p.hide.z.toFixed(2) } : null, day: p.hideDay || null, found: p.found || 0 }; },
+      _hideReset: () => { const p = P(); p.hideDay = null; p.hide = null; world.setMound(null); markDirty(); },
       _grow: grow, _rt: (name) => pigs.find((q) => q.d.name === name), _feedAll: () => { for (const rt of pigs) markAte(rt); },
       _forceDays: (n) => { for (const rt of pigs) { for (let i = 1; i <= n; i++) { const day = ctx.addDays(today(), -i); rt.d.care[day] = { ate: true }; } rt.d.stageSince = ctx.addDays(today(), -n - 1); } grow(); },
     };

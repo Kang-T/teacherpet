@@ -714,10 +714,10 @@
 
     // ── 31b. 흙 속 퀴즈 — 땅 파기에서 두 번 허탕이면, 맞히면 그 자리에 지렁이 (아이 편지, 2026-10-03) ──
     {
-      T.grannyClose && T.grannyClose();
       T.clearWorm(); T.digReset();
-      await wait(200);
-      const sid = T.soilQuiz(4, -6);
+      // 다른 할머니 말(새 소식·모래 목욕 안내 등)이 떠 있으면 퀴즈를 내지 않는다(정상) — 닫고 다시 해 본다
+      let sid = null;
+      for (let i = 0; i < 8 && !sid; i++) { T.grannyClose(); await wait(300); sid = T.soilQuiz(4, -6); }
       for (let i = 0; i < 100 && T.grannyButtons().length < 5; i++) await wait(150);
       const item = window.TP.quiz.get(sid);
       ok('흙 속 퀴즈는 지렁이·흙 문제를 보기 4개와 "그냥 팔래요"로 묻는다', !!item && item.animal === 'soil' && T.grannyButtons().length === 5, `문제 ${sid} · 단추 ${T.grannyButtons().join('/')}`);
@@ -1255,6 +1255,40 @@
       const renamed = T.pigRename(sowName, '이름검사돼지');
       ok('돼지 이름을 바꿀 수 있다', renamed && T.pigs().list.some((q) => q.name === '이름검사돼지'), JSON.stringify(T.pigs().list.map((q) => q.name)));
       T.pigRename('이름검사돼지', sowName);
+      // 고구마 숨기기 — 하루 한 번, 돼지가 냄새로 찾아낸다 (2026-10-03)
+      {
+        T.pigHideReset(); T.grannyClose();
+        T.openMenu('coop'); await wait(300);
+        const hb = document.querySelector('#pigBox [data-pig="hide"]');
+        ok('돼지 카드에 고구마 숨기기 단추가 있다', !!hb && !hb.disabled, hb ? hb.textContent : '없음');
+        T.closeMenu();
+        const w = D.world(), sp0 = T.pigState(sowName);
+        const hx = Math.min(w.xMax - 3, Math.max(w.xMin + 3, sp0.x + (sp0.x < (w.xMin + w.xMax) / 2 ? 5 : -5)));
+        const hz = Math.min(w.zMax - 2, Math.max(w.zMin + 2, sp0.z + 1.5));
+        T.pigHidePick();
+        const scr = T.screenOfPoint(hx, 0, hz);
+        const tapped = !!scr && T.pigHideTap(scr.x, scr.y);
+        ok('단추를 누르고 마당을 누르면 그 자리에 고구마를 묻는다', tapped && !!T.pigHideState().hide, JSON.stringify(T.pigHideState()));
+        let gotIt = false; const th = Date.now();
+        while (Date.now() - th < 90000 * SLOW) { if (!T.pigHideState().hide) { gotIt = true; break; } await wait(500); }
+        okMotion('돼지가 냄새로 찾아가 코로 파낸다', gotIt && T.pigHideState().found === 1, JSON.stringify(T.pigHideState()) + ' · ' + JSON.stringify(T.pigState(sowName)));
+        ok('고구마는 하루에 한 번만 숨길 수 있다', T.pigHide(hx, hz) === false, '');
+        ok('도감에 "코로 먹이 찾기" 칸이 있다', window.TP.dex.LIST.some((e) => e.id === 'pig_find'), '');
+        T.grannyClose();
+      }
+      // 두 번째 새끼 — 새끼들이 다 자라 이사 가면 어미가 또 새끼를 밴다 (2026-10-03)
+      {
+        T.pigDays(40); await wait(200);
+        T.pigDays(40); await wait(200);
+        const after = T.pigs();
+        ok('새끼들이 다 자라 이사 가면 어미가 또 새끼를 밴다', after.list.length === 1 && after.list[0].pregnant && after.litters === 1 && after.album >= 3, JSON.stringify({ list: after.list.map((q) => q.stage + (q.pregnant ? '(밴)' : '')), litters: after.litters, album: after.album }));
+        T.pigDays(6); await wait(200);
+        const again = T.pigs(), kids2 = again.list.filter((q) => q.stage === 'piglet').length;
+        ok('두 번째에도 새끼를 낳고(3~5마리), 몇 번째인지 센다', kids2 >= 3 && kids2 <= 5 && again.litters === 2, `새끼 ${kids2}마리 · ${again.litters}번째`);
+        const askQ = window.TP.granny.ASK.find((q) => /또 새끼/.test(q.q));
+        ok('"어떻게 또 새끼를 배요?"에 짧게 답하고 선생님께 넘긴다', !!askQ && /아빠 돼지/.test(askQ.a) && /선생님/.test(askQ.a), askQ ? askQ.a.slice(0, 30) : '');
+        T.grannyClose();
+      }
       // 끄면 이웃 농장으로 — 다시 켜면 그대로 돌아온다
       const n1 = T.pigs().list.length;
       T.pigEnable(false);

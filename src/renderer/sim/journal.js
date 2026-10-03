@@ -22,6 +22,8 @@
     back:      { icon: '🏡', title: '돌아옴',     line: (n) => `${n}(이)가 돌아왔어요.` },
     pigArrive: { icon: '🐷', title: '돼지 식구',   line: (n) => `이웃 농장에서 어미 돼지 ${n}(이)가 왔어요. 곧 새끼를 낳는대요.` },
     pigBirth:  { icon: '🐖', title: '새끼 돼지',   line: (n) => `${n}(이)가 새끼를 낳았어요. 돼지는 알이 아니라 새끼를 낳아 젖을 먹여요.` },
+    pigAgain:  { icon: '🐖', title: '또 새끼를 뱀', line: (n) => `새끼들이 다 자라 이사 가자 ${n}(이)가 또 새끼를 뱄어요. 한살이는 되풀이돼요.` },
+    pigFind:   { icon: '🥔', title: '코로 찾기',   line: (n) => `${n}(이)가 흙 속에 숨긴 고구마를 코로 찾아냈어요. 돼지는 냄새를 아주 잘 맡아요.` },
   };
 
   function record(state, kind, bird, photo) {

@@ -2491,6 +2491,7 @@
         // 빈 땅을 끌면 화면이 따라온다 — 확대했을 때만. 다 보이는 상태에서 밀면 오히려 헷갈린다.
         // 누르기만 하고 놓으면 예전처럼 메뉴가 닫힌다 (mouseup 에서 moved 를 본다).
         const gp = world.view.zoom > 1.05 ? world.screenToGround(e.clientX, e.clientY) : null;
+        if (tryHideAt(e.clientX, e.clientY)) return;          // 고구마를 묻는 중이면 파지 않고 묻는다
         startDig(e.clientX, e.clientY);          // 꾹 누르고 있으면 판다 — 움직이면 취소되고 화면 옮기기가 된다
         if (gp) { drag = { pan: true, sx: e.clientX, sy: e.clientY, gx: gp.x, gz: gp.z, moved: false }; setCur('grab'); }
         else closePanel();
@@ -3340,14 +3341,34 @@
     box.innerHTML = `<div class="petCard pigCard"><div class="head"><span class="name">🐷 돼지 가족</span><span class="stage">${sm.list.every((q) => q.caredToday) ? '✅ 오늘 여물 먹음' : '여물을 기다려요'}</span></div>
       <div class="stat"><b>🐖 여물통</b><span class="say">${lv(sm.trough)} (${sm.trough}%)</span><button class="small primary" data-pig="trough">채우기</button></div>
       <div class="stat"><b>🟤 진흙탕</b><span class="say">${sm.wallow > 60 ? '촉촉해요' : sm.wallow > 20 ? '말라 가요' : '말랐어요'}</span><button class="small" data-pig="wallow">물 붓기</button></div>
+      <div class="stat"><b>🥔 놀이</b><span class="say">${sm.hiding ? '돼지들이 냄새로 찾는 중…' : sm.hideToday ? '오늘은 숨겼어요 (내일 또)' : '흙 속에 고구마를 숨겨 보세요'}</span><button class="small" data-pig="hide" ${sm.canHide ? '' : 'disabled'}>숨기기</button></div>
       <div class="pigList">${sm.list.map((q) => `<div>${q.stage === 'sow' ? '🐖' : '🐷'} <b>${esc(q.name)}</b><button class="iconBtn" data-pigname="${esc(q.id)}" title="이름 바꾸기">✏️</button> · ${q.ko}${q.pregnant ? ` · 새끼까지 ${q.left}번 더 돌보면` : q.left !== null ? ` · 자라기까지 ${q.left}번 더` : ''}</div>`).join('')}</div>
-      <div class="hint">닭은 알을 낳지만 돼지는 새끼를 낳아 젖을 먹여요. 새끼는 어미 젖을 먹으니 여물통만 하루 한 번 채워 주세요.${sm.album ? ` · 큰 농장으로 이사 간 돼지 ${sm.album}마리` : ''}</div></div>`;
-    box.querySelectorAll('[data-pig]').forEach((el) => el.addEventListener('click', () => { if (el.dataset.pig === 'trough') pigSys.fillTrough(); else pigSys.waterWallow(); }));
+      <div class="hint">닭은 알을 낳지만 돼지는 새끼를 낳아 젖을 먹여요. 새끼는 어미 젖을 먹으니 여물통만 하루 한 번 채워 주세요.${sm.litters > 1 ? ` · 지금까지 새끼를 ${sm.litters}번 낳았어요` : ''}${sm.album ? ` · 큰 농장으로 이사 간 돼지 ${sm.album}마리` : ''}</div></div>`;
+    box.querySelectorAll('[data-pig]').forEach((el) => el.addEventListener('click', () => {
+      if (el.dataset.pig === 'trough') pigSys.fillTrough();
+      else if (el.dataset.pig === 'hide') startHidePick();
+      else pigSys.waterWallow();
+    }));
     // 돼지 이름 바꾸기 — 닭과 같은 규칙 (아이들 편지 2통, 2026-10-03)
     box.querySelectorAll('[data-pigname]').forEach((el) => el.addEventListener('click', () => {
       const q = pigSys.summary().list.find((x) => x.id === el.dataset.pigname); if (!q) return;
       askText('돼지의 새 이름을 정해 주세요\n(사람 이름은 피해 주세요)', q.name).then((nm) => { if (nm && nm.trim() && pigSys.rename(q.id, nm.trim().slice(0, 12))) renderCoop(); });
     }));
+  }
+  // 고구마 숨기기 — 단추를 누른 뒤 마당 빈 땅을 한 번 누르면 거기에 묻는다 (20초 안에 안 누르면 그만둔다)
+  let hidePick = 0;
+  function startHidePick() {
+    closePanel();
+    hidePick = now() + 20000;
+    toast('🥔 마당의 빈 땅을 누르면 거기에 고구마를 묻어요 (돼지에게서 멀수록 찾기 어려워요)', true, 6000);
+  }
+  function tryHideAt(px, py) {
+    if (!hidePick || now() > hidePick) { hidePick = 0; return false; }
+    const g = world.screenToGround(px, py);
+    if (!g || !inYard(g.x, g.z)) return false;
+    hidePick = 0;
+    pigSys.hideFood(g.x, g.z);
+    return true;
   }
   // 오늘 할 일을 다 했다 — 멈출 자리를 알려 준다 (멈출 곳이 없으면 아이들은 계속 무언가를 찾는다)
   function dayDone(pay) {
@@ -4044,6 +4065,11 @@
       const g = world.screenToGround(px, py); if (!g) return 'noground';
       return inYard(g.x, g.z) ? 'ok' : `out(${g.x.toFixed(1)},${g.z.toFixed(1)})`;
     },
+    pigHide(x, z) { return pigSys.hideFood(x, z); },
+    pigHideState() { return pigSys._hide(); },
+    pigHideReset() { pigSys._hideReset(); return true; },
+    pigHidePick() { startHidePick(); return !!hidePick; },
+    pigHideTap(px, py) { return tryHideAt(px, py); },
     digReset() { state.dig = { day: today(), found: 0, tries: 0, miss: 0 }; markDirty(); return true; },
     pigFeed() { return pigSys.fillTrough(); },
     pigWallow() { return pigSys.waterWallow(); },

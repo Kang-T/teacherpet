@@ -863,8 +863,29 @@
     let lastRender = performance.now();
     function render() { const t = performance.now(); const d = Math.min(0.1, (t - lastRender) / 1000); tickPuffs(d); tickSparks(d); scenery.tick(d); lastRender = t; tickShells(); renderer.render(scene, camera); if (pendingShot) takeShot(); }
 
+    // 고구마를 묻은 흙더미 — 돼지 먹이 숨기기 놀이 (2026-10-03). 하나만 있으면 된다(하루 한 번).
+    let mound = null;
+    function setMound(p) {
+      if (!p) { if (mound) mound.visible = false; return; }
+      if (!mound) {
+        mound = new THREE.Group();
+        const soilM = new THREE.MeshStandardMaterial({ color: 0xA9875E, roughness: 1 });   // 갓 뒤집은 흙 — 똥보다 밝게
+        const heap = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 10), soilM);
+        heap.scale.set(1.15, 0.36, 0.95); heap.position.y = 0.02; heap.receiveShadow = true; mound.add(heap);
+        for (let i = 0; i < 5; i++) {
+          const c = new THREE.Mesh(new THREE.SphereGeometry(0.07 + Math.random() * 0.05, 8, 6), soilM);
+          const a = i / 5 * Math.PI * 2; c.position.set(Math.cos(a) * 0.5, 0.03, Math.sin(a) * 0.42); mound.add(c);
+        }
+        // 고구마 끝이 살짝 보인다 — 흙더미만 있으면 똥과 헷갈린다
+        const tip = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), new THREE.MeshStandardMaterial({ color: 0xA2456A, roughness: 0.7 }));
+        tip.scale.set(1.5, 0.75, 0.8); tip.position.set(0.12, 0.13, 0.08); tip.rotation.z = 0.35; mound.add(tip);
+        scene.add(mound);
+      }
+      mound.position.set(p.x, 0, p.z); mound.visible = true;
+    }
+
     world.decoKinds = Object.keys(decoMakers);
-    Object.assign(world, { addPig, setPigStage, removePig, setTrough, setWallow });
+    Object.assign(world, { addPig, setPigStage, removePig, setTrough, setWallow, setMound });
     Object.assign(world, { makeWorm, setWormCount, addShells, puff, sparkle, makePoop, addPickable, removePickable, fit, screenToGround, screenToPlaneZ, project, pointAlongRay, addBird, setStage, removeBird, heightOf, setProps, setSupplies, pick, render });
     // 관찰일지용 사진 — 화면에서 한 곳을 잘라 작은 JPEG 로 돌려준다.
     // WebGL 캔버스는 '그린 직후'에만 읽을 수 있다(preserveDrawingBuffer 가 꺼져 있어서).
