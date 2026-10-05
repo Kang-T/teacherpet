@@ -22,11 +22,15 @@
     "check": "node scripts/check.js",
     "check:update": "node scripts/check-update.js",
     "shot": "node scripts/check.js",
-    "quiz-doc": "node scripts/quiz-doc.js"
+    "quiz-doc": "node scripts/quiz-doc.js",
+    "lint": "oxlint src scripts",
+    "verify:quick": "npm run lint && npm run web",
+    "verify:push": "npm run verify:quick && npm run check && npm run check:update"
   },
   "devDependencies": {
     "electron": "^33.2.1",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "oxlint": "1.86.0"
   },
   "build": {
     "appId": "kr.teacherpet.app",
