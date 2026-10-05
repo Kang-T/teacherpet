@@ -4,9 +4,9 @@
 (() => {
   const api = window.teacherpet;
   const THREE = window.THREE;
-  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, school: SCH, granny: GR, journal: JR, farmcode: FC, qr: QR, weather: WX, shop: SHOP, bus } = window.TP;
+  const { util: U, config: C, state: ST, mind: MIND, actions: ACT, entities: ENT, hygiene: HYG, health: HLT, school: SCH, granny: GR, journal: JR, farmcode: FC, qr: QR, weather: WX, shop: SHOP } = window.TP;
   const { $, $$, now, today, rand, pick, clamp, uid, esc } = U;
-  const { RULE, PX_PER_UNIT, STAGE_KO, STAGE_ORDER, SPEED, NAMES, PROP_NAMES, PROP_KO } = C;
+  const { RULE, STAGE_KO, STAGE_ORDER, SPEED, NAMES, PROP_NAMES, PROP_KO } = C;
   const { trait, moodOf, rank, TRAIT_DESC } = MIND;
 
   // ---- 상태 ----
@@ -95,7 +95,6 @@
   const canvas = world.renderer.domElement;
   let W = innerWidth, H = innerHeight;
   const XMARGIN = 1.2; // 화면 가장자리 여유(유닛)
-  const BASE_PX = 33;  // 기준 배율. 확대/축소는 마우스 휠, 시점은 우클릭 드래그.
   function resize() {
     if (innerWidth < 2 || innerHeight < 2) return;   // 숨겨진 탭·회전 중에는 건드리지 않는다
     W = innerWidth; H = innerHeight;
@@ -500,14 +499,6 @@
     const ws = warmSpot();
     return HLT.comfort(b.d, daysCared(b), b.x, b.z, ws, ws ? (state.lampPower ?? 0.6) : 0);
   }
-  // 지금 이 농장이 몇 도인가. 아이가 숫자로 확인할 수 있어야 '온도를 맞춘다'가 성립한다.
-  function tempLine() {
-    const room = Math.round(HLT.roomC());
-    const ws = warmSpot();
-    if (!ws || !(state.lampPower > 0.02)) return `마당 ${room}℃`;
-    const under = Math.round(HLT.tempAt(ws.x, ws.z, ws, state.lampPower));
-    return `마당 ${room}℃ · 등 아래 ${under}℃`;
-  }
   // 배지의 온도 — 병아리가 있으면 '지금 몇 도인지'와 '몇 도가 필요한지'를 같이 보여 준다.
   // 그게 이 놀이에서 아이가 배워야 할 단 하나의 숫자다.
   function refreshTemp() {
@@ -816,11 +807,6 @@
     const g = world.screenToGround(px, py);
     if (!g) return null;
     return { x: clamp(g.x, world.xMin + 0.8, world.xMax - 0.8), z: clampZ(g.z) };
-  }
-  // 벌레통을 눌러 벌레를 꺼내고, 그대로 끌어다 놓을 수 있게 한다
-  function spawnWormAt(px, py) {
-    // 뗄 때 꺼내는 것이므로 바로 놓아 준다. 들고 있는 상태로 두면 공중에 떠 버린다.
-    if (spawnWorm(px, py) && worm) { worm.held = false; worm.y = 0.9; worm.vy = 0; }
   }
   function spawnWorm(px, py) {
     if (state.worms <= 0) { toast(digToday().found < DIG_MAX ? '🪱 벌레통이 비었어요. 마당 빈 땅을 꾹 누르고 있으면 흙 속 지렁이를 찾을 수 있어요' : '🪱 벌레통이 비었어요. 내일 아침에 3마리가 또 와요', false, 6000); return false; }
@@ -2047,7 +2033,7 @@
     setAnim(k, 'idle', rand(0.6, 1.2));
   }
   // 품기는 오래 가지 않는다. 어미가 일어나면 새끼들도 나온다.
-  function tickHover(dt) {
+  function tickHover() {
     for (const b of birds) {
       if (b.hovering) {
         // 들어 올리거나 다치면 품기를 그만둔다
@@ -2207,14 +2193,13 @@
   const overlay = $('#bubbles');
   let mouse = { x: -1, y: -1, movedAt: 0 };
   // 커서가 실제로 가리키는 지점(바닥 위 살짝 띄운 곳). 닭들은 이 점을 본다.
-  let cursorSpot = null, cursorStill = 0, cursorSpeed = 0, lastCursor = { x: 0, y: 0, t: 0 };
+  let cursorSpot = null, cursorStill = 0, lastCursor = { x: 0, y: 0, t: 0 };
   function updateCursorSpot(dt) {
-    if (mouse.x < 0 || !visible || now() - mouse.movedAt > 45000) { cursorSpot = null; cursorStill = 0; cursorSpeed = 0; return; }
+    if (mouse.x < 0 || !visible || now() - mouse.movedAt > 45000) { cursorSpot = null; cursorStill = 0; return; }
     const gp = world.screenToGround(mouse.x, mouse.y);
     cursorSpot = gp ? { x: gp.x, y: 0.3, z: clampZ(gp.z) } : null;
     // 커서가 얼마나 가만히 있는가 — 멈춰 있어야 닭이 다가와 쫀다
     const moved = Math.hypot(mouse.x - lastCursor.x, mouse.y - lastCursor.y);
-    cursorSpeed = moved / Math.max(dt, 0.001);
     lastCursor = { x: mouse.x, y: mouse.y };
     cursorStill = moved < 6 ? Math.min(8, cursorStill + dt) : 0;
     if (cursorSpot && cursorStill > 0.4) {
@@ -2338,7 +2323,7 @@
     return PROP_KO[name] || name;
   }
   function propClick(name) {
-    const hm = home();
+    home();
     if (name === 'trough') { pigSys.fillTrough(); return; }
     if (name === 'wallow') { pigSys.waterWallow(); return; }
     if (name === 'feeder' || name === 'feeder2') { fillFeeder(name); }
@@ -2503,7 +2488,7 @@
     drag = { b, offX: p ? p.x - b.x : 0, offZ: g0 ? g0.z - b.z : 0, sx: e.clientX, sy: e.clientY, moved: false };
     setCur('grab');
   });
-  addEventListener('mouseup', (e) => {
+  addEventListener('mouseup', () => {
     if (!drag) return;
     if (drag.sweeping) { drag = null; setCur('open'); return; }
     if (drag.pig) { if (!drag.moved) pigSys.touch(drag.pig); drag = null; setCur('pet'); return; }
@@ -2922,7 +2907,7 @@
   const panel = $('#panel');
   function openPanel(tab) { panel.classList.remove('hidden'); document.body.classList.add('menuOpen'); if (tab) showTab(tab); renderCoop(); renderSettings(); }
   function closePanel() { panel.classList.add('hidden'); document.body.classList.remove('menuOpen'); }
-  function togglePanel() { panel.classList.contains('hidden') ? openPanel() : closePanel(); }
+  function togglePanel() { if (panel.classList.contains('hidden')) openPanel(); else closePanel(); }
   function showTab(name) { $$('.tabs button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name)); $$('section.tab').forEach((s) => s.classList.toggle('active', s.dataset.tab === name)); }
   $$('.tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
   $('#closePanel').addEventListener('click', closePanel);
@@ -3721,7 +3706,7 @@
   // 받은 코드를 읽는다 — 긴 농장 코드면 놀러 오기/옮겨 오기를 묻고, 짧은 놀러 가기 코드면 바로 놀러 온다
   function takeCode(inp) {
     const t = String(inp || '').trim();
-    if (/^농장-/.test(t)) { const r = FC.read(t); if (r.error) { toast(r.error, false, 7000); return 'error'; } receiveCode(r); return 'farm'; }
+    if (t.startsWith('농장-')) { const r = FC.read(t); if (r.error) { toast(r.error, false, 7000); return 'error'; } receiveCode(r); return 'farm'; }
     const v = FC.readShort(t);
     if (!v) { toast('코드가 조금 다른 것 같아요. 한 글자씩 다시 확인해 볼까요? (예: 초코-3F7K)', false, 7000); return 'error'; }
     const n = inviteVisitors([v]);
@@ -3736,10 +3721,6 @@
   }
   $('#btnCodeUse').addEventListener('click', codeIn);
   $('#btnCodeIn').addEventListener('click', () => { closePanel(); codeIn(); });
-  function welcomeArrivals(r) {
-    grannySay(`${r.birds.length}마리가 도착했구나. ${r.birds.map((b) => b.name).join(', ')}.`,
-      [{ label: '반가워요', primary: true, fn: grannyHide }], 'smile');
-  }
   $('#btnMore').addEventListener('click', () => {
     const hidden = $('#moreBox').classList.toggle('hidden');
     $('#btnMore').textContent = hidden ? '⋯ 더 보기' : '⋯ 접기';
@@ -4036,7 +4017,7 @@
     idleFor(minAgo) { lastInput = now() - minAgo * 60000; tickRest(); return { resting: resting(), sleeping: sleepingNow }; },
     poke() { activity(); return { resting: resting(), sleeping: sleepingNow }; },
     restState(name) { const b = birds.find((q) => q.d.name === name); return { resting: resting(), sleeping: sleepingNow, anim: b ? b.anim : null, inCoop: b ? !!b.inCoop : null, zzz: coopZzz.style.display !== 'none', icon: b && now() < b.iconUntil ? b.icon : null }; },
-    allowanceNow() { payAllowanceRef && payAllowanceRef(); return state.coins; },
+    allowanceNow() { if (payAllowanceRef) payAllowanceRef(); return state.coins; },
     setAllowanceDay(d) { state.allowance.day = d; state.allowance.streak = 2; return d; },
     seasonLabelOf(kind, id) { const it = SHOP.get(kind, id); return it ? seasonLabel(it) : null; },
     farSupplies() { return farSupplies().map((f) => f.key); },

@@ -38,7 +38,7 @@
     workArea: async () => ({ x: 0, y: 0, width: innerWidth, height: innerHeight }),
     info: async () => ({ version: window.__TP_VERSION || '웹', platform: 'web', openAtLogin: false }),
     quit: () => { document.body.classList.add('tp-hidden'); emit('pet:toggle-visible'); },
-    openExternal: (url) => { if (/^https:\/\//.test(url)) window.open(url, '_blank', 'noopener'); },
+    openExternal: (url) => { if (String(url).startsWith('https://')) window.open(url, '_blank', 'noopener'); },
     setAutostart: () => {},
     on: (ch, fn) => { (listeners[ch] = listeners[ch] || []).push(fn); },
   };

@@ -16,7 +16,7 @@
     remove(id) {
       const e = typeof id === 'string' ? items.get(id) : id;
       if (!e) return false;
-      try { e.dispose && e.dispose(); } catch (err) { console.error('dispose', err); }
+      try { if (e.dispose) e.dispose(); } catch (err) { console.error('dispose', err); }
       items.delete(e.id);
       TP.bus.emit('entity:remove', e);
       return true;

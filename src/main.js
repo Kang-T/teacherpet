@@ -162,7 +162,7 @@ ipcMain.handle('state:save', (_e, s) => saveState(s));
 ipcMain.handle('work-area', () => workArea());
 ipcMain.on('app:quit', () => app.quit());
 ipcMain.on('app:open-external', (_e, url) => {
-  if (typeof url === 'string' && /^https:\/\//.test(url)) shell.openExternal(url);
+  if (typeof url === 'string' && url.startsWith('https://')) shell.openExternal(url);
 });
 ipcMain.handle('app:info', () => ({
   version: app.getVersion(),

@@ -17,7 +17,7 @@
   function genPoly(n) {                    // (x+a^0)(x+a^1)...(x+a^(n-1))
     let p = [1];
     for (let i = 0; i < n; i++) {
-      const q = new Array(p.length + 1).fill(0);
+      const q = Array.from({ length: p.length + 1 }).fill(0);
       for (let j = 0; j < p.length; j++) { q[j] ^= p[j]; q[j + 1] ^= mul(p[j], EXP[i]); }
       p = q;
     }
@@ -88,7 +88,7 @@
   function skeleton(v) {
     const n = v * 4 + 17;
     const m = [], used = [];
-    for (let i = 0; i < n; i++) { m.push(new Array(n).fill(0)); used.push(new Array(n).fill(0)); }
+    for (let i = 0; i < n; i++) { m.push(Array.from({ length: n }).fill(0)); used.push(Array.from({ length: n }).fill(0)); }
     const set = (r, c, val) => { if (r >= 0 && c >= 0 && r < n && c < n) { m[r][c] = val; used[r][c] = 1; } };
     const finder = (r0, c0) => {
       for (let r = -1; r <= 7; r++) for (let c = -1; c <= 7; c++) {

@@ -201,7 +201,7 @@
 
     // ── 11. 날씨 (날짜 시드) ──
     // 서버가 없으니, '같은 날 같은 반이면 같은 날씨'가 유일한 약속이다. 그게 깨지면 기능 자체가 무의미해진다.
-    const D1 = '2026-09-19', D2 = '2026-09-20';
+    const D1 = '2026-09-19';
     const a1 = T.weatherOn(D1, '5-3'), a2 = T.weatherOn(D1, '5-3');
     ok('같은 날 같은 반이면 늘 같은 날씨', a1 === a2, `${a1} = ${a2}`);
     let differs = 0;
@@ -408,7 +408,7 @@
     await wait(300);
     T.dropFrom(NAME, 7);
     await wait(2600);
-    const adultHurt = T.stateOf(NAME);
+    T.stateOf(NAME);
     ok('어른 닭은 떨어뜨려도 안 다친다', !T.hurtOf(NAME), T.hurtOf(NAME) ? '다침' : '멀쩡');
 
     // ── 18. 보온등 단계 ──
@@ -445,7 +445,7 @@
     // 다만 영영 못 잡으면 아이가 지치므로, 놓치는 횟수는 두 번까지여야 한다.
     D.grow(NAME, 'chick');                     // 병아리가 가장 자주 놓친다
     D.set(NAME, 'hunger', 40); D.set(NAME, 'stress', 0);
-    let sawEscape = false, caught = false, maxEsc = 0; const trace = [];
+    let sawEscape = false, maxEsc = 0; const trace = [];
     let caughtCount = 0;
     for (let round = 0; round < 6; round++) {
       T.place(NAME, 2, -6);
@@ -454,10 +454,10 @@
       for (let i = 0; i < 60; i++) {
         await wait(90);
         const w2 = T.wormState();
-        if (!w2) { caught = true; caughtCount++; break; }      // 물고 바로 먹어치운 것
+        if (!w2) { caughtCount++; break; }      // 물고 바로 먹어치운 것
         maxEsc = Math.max(maxEsc, w2.escapes);
         if (w2.escapes > 0) sawEscape = true;
-        if (w2.carrier) { caught = true; caughtCount++; break; }
+        if (w2.carrier) { caughtCount++; break; }
         if (i % 6 === 0) {
           const bb2 = D.birds().find((q) => q.name === NAME);
           trace.push(`${bb2 ? bb2.anim : '-'}/${Math.hypot((bb2 ? bb2.x : 0) - w2.x, (bb2 ? bb2.z : 0) - w2.z).toFixed(1)}/e${w2.escapes}`);
@@ -903,7 +903,7 @@
     {
       const mine0 = T.ownCount();
       const code = T.farmCode();
-      const n = T.receive(code);
+      T.receive(code);
       for (let i = 0; i < 100 && T.grannyButtons().length < 2; i++) await wait(150);
       const btns = T.grannyButtons();
       ok('코드를 넣으면 먼저 "놀러 오게 할까?"를 묻는다', /놀러/.test(btns[0] || ''), btns.join(' / '));
@@ -1222,7 +1222,7 @@
       T.pigSetAnim(sowName, 'nurse');
       const pn = piglets[0].name;
       let suckled = false; const tn = Date.now();
-      window.__tp && T.pigState(pn);
+      if (window.__tp) T.pigState(pn);
       while (Date.now() - tn < 8000 * SLOW) { const st = T.pigState(pn); if (st && (st.anim === 'suckle' || st.anim === 'walk')) { suckled = true; break; } await wait(200); }
       okMotion('어미가 누워 젖을 주면 새끼들이 달려온다', suckled, JSON.stringify(T.pigState(pn)));
       // 도감 — 돼지 칸은 돼지 농장에서만
@@ -1359,10 +1359,10 @@
       while (Date.now() - tl < 700) { big = Math.max(big, T.lampScale()); await wait(20); }
       await wait(200);
       ok('보온등을 연달아 눌러도 커지지 않는다', big <= 1.13 && T.lampScale() === 1, `가장 클 때 ${big} · 끝난 뒤 ${T.lampScale()}`);
-      T.openMenu && T.openMenu();
+      if (T.openMenu) T.openMenu();
       const labels = T.lampLabels();
-      ok('보온등 칸이 온도(℃)로 적혀 있다', labels.length === 6 && labels[0] === '끔' && labels.slice(1).every((l) => /℃$/.test(l)), labels.join(' · '));
-      T.closeMenu && T.closeMenu();
+      ok('보온등 칸이 온도(℃)로 적혀 있다', labels.length === 6 && labels[0] === '끔' && labels.slice(1).every((l) => l.endsWith('℃')), labels.join(' · '));
+      if (T.closeMenu) T.closeMenu();
       D.lamp(1);
       const cs = T.comfortSpot(ck);
       ok('더운 병아리가 찾아가는 자리는 등 밑이 아니라 알맞은 온도의 자리다', !!cs && Math.abs(cs.t - cs.need) <= 2 && (cs.need >= 34 || cs.r > 0.5), JSON.stringify(cs));

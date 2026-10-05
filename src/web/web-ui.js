@@ -51,7 +51,7 @@
   const SEEN = 'teacherpet.welcomed';
   let seen = false;
   try { seen = !!localStorage.getItem(SEEN); } catch (e) { seen = false; }
-  function begin() { $('#welcome') && $('#welcome').remove(); window.__tpEmit('ui:begin'); }
+  function begin() { if ($('#welcome')) $('#welcome').remove(); window.__tpEmit('ui:begin'); }
 
   // ---- 지난 농장이 있으면 먼저 묻는다 ----
   // 학교 공용 PC 에서는 앞 사람의 농장이 그대로 남아 있다. 묻지 않으면 섞인다.

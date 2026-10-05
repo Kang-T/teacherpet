@@ -67,7 +67,7 @@ function connect(url) {
       const m = JSON.parse(e.data);
       if (m.id && waiting.has(m.id)) {
         const w = waiting.get(m.id); waiting.delete(m.id);
-        m.error ? w.rej(new Error(JSON.stringify(m.error))) : w.res(m.result);
+        if (m.error) w.rej(new Error(JSON.stringify(m.error))); else w.res(m.result);
         return;
       }
       // 페이지에서 난 오류를 모은다 — 웹 전용 코드가 터지면 여기 찍힌다
