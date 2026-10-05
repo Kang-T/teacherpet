@@ -6,11 +6,22 @@ name: check
 on:
   push:
     branches: [main]
-    paths: ['src/**', 'scripts/**', 'package.json', '.github/workflows/check.yml']
+    paths: ['src/**', 'scripts/**', 'package.json', '.oxlintrc.json', '.github/workflows/check.yml']
   pull_request:
   workflow_dispatch:
 
 jobs:
+  # 코드 검사 (규칙: .oxlintrc.json). 오류는 실패로, 경고는 로그에만 남는다.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: OxLint
+        run: npx -y oxlint@1.86.0 src scripts
+
+
   behaviour:
     runs-on: ubuntu-latest
     steps:
